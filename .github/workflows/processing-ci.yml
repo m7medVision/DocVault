@@ -1,0 +1,47 @@
+name: Processing CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'processing/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'processing/**'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: processing
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        working-directory: processing
+        run: |
+          ruff check .
+          mypy .
+
+      - name: Test
+        working-directory: processing
+        run: pytest -v
+
+  build:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t docvault-processing:${{ github.sha }} ./processing

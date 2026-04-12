@@ -1,0 +1,124 @@
+# NOTE: App services (backend, processing, web, mobile) run natively on host
+#       This file only provides infrastructure services
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: docvault-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-docvault}
+      POSTGRES_USER: ${POSTGRES_USER:-docvault}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docvault_dev}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docvault}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docvault-dev
+
+  redis:
+    image: redis:7-alpine
+    container_name: docvault-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docvault-dev
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: docvault-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/docvault}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-docvault}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-changeme}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - docvault-dev
+
+  minio:
+    image: minio/minio:latest
+    container_name: docvault-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_CI_QUIET: "true"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - docvault-dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: docvault-mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Waiting for MinIO to be ready...';
+        sleep 5;
+        mc alias set local http://minio:9000 $${MINIO_ACCESS_KEY} $${MINIO_SECRET_KEY} || true;
+        mc mb local/docvault-documents --ignore-existing || true;
+        mc mb local/docvault-processed --ignore-existing || true;
+        mc mb local/docvault-translations --ignore-existing || true;
+        mc anonymous set none local/docvault-documents || true;
+        mc anonymous set none local/docvault-processed || true;
+        mc anonymous set none local/docvault-translations || true;
+        echo 'MinIO buckets initialized';
+        exit 0
+      "
+    networks:
+      - docvault-dev
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  docvault-dev:
+    driver: bridge
