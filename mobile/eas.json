@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "DocVault",
+    "slug": "docvault-mobile",
+    "version": "1.0.0",
+    "scheme": "docvault",
+    "ios": {
+      "bundleIdentifier": "app.docvault.mobile",
+      "buildNumber": "1",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.docvault.mobile",
+      "versionCode": "1",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
