@@ -1,0 +1,216 @@
+"""Processing job use case handler."""
+
+import time
+from typing import Any
+
+from opentelemetry import trace
+
+from docvault_shared import telemetry
+
+
+class ProcessingJobHandler:
+    """Handles document processing job execution (chunk + embed + classify)."""
+
+    def __init__(
+        self,
+        chunker: Any,
+        embedder: Any,
+        classifier: Any,
+        pg_repo: Any,
+        ocr_repo: Any,
+        reminder_publisher: Any,
+        connection: Any,
+        translator: Any | None = None,
+    ):
+        self.chunker = chunker
+        self.embedder = embedder
+        self.classifier = classifier
+        self.pg_repo = pg_repo
+        self.ocr_repo = ocr_repo
+        self.reminder_publisher = reminder_publisher
+        self._connection = connection
+        if translator is None:
+            from ..translation import document_translator
+
+            translator = document_translator
+        self.translator = translator
+
+    async def handle(self, message: dict) -> None:
+        """Process a single document processing job."""
+        start_time = time.time()
+        job_type = "processing"
+
+        with telemetry.start_span(
+            "process_job",
+            kind=trace.SpanKind.CONSUMER,
+            attributes={
+                "job.type": job_type,
+                "document.id": message.get("document_id"),
+                "tenant.id": message.get("tenant_id"),
+            },
+        ) as _:
+            required_fields = ["document_id", "version_id", "tenant_id", "org_id", "pages"]
+            for field in required_fields:
+                if field not in message:
+                    raise ValueError(f"Missing required field: {field}")
+
+            document_id = message["document_id"]
+            tenant_id = message["tenant_id"]
+            org_id = message["org_id"]
+            pages = message["pages"]
+            raw_page_ids = message.get("page_ids", [])
+            low_confidence_pages = set(message.get("low_confidence_pages", []))
+
+            page_id_map: dict[int, str] = {}
+            for i, page_data in enumerate(pages):
+                if i < len(raw_page_ids):
+                    page_id_map[page_data["page_number"]] = raw_page_ids[i]
+
+            searchable_pages = pages
+            if low_confidence_pages:
+                filtered_pages = [
+                    page for page in pages if page["page_number"] not in low_confidence_pages
+                ]
+                if filtered_pages:
+                    searchable_pages = filtered_pages
+                    telemetry.get_logger().info(
+                        "excluding_low_confidence_pages_from_index",
+                        document_id=document_id,
+                        excluded_pages=sorted(low_confidence_pages),
+                    )
+                else:
+                    telemetry.get_logger().warning(
+                        "all_pages_low_confidence_using_full_text_for_index",
+                        document_id=document_id,
+                        page_count=len(pages),
+                    )
+
+            class PageObj:
+                def __init__(self, page_number, text):
+                    self.page_number = page_number
+                    self.text = text
+
+            source_page_objects = [
+                PageObj(p["page_number"], p["text"]) for p in pages if p.get("text")
+            ]
+
+            full_text = "\n\n".join(page.text for page in source_page_objects)
+            metadata = await self.classifier.extract(
+                document_id=document_id,
+                text=full_text,
+            )
+
+            detected_language = (
+                message.get("language") or metadata.get("language") or "en"
+            ).lower()
+            translated_text_by_page: dict[int, str] = {}
+
+            if source_page_objects and not detected_language.startswith("en"):
+                try:
+                    translation_result = await self.translator.translate_document(
+                        document_id=document_id,
+                        pages=source_page_objects,
+                        source_language=detected_language,
+                    )
+
+                    if translation_result.get("is_translation") and translation_result.get("pages"):
+                        translated_pages = translation_result["pages"]
+                        translated_text_by_page = {
+                            page_number: page_data["translated_text"]
+                            for page_number, page_data in translated_pages.items()
+                            if page_data.get("translated_text")
+                        }
+
+                        if translated_text_by_page:
+                            await self.pg_repo.update_page_translations(
+                                document_id=document_id,
+                                translations=translated_text_by_page,
+                            )
+                            telemetry.get_logger().info(
+                                "translation_completed",
+                                document_id=document_id,
+                                translated_page_count=len(translated_text_by_page),
+                            )
+
+                            translated_full_text = "\n\n".join(
+                                translated_text_by_page.get(page.page_number) or page.text
+                                for page in source_page_objects
+                            )
+                            metadata = await self.classifier.extract(
+                                document_id=document_id,
+                                text=translated_full_text,
+                            )
+                except Exception as translation_err:
+                    telemetry.get_logger().warning(
+                        "translation_failed_non_fatal",
+                        document_id=document_id,
+                        error=str(translation_err),
+                    )
+
+            metadata["language"] = detected_language
+
+            page_objects = [
+                PageObj(
+                    p["page_number"],
+                    translated_text_by_page.get(p["page_number"], p["text"]),
+                )
+                for p in searchable_pages
+                if p.get("text")
+            ]
+
+            chunk_result = self.chunker.chunk_ocr_result(
+                document_id,
+                page_objects,
+                page_ids=page_id_map,
+            )
+            chunks = chunk_result.chunks
+
+            raw_embeddings = []
+            if chunks:
+                raw_embeddings = await self.embedder(chunks)
+
+            await self.pg_repo.delete_by_document(document_id)
+
+            if chunks:
+                await self.pg_repo.save_chunks(
+                    document_id=document_id,
+                    chunks=chunks,
+                    embeddings=raw_embeddings,
+                )
+
+            await self.ocr_repo.update_document_metadata(
+                document_id=document_id,
+                doc_type=metadata.get("doc_type"),
+                language=metadata.get("language"),
+            )
+
+            try:
+                await self.reminder_publisher.publish_after_processing(
+                    document_id=document_id,
+                    tenant_id=tenant_id,
+                    org_id=org_id,
+                    pages=page_objects,
+                    metadata=metadata,
+                )
+            except Exception as reminder_err:
+                telemetry.get_logger().warning(
+                    "reminder_publish_failed_non_fatal",
+                    document_id=document_id,
+                    error=str(reminder_err),
+                )
+
+            await self.ocr_repo.update_document_status(
+                document_id,
+                "processed",
+            )
+
+            duration = time.time() - start_time
+            telemetry.record_job(
+                job_type,
+                True,
+                duration,
+                {
+                    "chunk_count": len(chunks),
+                    "embedding_count": len(raw_embeddings),
+                },
+            )

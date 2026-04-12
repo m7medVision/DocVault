@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docvault-processing"
+version = "1.0.0"
+description = "DocVault Document Processing Pipeline Service"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "DocVault Team"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "docvault-shared @ file:///${PROJECT_ROOT}/shared/py",
+    "aiohttp>=3.11.0",
+    "openai>=1.12.0",
+    "numpy>=1.26.3",
+    "pgvector>=0.2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+docvault-processing = "processing.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["processing*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "httpx>=0.27.0",
+]
