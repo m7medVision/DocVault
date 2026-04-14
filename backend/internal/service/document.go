@@ -54,7 +54,7 @@ type UploadDocumentInput struct {
 	Language *string
 }
 
-type processingJob struct {
+type ocrJob struct {
 	DocumentID string  `json:"document_id"`
 	VersionID  string  `json:"version_id"`
 	StorageKey string  `json:"storage_key"`
@@ -62,6 +62,7 @@ type processingJob struct {
 	TenantID   string  `json:"tenant_id"`
 	OrgID      string  `json:"org_id"`
 	Language   *string `json:"language,omitempty"`
+	RetryCount int     `json:"retry_count"`
 }
 
 // UploadDocumentOutput contains the result of a document upload.
@@ -132,7 +133,7 @@ type DownloadDocumentOutput struct {
 	StorageKey   string
 }
 
-// Upload uploads a document, stores it, and queues it for processing.
+// Upload uploads a document, stores it, and queues it for OCR.
 func (s *DocumentService) Upload(ctx context.Context, input *UploadDocumentInput) (*UploadDocumentOutput, error) {
 	if input.TenantID == "" {
 		return nil, fmt.Errorf("tenant_id is required")
@@ -215,7 +216,7 @@ func (s *DocumentService) Upload(ctx context.Context, input *UploadDocumentInput
 	}
 
 	if s.publisher != nil {
-		jobBody, err := json.Marshal(processingJob{
+		jobBody, err := json.Marshal(ocrJob{
 			DocumentID: docID,
 			VersionID:  versionID,
 			StorageKey: storageKey,
@@ -223,18 +224,19 @@ func (s *DocumentService) Upload(ctx context.Context, input *UploadDocumentInput
 			TenantID:   input.TenantID,
 			OrgID:      input.OrgID,
 			Language:   input.Language,
+			RetryCount: 0,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal processing job: %w", err)
+			return nil, fmt.Errorf("failed to marshal OCR job: %w", err)
 		}
 		if err := s.publisher.Publish(ctx, jobBody); err != nil {
-			return nil, fmt.Errorf("failed to publish processing job: %w", err)
+			return nil, fmt.Errorf("failed to publish OCR job: %w", err)
 		}
 	}
 
 	return &UploadDocumentOutput{
 		DocumentID: docID,
-		Message:    "Document uploaded successfully. Processing will begin shortly.",
+		Message:    "Document uploaded successfully. OCR will begin shortly.",
 		Status:     model.DocumentStatusPending,
 	}, nil
 }

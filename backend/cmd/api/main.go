@@ -146,7 +146,7 @@ func main() {
 
 	repos := repository.NewRepositories(dbPool, authzEnforcer)
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
-	publisher := rabbitmq.NewPublisher(rabbitConn, cfg.Queue.URL, cfg.Queue.ProcessQueue)
+	publisher := rabbitmq.NewPublisher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
 	h := handler.New(cfg, repos, dbPool, objectStore, publisher, authzEnforcer)
 	h.SetDB(dbPool)
 	h.SetAuthorizationEnforcer(authzEnforcer)

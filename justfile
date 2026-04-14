@@ -23,6 +23,7 @@ help:
     @echo "  just dev-mobile       Run mobile (Bun/Expo)"
     @echo ""
     @echo "  just dev-all          Run all services (separate terminals!)"
+    @echo "  just dev-tmux         Run all services in a tmux workspace"
     @echo "  just dev-setup        Initial setup (install deps)"
     @echo "  just db-migrate      Run database migrations (goose)"
     @echo "  just db-rollback     Rollback last migration"
@@ -80,6 +81,9 @@ dev-mobile-install:
 
 dev-mobile: dev-mobile-install
     cd mobile && bun run start
+
+dev-tmux:
+    ./scripts/dev-tmux.sh
 
 
 dev-setup:
