@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: docvault-processing
 Version: 1.0.0
-Summary: DocVault Document Processing Service
+Summary: DocVault Document Processing Pipeline Service
 Author: DocVault Team
 License: MIT
 Classifier: Development Status :: 3 - Alpha
@@ -10,169 +10,14 @@ Classifier: License :: OSI Approved :: MIT License
 Classifier: Programming Language :: Python :: 3.11
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: docvault-shared
 Requires-Dist: aiohttp>=3.11.0
-Requires-Dist: pika>=1.3.2
-Requires-Dist: psycopg2-binary>=2.9.9
-Requires-Dist: sqlalchemy>=2.0.25
-Requires-Dist: pgvector>=0.2.4
-Requires-Dist: boto3>=1.34.34
-Requires-Dist: mistralai>=2.1.3
 Requires-Dist: openai>=1.12.0
 Requires-Dist: numpy>=1.26.3
-Requires-Dist: opentelemetry-api>=1.22.0
-Requires-Dist: opentelemetry-exporter-otlp>=1.22.0
-Requires-Dist: opentelemetry-exporter-otlp-proto-grpc>=1.22.0
-Requires-Dist: opentelemetry-propagator-b3>=1.22.0
-Requires-Dist: opentelemetry-sdk>=1.22.0
-Requires-Dist: pydantic>=2.5.3
-Requires-Dist: python-dotenv>=1.0.0
-Requires-Dist: sentry-sdk>=2.0.0
-Requires-Dist: structlog>=24.1.0
-Requires-Dist: tenacity>=8.2.3
+Requires-Dist: pgvector>=0.2.4
 Provides-Extra: dev
 Requires-Dist: pytest>=7.4.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
 Requires-Dist: ruff>=0.1.0; extra == "dev"
 Requires-Dist: mypy>=1.7.0; extra == "dev"
 Requires-Dist: httpx>=0.27.0; extra == "dev"
-
-# Processing — Document Processing Service (Python)
-
-Python-based document processing pipeline for DocVault.
-
-## Responsibilities
-
-- RabbitMQ consumer for OCR jobs (`docvault.ocr.jobs`)
-- Mistral OCR API integration (text extraction from document images)
-- Low-confidence page flagging
-- Text chunking (page-aware, overlapping)
-- OpenRouter embedding generation (mistralai/mistral-embed-2312)
-- pgvector persistence of text chunks and embeddings
-- Document classification and metadata extraction
-- Publishing reminder jobs to `docvault.reminder.jobs`
-
-## Tech Stack
-
-- Python 3.11
-- Mistral OCR 2503 API
-- OpenRouter API
-- PostgreSQL 16 + pgvector
-- RabbitMQ
-- MinIO (S3-compatible object storage)
-- OpenTelemetry (tracing)
-
-## Architecture Overview
-
-Processing follows a **staged pipeline + ports-and-adapters** architecture.
-
-```
-docvault.ocr.jobs
-       ↓
-   QueueAdapter
-       ↓
-  RunOCRJob (application service)
-       ↓
-  MistralAdapter (infrastructure)
-       ↓
-  ChunkingService (domain)
-       ↓
-  EmbeddingService → OpenRouterAdapter
-       ↓
-  ProcessingRepository (pgvector persistence)
-       ↓
-  ReminderPublisher → RabbitMQ → docvault.reminder.jobs
-```
-
-Key modules:
-- `processing/main.py` — CLI entrypoint, consumer selection
-- `processing/queue.py` — QueueAdapter, retry/DLQ policy, consumer factory
-- `processing/config.py` — environment and configuration loading from root .env
-- `processing/database.py` — ProcessingRepository (pgvector + MinIO)
-- `processing/translation.py` — translation adapter (currently unwired)
-
-## Pipeline Stages
-
-1. **OCR** — Mistral API extracts text from document images/pages
-2. **Chunking** — Page-aware overlapping text chunks
-3. **Embedding** — OpenRouter mistral-embed-2312 generates vectors
-4. **Classification** — Metadata and document type extraction
-5. **Reminder** — Publishes reminder job for date extraction by worker
-
-## Queue Contracts
-
-**Input queue**: `docvault.ocr.jobs`
-**Output queue**: `docvault.reminder.jobs`
-**DLQ**: `docvault.ocr.jobs.dlq`, `docvault.processing.jobs.dlq`
-
-Message shapes are defined in `shared/types/` (not yet implemented — see ADR-008).
-
-## Runtime Modes
-
-```bash
-# OCR consumer only
-python -m processing.main --consumer ocr
-
-# Processing pipeline consumer only
-python -m processing.main --consumer processing
-
-# All consumers (default for local dev)
-python -m processing.main
-```
-
-## Failure Handling
-
-- Transient failures (network, DB): exponential backoff retry (5 attempts)
-- Permanent failures: move to DLQ
-- DLQ messages can be inspected via RabbitMQ management UI
-
-## Environment and Config
-
-Local development uses the **monorepo root `.env`** (at `../../.env` from this
-package). The config loader explicitly loads it:
-
-```python
-load_dotenv(repo_root / ".env", override=False)
-```
-
-Production uses platform-injected environment variables.
-
-Key env vars:
-- `RABBITMQ_URL` — broker
-- `DATABASE_URL` — PostgreSQL + pgvector connection
-- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`
-- `MISTRAL_API_KEY` — OCR
-- `OPENROUTER_API_KEY` — embeddings
-- `EMBEDDING_MODEL` — default: `mistralai/mistral-embed-2312`
-- `CHUNK_SIZE` — default: 500 characters
-- `CHUNK_OVERLAP` — default: 50 characters
-- `OTEL_EXPORTER_ENDPOINT` — tracing collector
-
-## How to Run
-
-```bash
-# Via just (recommended)
-just dev-processing-ocr
-just dev-processing-pipeline
-
-# Directly
-python -m processing.main --consumer ocr
-python -m processing.main --consumer processing
-```
-
-## Validation
-
-```bash
-uv run ruff check .
-uv run mypy .
-```
-
-## Docker
-
-```bash
-docker build -t docvault-processing .
-```
-
-## Known Gaps
-
-- Translation stage exists but is not wired into the active pipeline
-- Embedding model is fixed to mistral-embed; multi-model support is future

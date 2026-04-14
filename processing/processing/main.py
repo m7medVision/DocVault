@@ -2,7 +2,7 @@
 
 import sys
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 import structlog.stdlib
@@ -66,8 +66,11 @@ def main() -> None:
     connections: list[RabbitMQConnection] = []
 
     try:
-        conn = RabbitMQConnection()
+        conn = RabbitMQConnection(
+            queues=[config.rabbitmq_queue_processing, config.rabbitmq_queue_reminder]
+        )
         connections.append(conn)
+        reminder_publisher.set_connection(conn)
         handler = ProcessingJobHandler(
             processing_chunker,
             generate_chunk_embeddings,

@@ -4,12 +4,9 @@ import structlog
 
 import openai
 
-from docvault_shared.config import config, validate_openrouter_model_name
+from docvault_shared.config import config
 
 logger = structlog.get_logger(__name__)
-
-TRANSLATION_MODEL = "mistral/mistral-large-latest"
-APPROVED_TRANSLATION_MODELS = (TRANSLATION_MODEL,)
 
 
 class TranslationResult:
@@ -38,11 +35,9 @@ class OpenRouterTranslationService:
     def __init__(self, api_key: str | None = None):
         """Initialize OpenRouter translation service."""
         self.api_key = api_key or config.openrouter_api_key
-        self.model_name = validate_openrouter_model_name(
-            TRANSLATION_MODEL,
-            APPROVED_TRANSLATION_MODELS,
-            "TRANSLATION_MODEL",
-        )
+        self.model_name = config.translation_model.strip()
+        if not self.model_name:
+            raise ValueError("TRANSLATION_MODEL must not be empty")
         base_url = "https://openrouter.ai/api/v1"
         self.client = openai.OpenAI(api_key=self.api_key, base_url=base_url)
 

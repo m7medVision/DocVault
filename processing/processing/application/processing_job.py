@@ -6,6 +6,8 @@ from typing import Any
 from opentelemetry import trace
 
 from docvault_shared import telemetry
+from docvault_shared.config import config
+from docvault_shared.transport.publisher import QueuePublisher
 
 
 class ProcessingJobHandler:
@@ -49,16 +51,47 @@ class ProcessingJobHandler:
                 "tenant.id": message.get("tenant_id"),
             },
         ) as _:
-            required_fields = ["document_id", "version_id", "tenant_id", "org_id", "pages"]
+            required_fields = ["document_id", "version_id", "tenant_id", "org_id"]
             for field in required_fields:
                 if field not in message:
                     raise ValueError(f"Missing required field: {field}")
 
             document_id = message["document_id"]
+            version_id = message["version_id"]
             tenant_id = message["tenant_id"]
             org_id = message["org_id"]
-            pages = message["pages"]
-            raw_page_ids = message.get("page_ids", [])
+            pages = message.get("pages")
+            raw_page_ids = message.get("page_ids") or []
+
+            if not pages:
+                pages = await self._load_pages_for_legacy_message(document_id, version_id)
+                if not pages and self._is_misrouted_ocr_job(message):
+                    self._republish_to_ocr_queue(message)
+                    telemetry.get_logger().warning(
+                        "rerouted_misrouted_ocr_job_from_processing_queue",
+                        document_id=document_id,
+                        version_id=version_id,
+                        source_queue=config.rabbitmq_queue_processing,
+                        destination_queue=config.rabbitmq_queue_ocr,
+                    )
+                    return
+
+                if not pages:
+                    raise ValueError("Missing required field: pages")
+
+                if not raw_page_ids:
+                    raw_page_ids = [page["id"] for page in pages]
+
+                telemetry.get_logger().info(
+                    "loaded_pages_for_legacy_processing_message",
+                    document_id=document_id,
+                    version_id=version_id,
+                    page_count=len(pages),
+                )
+
+            if not raw_page_ids:
+                raw_page_ids = [page.get("id") for page in pages if page.get("id")]
+
             low_confidence_pages = set(message.get("low_confidence_pages", []))
 
             page_id_map: dict[int, str] = {}
@@ -214,3 +247,27 @@ class ProcessingJobHandler:
                     "embedding_count": len(raw_embeddings),
                 },
             )
+
+    async def _load_pages_for_legacy_message(
+        self,
+        document_id: str,
+        version_id: str,
+    ) -> list[dict]:
+        """Load OCR pages from storage for legacy queue messages."""
+        if not hasattr(self.ocr_repo, "get_document_pages"):
+            return []
+
+        return await self.ocr_repo.get_document_pages(document_id, version_id)
+
+    def _is_misrouted_ocr_job(self, message: dict) -> bool:
+        """Detect OCR jobs that were accidentally published to the processing queue."""
+        return bool(message.get("storage_key") and message.get("mime_type"))
+
+    def _republish_to_ocr_queue(self, message: dict) -> None:
+        """Send a misrouted OCR job back to the correct queue."""
+        repaired_message = dict(message)
+        repaired_message["retry_count"] = 0
+        QueuePublisher(connection=self._connection).publish(
+            queue=config.rabbitmq_queue_ocr,
+            message=repaired_message,
+        )

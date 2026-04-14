@@ -251,6 +251,35 @@ class PGVectorRepository:
         finally:
             session.close()
 
+    async def get_document_pages(self, document_id: str, version_id: str) -> list[dict]:
+        """Load persisted OCR pages for a document version."""
+        session = self.get_session()
+
+        try:
+            pages = (
+                session.query(DocumentPage)
+                .filter(
+                    DocumentPage.document_id == document_id,
+                    DocumentPage.version_id == version_id,
+                )
+                .order_by(DocumentPage.page_number.asc())
+                .all()
+            )
+
+            return [
+                {
+                    "id": page.id,
+                    "page_number": page.page_number,
+                    "text": page.ocr_text or "",
+                    "confidence": page.confidence,
+                    "model": page.ocr_model,
+                }
+                for page in pages
+            ]
+
+        finally:
+            session.close()
+
     async def get_document_status(self, document_id: str) -> Optional[str]:
         """Get document status."""
         session = self.get_session()

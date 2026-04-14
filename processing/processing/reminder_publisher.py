@@ -1,7 +1,6 @@
 """Reminder job publisher for the worker layer."""
 
 import structlog
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -12,36 +11,22 @@ from docvault_shared.transport.publisher import QueuePublisher
 logger = structlog.get_logger(__name__)
 
 
-@dataclass
-class ReminderJob:
-    """Reminder job message for the worker layer."""
-
-    document_id: str
-    tenant_id: str
-    org_id: str
-    source_text: str
-    document_type: Optional[str] = None
-    expiry_date: Optional[str] = None
-    issuer: Optional[str] = None
-    priority: str = "medium"
-
-
-_connection: Optional[RabbitMQConnection] = None
-
-
-def _get_connection() -> RabbitMQConnection:
-    global _connection
-    if _connection is None:
-        _connection = RabbitMQConnection()
-    return _connection
-
-
 class ReminderPublisher:
     """Publishes reminder jobs to RabbitMQ for the worker layer."""
 
     def __init__(self):
         """Initialize publisher."""
         self.queue = config.rabbitmq_queue_reminder
+        self._connection: Optional[RabbitMQConnection] = None
+
+    def set_connection(self, connection: RabbitMQConnection) -> None:
+        """Reuse the service RabbitMQ connection for reminder publishing."""
+        self._connection = connection
+
+    def _get_connection(self) -> RabbitMQConnection:
+        if self._connection is None:
+            self._connection = RabbitMQConnection(queues=[self.queue])
+        return self._connection
 
     def publish_reminder_job(
         self,
@@ -57,17 +42,6 @@ class ReminderPublisher:
         """Publish a reminder job to the queue."""
         job_id = f"reminder-{document_id}-{datetime.utcnow().timestamp()}"
 
-        job = ReminderJob(
-            document_id=document_id,
-            tenant_id=tenant_id,
-            org_id=org_id,
-            source_text=source_text,
-            document_type=document_type,
-            expiry_date=expiry_date,
-            issuer=issuer,
-            priority=priority,
-        )
-
         message = {
             "job_id": job_id,
             "document_id": document_id,
@@ -78,11 +52,12 @@ class ReminderPublisher:
             "expiry_date": expiry_date,
             "issuer": issuer,
             "priority": priority,
+            "retry_count": 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
-            conn = _get_connection()
+            conn = self._get_connection()
             publisher = QueuePublisher(connection=conn)
             publisher.publish(queue=self.queue, message=message)
             logger.info(

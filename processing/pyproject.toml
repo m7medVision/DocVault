@@ -20,12 +20,15 @@ classifiers = [
 ]
 
 dependencies = [
-    "docvault-shared @ file:///${PROJECT_ROOT}/shared/py",
+    "docvault-shared",
     "aiohttp>=3.11.0",
     "openai>=1.12.0",
     "numpy>=1.26.3",
     "pgvector>=0.2.4",
 ]
+
+[tool.uv.sources]
+docvault-shared = { path = "../shared/py", editable = true }
 
 [project.optional-dependencies]
 dev = [
