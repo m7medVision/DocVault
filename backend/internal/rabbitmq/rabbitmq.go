@@ -5,14 +5,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+var amqpDial = amqp.Dial
+
 type Publisher struct {
 	conn  *amqp.Connection
+	url   string
 	queue string
+	mu    sync.Mutex
 }
 
 // NewConnection creates a new RabbitMQ connection.
@@ -52,17 +57,34 @@ func NewChannel(conn *amqp.Connection) (*amqp.Channel, error) {
 	return ch, nil
 }
 
-func NewPublisher(conn *amqp.Connection, queue string) *Publisher {
-	return &Publisher{conn: conn, queue: queue}
+func NewPublisher(conn *amqp.Connection, url string, queue string) *Publisher {
+	return &Publisher{conn: conn, url: url, queue: queue}
 }
 
 func (p *Publisher) Publish(ctx context.Context, body []byte) error {
-	ch, err := p.conn.Channel()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	ch, err := p.openChannel()
 	if err != nil {
-		return fmt.Errorf("failed to open channel: %w", err)
+		return err
 	}
 	defer ch.Close()
 
+	// Ensure DLQ exists first
+	dlqName := fmt.Sprintf("%s.dlq", p.queue)
+	if _, err := ch.QueueDeclare(
+		dlqName,
+		true,  // durable
+		false, // auto-delete
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	); err != nil {
+		return fmt.Errorf("failed to declare DLQ: %w", err)
+	}
+
+	// Declare main queue with DLQ configuration
 	if _, err := ch.QueueDeclare(
 		p.queue,
 		true,
@@ -71,7 +93,7 @@ func (p *Publisher) Publish(ctx context.Context, body []byte) error {
 		false,
 		amqp.Table{
 			"x-dead-letter-exchange":    "",
-			"x-dead-letter-routing-key": fmt.Sprintf("%s.dlq", p.queue),
+			"x-dead-letter-routing-key": dlqName,
 		},
 	); err != nil {
 		return fmt.Errorf("failed to declare queue: %w", err)
@@ -86,4 +108,52 @@ func (p *Publisher) Publish(ctx context.Context, body []byte) error {
 	}
 
 	return nil
+}
+
+func (p *Publisher) openChannel() (*amqp.Channel, error) {
+	if err := p.ensureConnection(); err != nil {
+		return nil, err
+	}
+
+	ch, err := p.conn.Channel()
+	if err == nil {
+		return ch, nil
+	}
+
+	p.closeConnection()
+	if err := p.ensureConnection(); err != nil {
+		return nil, err
+	}
+
+	ch, err = p.conn.Channel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open channel: %w", err)
+	}
+
+	return ch, nil
+}
+
+func (p *Publisher) ensureConnection() error {
+	if p.conn != nil && !p.conn.IsClosed() {
+		return nil
+	}
+	if p.url == "" {
+		return fmt.Errorf("rabbit connection is closed")
+	}
+
+	conn, err := amqpDial(p.url)
+	if err != nil {
+		return fmt.Errorf("failed to reconnect to RabbitMQ: %w", err)
+	}
+
+	p.conn = conn
+	return nil
+}
+
+func (p *Publisher) closeConnection() {
+	if p.conn == nil {
+		return
+	}
+	_ = p.conn.Close()
+	p.conn = nil
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -175,7 +176,7 @@ func Load() (*Config, error) {
 			PresignedURLTTL: getEnvDuration("PRESIGNED_URL_TTL", 15*time.Minute),
 		},
 		Queue: QueueConfig{
-			URL:           getEnvString("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault"),
+			URL:           normalizeRabbitMQURL(getEnvString("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault")),
 			OCRQueue:      getEnvString("RABBITMQ_QUEUE_OCR", "docvault.ocr.jobs"),
 			ProcessQueue:  getEnvString("RABBITMQ_QUEUE_PROCESSING", "docvault.processing.jobs"),
 			ReminderQueue: getEnvString("RABBITMQ_QUEUE_REMINDER", "docvault.reminder.jobs"),
@@ -266,6 +267,20 @@ func validateOpenRouterModelName(modelName string, settingName string) error {
 	}
 
 	return fmt.Errorf("%s must be one of: %s. Received: %q", settingName, strings.Join(approvedEmbeddingModels, ", "), modelName)
+}
+
+func normalizeRabbitMQURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+
+	if (parsed.Scheme != "amqp" && parsed.Scheme != "amqps") || !strings.HasPrefix(parsed.Path, "//") {
+		return raw
+	}
+
+	parsed.RawPath = "/" + url.PathEscape(parsed.Path[1:])
+	return parsed.String()
 }
 
 func getEnvString(key, defaultValue string) string {
