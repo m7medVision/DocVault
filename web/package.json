@@ -18,7 +18,7 @@
     "@opentelemetry/sdk-node": "^0.48.0",
     "@opentelemetry/sdk-trace-node": "^1.22.0",
     "@opentelemetry/semantic-conventions": "^1.22.0",
-    "@sentry/nextjs": "^10.45.0",
+    "@sentry/nextjs": "^10.48.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/typography": "^0.5.19",
     "@vercel/otel": "^1.8.0",

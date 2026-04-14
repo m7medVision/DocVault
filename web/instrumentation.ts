@@ -1,28 +1,18 @@
 import { trace, SpanKind, context, propagation } from '@opentelemetry/api';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from "@sentry/nextjs";
 
-// Initialize Sentry for error tracking (works on both client and server)
-const sentryDsn = process.env.SENTRY_DSN_WEB || '';
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config");
+  }
 
-if (sentryDsn) {
-  Sentry.init({
-    dsn: sentryDsn,
-    environment: process.env.NODE_ENV || 'development',
-    release: `docvault-web@1.0.0`,
-    // Set sample rate for traces
-    tracesSampleRate: 1.0,
-    // Don't send health check failures to Sentry
-    beforeSend(event) {
-      if (event.request?.url?.includes('/health')) {
-        return null;
-      }
-      return event;
-    },
-  });
-  console.log('Sentry initialized for Next.js web app', { dsn: sentryDsn });
-} else {
-  console.warn('SENTRY_DSN not configured, skipping Sentry initialization');
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config");
+  }
 }
+
+// Automatically captures all unhandled server-side request errors
+export const onRequestError = Sentry.captureRequestError;
 
 // Export trace utilities
 export { trace, SpanKind, context, propagation };
