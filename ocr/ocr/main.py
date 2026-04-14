@@ -2,7 +2,7 @@
 
 import sys
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 import structlog.stdlib
@@ -63,7 +63,9 @@ def main() -> None:
     connections: list[RabbitMQConnection] = []
 
     try:
-        conn = RabbitMQConnection()
+        conn = RabbitMQConnection(
+            queues=[config.rabbitmq_queue_ocr, config.rabbitmq_queue_processing]
+        )
         connections.append(conn)
         handler = OCRJobHandler(ocr_module.ocr_client, get_ocr_persistence(), conn)
         consumer = QueueConsumer(

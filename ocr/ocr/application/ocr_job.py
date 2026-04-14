@@ -8,7 +8,6 @@ from opentelemetry import trace
 from docvault_shared.config import config
 from docvault_shared.models import OCRJob
 from docvault_shared import telemetry
-from docvault_shared.transport.connection import RabbitMQConnection
 from docvault_shared.transport.publisher import QueuePublisher
 
 
@@ -88,6 +87,7 @@ class OCRJobHandler:
                 "tenant_id": job.tenant_id,
                 "org_id": job.org_id,
                 "language": job.language,
+                "retry_count": 0,
                 "page_ids": page_ids,
                 "pages": [
                     {

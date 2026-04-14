@@ -1,0 +1,2 @@
+[console_scripts]
+docvault-ocr = ocr.main:main

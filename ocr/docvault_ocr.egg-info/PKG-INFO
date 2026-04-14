@@ -1,0 +1,91 @@
+Metadata-Version: 2.4
+Name: docvault-ocr
+Version: 1.0.0
+Summary: DocVault OCR Service
+Author: DocVault Team
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: docvault-shared
+Requires-Dist: aiohttp>=3.11.0
+Requires-Dist: boto3>=1.34.34
+Requires-Dist: mistralai>=2.1.3
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Requires-Dist: httpx>=0.27.0; extra == "dev"
+
+# OCR — Document OCR Service (Python)
+
+Python-based OCR service for DocVault using Mistral OCR API.
+
+## Responsibilities
+
+- RabbitMQ consumer for OCR jobs (`docvault.ocr.jobs`)
+- Mistral OCR API integration (text extraction from document images/pages)
+- Low-confidence page flagging
+- Persistence of OCR results to PostgreSQL
+- Publishing processing jobs to `docvault.processing.jobs`
+
+## Tech Stack
+
+- Python 3.11
+- Mistral OCR 2503 API
+- PostgreSQL 16 + pgvector
+- RabbitMQ
+- MinIO (S3-compatible object storage)
+- OpenTelemetry (tracing)
+
+## Architecture Overview
+
+```
+docvault.ocr.jobs
+       ↓
+  QueueConsumer
+       ↓
+  OCRJobHandler
+       ↓
+  MistralOCRClient
+       ↓
+  OCRPersistence → PostgreSQL
+       ↓
+  QueuePublisher → docvault.processing.jobs
+```
+
+## Queue Contracts
+
+**Input queue**: `docvault.ocr.jobs`
+**Output queue**: `docvault.processing.jobs`
+**DLQ**: `docvault.ocr.jobs.dlq`
+
+## How to Run
+
+```bash
+# Install dependencies
+cd ocr && uv sync --all-extras
+
+# Run OCR consumer
+uv run python -m ocr.main
+```
+
+## Environment Variables
+
+Key env vars:
+- `RABBITMQ_URL` — broker
+- `DATABASE_URL` — PostgreSQL connection
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`
+- `MISTRAL_API_KEY` — OCR
+- `OTEL_EXPORTER_ENDPOINT` — tracing collector
+
+## Validation
+
+```bash
+uv run ruff check .
+uv run mypy .
+```

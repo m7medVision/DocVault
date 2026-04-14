@@ -8,7 +8,7 @@ import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
-from .config import config
+from docvault_shared.config import config
 
 logger = structlog.get_logger(__name__)
 
@@ -18,9 +18,7 @@ class MinIOClient:
 
     def __init__(self):
         """Initialize MinIO client."""
-        endpoint = config.minio_endpoint.removeprefix("https://").removeprefix(
-            "http://"
-        )
+        endpoint = config.minio_endpoint.removeprefix("https://").removeprefix("http://")
         scheme = "https" if config.minio_secure else "http"
         self.client = boto3.client(
             "s3",
@@ -51,14 +49,10 @@ class MinIOClient:
             response = self.client.get_object(Bucket=self.bucket, Key=storage_key)
             return response["Body"].read()
         except ClientError as e:
-            logger.error(
-                "failed_to_download_object", storage_key=storage_key, error=str(e)
-            )
+            logger.error("failed_to_download_object", storage_key=storage_key, error=str(e))
             raise
 
-    async def put_object(
-        self, storage_key: str, content: bytes, content_type: str
-    ) -> None:
+    async def put_object(self, storage_key: str, content: bytes, content_type: str) -> None:
         """
         Upload an object to MinIO.
 
@@ -76,14 +70,10 @@ class MinIOClient:
             )
             logger.info("object_uploaded", storage_key=storage_key)
         except ClientError as e:
-            logger.error(
-                "failed_to_upload_object", storage_key=storage_key, error=str(e)
-            )
+            logger.error("failed_to_upload_object", storage_key=storage_key, error=str(e))
             raise
 
-    async def generate_presigned_url(
-        self, storage_key: str, expires_in: int = 3600
-    ) -> str:
+    async def generate_presigned_url(self, storage_key: str, expires_in: int = 3600) -> str:
         """
         Generate a presigned URL for temporary access.
 
@@ -120,9 +110,7 @@ class MinIOClient:
             self.client.delete_object(Bucket=self.bucket, Key=storage_key)
             logger.info("object_deleted", storage_key=storage_key)
         except ClientError as e:
-            logger.error(
-                "failed_to_delete_object", storage_key=storage_key, error=str(e)
-            )
+            logger.error("failed_to_delete_object", storage_key=storage_key, error=str(e))
             raise
 
     async def object_exists(self, storage_key: str) -> bool:

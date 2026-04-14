@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+docvault_ocr.egg-info/PKG-INFO
+docvault_ocr.egg-info/SOURCES.txt
+docvault_ocr.egg-info/dependency_links.txt
+docvault_ocr.egg-info/entry_points.txt
+docvault_ocr.egg-info/requires.txt
+docvault_ocr.egg-info/top_level.txt
+ocr/__init__.py
+ocr/main.py
+ocr/ocr.py
+ocr/storage.py
+ocr/application/__init__.py
+ocr/application/ocr_job.py
