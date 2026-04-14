@@ -3,8 +3,10 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -57,9 +59,9 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Environment:               getEnv("ENVIRONMENT", "development"),
-		RabbitMQURL:               getEnv("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault"),
+		RabbitMQURL:               normalizeRabbitMQURL(getEnv("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault")),
 		ReminderQueue:             getEnv("RABBITMQ_QUEUE_REMINDER", "docvault.reminder.jobs"),
-		DeadLetterQueue:           getEnv("DLQ_QUEUE", "docvault.reminder.dlq"),
+		DeadLetterQueue:           getEnv("DLQ_QUEUE", "docvault.reminder.jobs.dlq"),
 		PrefetchCount:             getEnvInt("PREFETCH_COUNT", 10),
 		DatabaseURL:               getEnv("DATABASE_URL", "postgres://docvault:docvault_dev@localhost:5432/docvault"),
 		RedisURL:                  getEnv("REDIS_URL", "redis://localhost:6379/0"),
@@ -88,7 +90,25 @@ func Load() (*Config, error) {
 		"2 Jan 2006",
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+func normalizeRabbitMQURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+
+	if (parsed.Scheme != "amqp" && parsed.Scheme != "amqps") || !strings.HasPrefix(parsed.Path, "//") {
+		return raw
+	}
+
+	parsed.RawPath = "/" + url.PathEscape(parsed.Path[1:])
+	return parsed.String()
 }
 
 // getEnv gets an environment variable or returns a default.

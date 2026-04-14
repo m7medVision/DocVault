@@ -41,13 +41,21 @@ func NewRabbitMQConnection(cfg RabbitMQConfig) (*RabbitMQConnection, error) {
 
 	queues := []string{cfg.Queue, cfg.DLQ}
 	for _, queue := range queues {
+		args := amqp.Table(nil)
+		if queue == cfg.Queue {
+			args = amqp.Table{
+				"x-dead-letter-exchange":    "",
+				"x-dead-letter-routing-key": cfg.DLQ,
+			}
+		}
+
 		_, err := ch.QueueDeclare(
 			queue,
 			true,
 			false,
 			false,
 			false,
-			nil,
+			args,
 		)
 		if err != nil {
 			ch.Close()

@@ -16,6 +16,8 @@ import (
 // DLQMessage represents a message in the dead-letter queue.
 type DLQMessage struct {
 	OriginalMessage *Message  `json:"original_message"`
+	OriginalQueue   string    `json:"original_queue,omitempty"`
+	OriginalBody    string    `json:"original_body,omitempty"`
 	Error           string    `json:"error"`
 	FailedAt        time.Time `json:"failed_at"`
 }
@@ -131,10 +133,13 @@ func (d *DLQInspector) Retry(ctx context.Context, messageIndex int) error {
 				return fmt.Errorf("failed to unmarshal DLQ message: %w", err)
 			}
 
-			// Reset retry count
-			if dlqMsg.OriginalMessage != nil {
-				dlqMsg.OriginalMessage.RetryCount = 0
+			if dlqMsg.OriginalMessage == nil {
+				msg.Reject(true)
+				return fmt.Errorf("DLQ message at index %d does not contain a retryable original message", messageIndex)
 			}
+
+			// Reset retry count
+			dlqMsg.OriginalMessage.RetryCount = 0
 
 			// Republish to main queue
 			body, err := json.Marshal(dlqMsg.OriginalMessage)
@@ -196,10 +201,13 @@ func (d *DLQInspector) RetryAll(ctx context.Context) (int, error) {
 			continue
 		}
 
-		// Reset retry count
-		if dlqMsg.OriginalMessage != nil {
-			dlqMsg.OriginalMessage.RetryCount = 0
+		if dlqMsg.OriginalMessage == nil {
+			msg.Reject(true)
+			return count, fmt.Errorf("encountered a non-retryable DLQ message; inspect it before retrying all")
 		}
+
+		// Reset retry count
+		dlqMsg.OriginalMessage.RetryCount = 0
 
 		// Republish to main queue
 		body, err := json.Marshal(dlqMsg.OriginalMessage)

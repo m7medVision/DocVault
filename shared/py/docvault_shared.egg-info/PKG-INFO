@@ -1,0 +1,64 @@
+Metadata-Version: 2.4
+Name: docvault-shared
+Version: 1.0.0
+Summary: DocVault shared Python utilities
+Author: DocVault Team
+License: MIT
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pika>=1.3.2
+Requires-Dist: psycopg2-binary>=2.9.9
+Requires-Dist: sqlalchemy>=2.0.25
+Requires-Dist: opentelemetry-api>=1.22.0
+Requires-Dist: opentelemetry-exporter-otlp>=1.22.0
+Requires-Dist: opentelemetry-exporter-otlp-proto-grpc>=1.22.0
+Requires-Dist: opentelemetry-propagator-b3>=1.22.0
+Requires-Dist: opentelemetry-sdk>=1.22.0
+Requires-Dist: pydantic>=2.5.3
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: sentry-sdk>=2.0.0
+Requires-Dist: structlog>=24.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+
+# docvault-shared — Shared Python Utilities for DocVault
+
+Common Python utilities shared between DocVault services (OCR, Processing).
+
+## Contents
+
+- `docvault_shared/config` — Configuration loading from environment variables
+- `docvault_shared/models` — Shared dataclasses (OCRJob, TextChunk, etc.)
+- `docvault_shared/telemetry` — OpenTelemetry + Sentry instrumentation
+- `docvault_shared/database` — SQLAlchemy models and persistence (Document, DocumentPage)
+- `docvault_shared/transport` — RabbitMQ connection, consumer, publisher
+
+## Usage
+
+```python
+from docvault_shared import config
+from docvault_shared.transport import RabbitMQConnection, QueueConsumer
+from docvault_shared.database import get_ocr_persistence
+from docvault_shared import telemetry
+```
+
+## Services Using This
+
+- `docvault-ocr` — OCR service
+- `docvault-processing` — Processing pipeline service
+
+## Development
+
+```bash
+cd shared/py
+uv sync --all-extras
+uv run ruff check .
+uv run mypy .
+```

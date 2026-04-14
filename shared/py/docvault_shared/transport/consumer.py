@@ -7,11 +7,11 @@ import threading
 import time
 from typing import Callable, Optional
 
-import pika
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic, BasicProperties
 
 from .connection import RabbitMQConnection
+from .publisher import QueuePublisher
 
 logger = __import__("structlog").get_logger(__name__)
 
@@ -37,10 +37,20 @@ def _is_permanent_error(error_str: str) -> bool:
 def _extract_message_id(message: dict) -> str:
     """Extract a stable identifier from a message for retry tracking."""
     return (
-        message.get("document_id")
+        message.get("job_id")
+        or message.get("message_id")
+        or message.get("document_id")
         or message.get("version_id")
         or str(hash(json.dumps(message, sort_keys=True)))
     )
+
+
+def _get_retry_count(message: dict) -> int:
+    """Read a persisted retry counter from the message."""
+    try:
+        return max(int(message.get("retry_count", 0)), 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 class QueueConsumer:
@@ -62,8 +72,6 @@ class QueueConsumer:
         """Start consuming messages from the queue."""
         channel = self._connection.channel
         channel.basic_qos(prefetch_count=1)
-
-        retry_counts: dict[str, int] = {}
 
         def on_message(
             ch: BlockingChannel,
@@ -95,14 +103,21 @@ class QueueConsumer:
                 )
 
             except json.JSONDecodeError as e:
+                error_str = f"invalid_json: {e}"
                 logger.error(
                     "invalid_json_message",
                     queue=self.queue,
                     delivery_tag=method.delivery_tag,
-                    error=str(e),
+                    error=error_str,
                     body=body[:100],
                 )
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                if self._publish_to_dlq(
+                    {"raw_body": body.decode("utf-8", errors="replace")},
+                    error_str,
+                ):
+                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                else:
+                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
             except Exception as e:
                 error_str = str(e)
@@ -113,42 +128,41 @@ class QueueConsumer:
                     error=error_str,
                 )
 
-                dlq_message = message or json.loads(body.decode("utf-8"))
-                msg_id = _extract_message_id(dlq_message)
+                failed_message = message or {"raw_body": body.decode("utf-8", errors="replace")}
+                msg_id = _extract_message_id(failed_message)
+                retry_count = _get_retry_count(message or {})
 
-                if _is_permanent_error(error_str):
+                if _is_permanent_error(error_str) or retry_count >= self.max_retries:
                     logger.error(
-                        "permanent_error_sending_to_dlq",
+                        "sending_message_to_dlq",
                         queue=self.queue,
                         message_id=msg_id,
                         error=error_str,
+                        retry_count=retry_count,
                     )
-                    self._publish_to_dlq(dlq_message, error_str)
-                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                    if self._publish_to_dlq(failed_message, error_str, retry_count):
+                        ch.basic_ack(delivery_tag=method.delivery_tag)
+                    else:
+                        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
                     return
 
-                retry_count = retry_counts.get(msg_id, 0)
-                if retry_count >= self.max_retries:
-                    logger.error(
-                        "max_retry_attempts_exceeded",
-                        queue=self.queue,
-                        message_id=msg_id,
-                        retry_count=retry_count,
-                    )
-                    self._publish_to_dlq(dlq_message, error_str)
-                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                backoff = RETRY_BACKOFF_SECONDS * (2**retry_count)
+                logger.warning(
+                    "retrying_message_with_backoff",
+                    queue=self.queue,
+                    message_id=msg_id,
+                    retry_count=retry_count,
+                    backoff_seconds=backoff,
+                )
+                time.sleep(backoff)
+
+                retry_message = dict(message or {})
+                retry_message["retry_count"] = retry_count + 1
+
+                if self._publish(self.queue, retry_message):
+                    ch.basic_ack(delivery_tag=method.delivery_tag)
                 else:
-                    backoff = RETRY_BACKOFF_SECONDS * (2**retry_count)
-                    logger.warning(
-                        "retrying_message_with_backoff",
-                        queue=self.queue,
-                        message_id=msg_id,
-                        retry_count=retry_count,
-                        backoff_seconds=backoff,
-                    )
-                    retry_counts[msg_id] = retry_count + 1
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-                    time.sleep(backoff)
 
         channel.basic_consume(queue=self.queue, on_message_callback=on_message)
         logger.info("started_consuming", queue=self.queue)
@@ -169,15 +183,29 @@ class QueueConsumer:
         logger.info("shutdown_signal_received", signal=signum)
         self._should_stop = True
 
-    def _publish_to_dlq(self, message: dict, error: str) -> None:
+    def _publish(self, queue: str, message: dict) -> bool:
+        """Publish a message and report whether it succeeded."""
+        try:
+            QueuePublisher(connection=self._connection).publish(queue, message)
+            return True
+        except Exception as exc:
+            logger.error(
+                "failed_to_publish_control_message",
+                queue=queue,
+                error=str(exc),
+            )
+            return False
+
+    def _publish_to_dlq(self, message: dict, error: str, retry_count: int = 0) -> bool:
         """Publish a failed message to the dead-letter queue."""
         dlq_message = {
             "original_queue": self.queue,
             "original_message": message,
             "error": error,
+            "retry_count": retry_count,
+            "failed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-        publisher = QueuePublisher(self._connection.channel, self.queue)
-        publisher.publish(self.dlq, dlq_message)
+        return self._publish(self.dlq, dlq_message)
 
     def close(self) -> None:
         """Stop the consumer."""

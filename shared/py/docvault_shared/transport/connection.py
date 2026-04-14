@@ -6,7 +6,7 @@ import pika
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exceptions import ChannelClosedByBroker
 
-from .config import config
+from ..config import config
 
 logger = pika.adapters.blocking_connection.BlockingConnection.__module__
 
@@ -14,8 +14,13 @@ logger = pika.adapters.blocking_connection.BlockingConnection.__module__
 class RabbitMQConnection:
     """Manages RabbitMQ connection and channel lifecycle."""
 
-    def __init__(self, url: Optional[str] = None):
+    def __init__(self, url: Optional[str] = None, queues: Optional[list[str]] = None):
         self.url = url or config.rabbitmq_url
+        self.queues = queues or [
+            config.rabbitmq_queue_ocr,
+            config.rabbitmq_queue_processing,
+            config.rabbitmq_queue_reminder,
+        ]
         self._connection: Optional[pika.BlockingConnection] = None
         self._channel: Optional[BlockingChannel] = None
 
@@ -31,13 +36,8 @@ class RabbitMQConnection:
             raise ConnectionError(f"Failed to connect to RabbitMQ: {e}") from e
 
     def _setup_queues(self) -> None:
-        """Declare required queues with DLQ support."""
-        queues = [
-            config.rabbitmq_queue_ocr,
-            config.rabbitmq_queue_processing,
-            config.rabbitmq_queue_reminder,
-        ]
-        for queue in queues:
+        """Declare the queues this service owns or publishes to."""
+        for queue in self.queues:
             self._declare_queue(queue)
 
     def _declare_queue(self, queue: str) -> None:

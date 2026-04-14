@@ -20,6 +20,7 @@ _load_repo_env()
 DEFAULT_EMBEDDING_MODEL = "mistralai/mistral-embed-2312"
 APPROVED_OPENROUTER_EMBEDDING_MODELS = (DEFAULT_EMBEDDING_MODEL,)
 OPENROUTER_EMBEDDING_DIMENSIONS = 1024
+DEFAULT_TRANSLATION_MODEL = "mistralai/mistral-large"
 
 
 @dataclass
@@ -46,6 +47,7 @@ class Config:
 
     openrouter_api_key: str
     embedding_model: str
+    translation_model: str
 
     chunk_size: int
     chunk_overlap: int
@@ -116,6 +118,7 @@ def load() -> Config:
             os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
             APPROVED_OPENROUTER_EMBEDDING_MODELS,
         ),
+        translation_model=os.getenv("TRANSLATION_MODEL", DEFAULT_TRANSLATION_MODEL).strip(),
         chunk_size=int(os.getenv("CHUNK_SIZE", "500")),
         chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "50")),
         min_confidence_threshold=float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.7")),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +20,16 @@ type QueueConsumer struct {
 	done    chan struct{}
 	wg      sync.WaitGroup
 	logger  *slog.Logger
+}
+
+var permanentErrorMarkers = []string{
+	"status 400",
+	"status 401",
+	"status 403",
+	"status 404",
+	"status 422",
+	"invalid_json",
+	"malformed",
 }
 
 func NewQueueConsumer(conn *RabbitMQConnection, handler MessageHandler, retries int) *QueueConsumer {
@@ -73,8 +84,13 @@ func (c *QueueConsumer) Start(ctx context.Context) error {
 func (c *QueueConsumer) handleMessage(ctx context.Context, delivery amqp.Delivery) {
 	var msg QueueMessage
 	if err := json.Unmarshal(delivery.Body, &msg); err != nil {
-		c.logger.Error("failed to unmarshal message", "error", err)
-		delivery.Reject(false)
+		errorMsg := "invalid_json: " + err.Error()
+		c.logger.Error("failed to unmarshal message", "error", errorMsg)
+		if c.sendRawToDLQ(delivery.Body, errorMsg) {
+			delivery.Ack(false)
+		} else {
+			delivery.Reject(true)
+		}
 		return
 	}
 
@@ -91,13 +107,16 @@ func (c *QueueConsumer) handleMessage(ctx context.Context, delivery amqp.Deliver
 			"retry_count", msg.RetryCount,
 		)
 
-		if msg.RetryCount >= c.retries {
+		if isPermanentError(err) || msg.RetryCount >= c.retries {
 			c.logger.Error("max retries exceeded, sending to DLQ",
 				"job_id", msg.JobID,
 				"retry_count", msg.RetryCount,
 			)
-			c.sendToDLQ(&msg, err.Error())
-			delivery.Reject(false)
+			if c.sendToDLQ(&msg, err.Error()) {
+				delivery.Ack(false)
+			} else {
+				delivery.Reject(true)
+			}
 			return
 		}
 
@@ -109,8 +128,13 @@ func (c *QueueConsumer) handleMessage(ctx context.Context, delivery amqp.Deliver
 		)
 
 		msg.RetryCount++
-		c.requeueWithDelay(&msg, backoff)
-		delivery.Reject(false)
+		time.Sleep(backoff)
+		if err := c.requeue(&msg); err != nil {
+			c.logger.Error("failed to requeue message", "error", err)
+			delivery.Reject(true)
+		} else {
+			delivery.Ack(false)
+		}
 		return
 	}
 
@@ -118,85 +142,63 @@ func (c *QueueConsumer) handleMessage(ctx context.Context, delivery amqp.Deliver
 	c.logger.Info("message processed successfully", "job_id", msg.JobID)
 }
 
-func (c *QueueConsumer) requeue(msg *QueueMessage) {
+func (c *QueueConsumer) requeue(msg *QueueMessage) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
-		c.logger.Error("failed to marshal message for requeue", "error", err)
-		return
+		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = c.conn.Channel().PublishWithContext(ctx,
-		"",
-		c.conn.config.Queue,
-		false,
-		false,
-		amqp.Publishing{
-			DeliveryMode: amqp.Persistent,
-			ContentType:  "application/json",
-			Body:         body,
-		},
-	)
-	if err != nil {
-		c.logger.Error("failed to requeue message", "error", err)
-	}
+	return c.publish(c.conn.config.Queue, body)
 }
 
-func (c *QueueConsumer) requeueWithDelay(msg *QueueMessage, delay time.Duration) {
-	go func() {
-		time.Sleep(delay)
-
-		body, err := json.Marshal(msg)
-		if err != nil {
-			c.logger.Error("failed to marshal message for delayed requeue", "error", err)
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		err = c.conn.Channel().PublishWithContext(ctx,
-			"",
-			c.conn.config.Queue,
-			false,
-			false,
-			amqp.Publishing{
-				DeliveryMode: amqp.Persistent,
-				ContentType:  "application/json",
-				Body:         body,
-			},
-		)
-		if err != nil {
-			c.logger.Error("failed to delayed requeue message", "error", err)
-		} else {
-			c.logger.Info("message requeued with delay",
-				"job_id", msg.JobID,
-				"retry_count", msg.RetryCount,
-				"delay", delay,
-			)
-		}
-	}()
-}
-
-func (c *QueueConsumer) sendToDLQ(msg *QueueMessage, errorMsg string) {
+func (c *QueueConsumer) sendToDLQ(msg *QueueMessage, errorMsg string) bool {
 	body, err := json.Marshal(map[string]interface{}{
+		"original_queue":   c.conn.config.Queue,
 		"original_message": msg,
 		"error":            errorMsg,
 		"failed_at":        time.Now().UTC(),
 	})
 	if err != nil {
 		c.logger.Error("failed to marshal DLQ message", "error", err)
-		return
+		return false
 	}
 
+	if err := c.publish(c.conn.config.DLQ, body); err != nil {
+		c.logger.Error("failed to send to DLQ", "error", err)
+		return false
+	}
+
+	return true
+}
+
+func (c *QueueConsumer) sendRawToDLQ(body []byte, errorMsg string) bool {
+	envelope, err := json.Marshal(map[string]interface{}{
+		"original_queue":   c.conn.config.Queue,
+		"original_message": nil,
+		"original_body":    string(body),
+		"error":            errorMsg,
+		"failed_at":        time.Now().UTC(),
+	})
+	if err != nil {
+		c.logger.Error("failed to marshal raw DLQ message", "error", err)
+		return false
+	}
+
+	if err := c.publish(c.conn.config.DLQ, envelope); err != nil {
+		c.logger.Error("failed to send raw message to DLQ", "error", err)
+		return false
+	}
+
+	return true
+}
+
+func (c *QueueConsumer) publish(queue string, body []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = c.conn.Channel().PublishWithContext(ctx,
+	return c.conn.Channel().PublishWithContext(ctx,
 		"",
-		c.conn.config.DLQ,
+		queue,
 		false,
 		false,
 		amqp.Publishing{
@@ -205,9 +207,16 @@ func (c *QueueConsumer) sendToDLQ(msg *QueueMessage, errorMsg string) {
 			Body:         body,
 		},
 	)
-	if err != nil {
-		c.logger.Error("failed to send to DLQ", "error", err)
+}
+
+func isPermanentError(err error) bool {
+	lower := strings.ToLower(err.Error())
+	for _, marker := range permanentErrorMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
 	}
+	return false
 }
 
 func (c *QueueConsumer) Stop() error {

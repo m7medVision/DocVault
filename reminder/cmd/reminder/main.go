@@ -144,10 +144,28 @@ func runDLQCommand(cfg *config.Config) {
 		}
 		fmt.Printf("Found %d messages in DLQ:\n", len(messages))
 		for i, msg := range messages {
-			fmt.Printf("\n[%d] JobID: %s, DocumentID: %s\n", i, msg.OriginalMessage.JobID, msg.OriginalMessage.DocumentID)
+			jobID := "<unavailable>"
+			documentID := "<unavailable>"
+			if msg.OriginalMessage != nil {
+				if msg.OriginalMessage.JobID != "" {
+					jobID = msg.OriginalMessage.JobID
+				}
+				if msg.OriginalMessage.DocumentID != "" {
+					documentID = msg.OriginalMessage.DocumentID
+				}
+			}
+			fmt.Printf("\n[%d] JobID: %s, DocumentID: %s\n", i, jobID, documentID)
 			fmt.Printf("    Error: %s\n", msg.Error)
 			fmt.Printf("    FailedAt: %s\n", msg.FailedAt.Format(time.RFC3339))
-			fmt.Printf("    RetryCount: %d\n", msg.OriginalMessage.RetryCount)
+			if msg.OriginalQueue != "" {
+				fmt.Printf("    OriginalQueue: %s\n", msg.OriginalQueue)
+			}
+			if msg.OriginalMessage != nil {
+				fmt.Printf("    RetryCount: %d\n", msg.OriginalMessage.RetryCount)
+			}
+			if msg.OriginalBody != "" {
+				fmt.Printf("    OriginalBody: %s\n", msg.OriginalBody)
+			}
 		}
 
 	case "count":
