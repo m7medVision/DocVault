@@ -80,6 +80,21 @@ func (r *folderRepository) ListRoot(ctx context.Context, tenantID, orgID string)
 	return scanFolders(rows)
 }
 
+func (r *folderRepository) ListAll(ctx context.Context, tenantID, orgID string) ([]model.Folder, error) {
+	query := `
+		SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+		FROM folders
+		WHERE tenant_id = $1 AND org_id = $2
+		ORDER BY name ASC
+	`
+	rows, err := r.db.Query(ctx, query, tenantID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list all folders: %w", err)
+	}
+	defer rows.Close()
+	return scanFolders(rows)
+}
+
 func (r *folderRepository) Update(ctx context.Context, folder *model.Folder) error {
 	if folder == nil {
 		return fmt.Errorf("folder is nil")

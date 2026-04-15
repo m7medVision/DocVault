@@ -450,3 +450,222 @@ func (h *Handler) GetDocumentPages(w http.ResponseWriter, r *http.Request) {
 		"pages":       pages,
 	})
 }
+
+func (h *Handler) SuggestFolder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.HasMinRole(role, middleware.RoleViewer) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		DocumentID string `json:"document_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON body","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	foldersOutput, err := h.folderSvc.ListAll(ctx, tenantID, orgID)
+	if err != nil {
+		slog.Error("list folders failed", "error", err, "tenant_id", tenantID, "org_id", orgID)
+		http.Error(w, `{"error":"failed to list folders","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	docInput := &service.GetDocumentInput{
+		TenantID:   tenantID,
+		OrgID:      orgID,
+		DocumentID: body.DocumentID,
+	}
+	docOutput, err := h.documentSvc.Get(ctx, docInput)
+	if err != nil {
+		slog.Error("get document failed", "error", err, "document_id", body.DocumentID)
+		http.Error(w, `{"error":"failed to get document","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	var ocrText string
+	if docOutput.Document.Status == "processed" {
+		pages, _ := h.documentSvc.GetPages(ctx, tenantID, orgID, body.DocumentID)
+		for _, p := range pages {
+			if p.OCRText != nil {
+				ocrText += *p.OCRText + "\n"
+			}
+		}
+	}
+
+	existingNames := make([]string, len(foldersOutput))
+	for i, f := range foldersOutput {
+		existingNames[i] = f.Name
+	}
+
+	suggestionInput := &service.SuggestionInput{
+		DocumentID:    body.DocumentID,
+		Title:         docOutput.Document.Title,
+		DocType:       docOutput.Document.DocType,
+		OCRText:       ocrText,
+		ExistingNames: existingNames,
+	}
+
+	aiOutput, err := h.aiSvc.SuggestFolder(ctx, tenantID, foldersOutput, suggestionInput)
+	if err != nil {
+		slog.Error("suggest folder failed", "error", err)
+		http.Error(w, `{"error":"failed to generate suggestion","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"suggestion": aiOutput,
+	})
+}
+
+func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.CanWrite(role) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	documentID := r.PathValue("id")
+	if documentID == "" {
+		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		FolderID *string `json:"folder_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON body","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	input := &service.MoveDocumentInput{
+		TenantID:   tenantID,
+		OrgID:      orgID,
+		DocumentID: documentID,
+		FolderID:   body.FolderID,
+	}
+
+	output, err := h.documentSvc.Move(ctx, input)
+	if err != nil {
+		slog.Error("move document failed", "error", err, "document_id", documentID)
+		http.Error(w, fmt.Sprintf(`{"error":"%s","code":"INTERNAL_ERROR"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	h.auditSvc.Write(ctx, &service.WriteAuditEventInput{
+		TenantID:   tenantID,
+		ActorID:    &userID,
+		EntityType: "document",
+		EntityID:   documentID,
+		Action:     service.AuditActionUpdate,
+		Metadata: map[string]interface{}{
+			"action": "move",
+			"folder": body.FolderID,
+		},
+	})
+
+	slog.Info("document moved", "document_id", documentID, "folder_id", body.FolderID, "tenant_id", tenantID, "actor_id", userID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":     output.Message,
+		"folder_id":   output.FolderID,
+		"folder_name": output.FolderName,
+	})
+}
+
+func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.CanWrite(role) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	documentID := r.PathValue("id")
+	if documentID == "" {
+		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		Title string `json:"title"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON body","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if body.Title == "" {
+		http.Error(w, `{"error":"title is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	input := &service.UpdateTitleInput{
+		TenantID:   tenantID,
+		OrgID:      orgID,
+		DocumentID: documentID,
+		Title:      body.Title,
+	}
+
+	if err := h.documentSvc.UpdateTitle(ctx, input); err != nil {
+		slog.Error("update title failed", "error", err, "document_id", documentID)
+		http.Error(w, fmt.Sprintf(`{"error":"%s","code":"INTERNAL_ERROR"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	h.auditSvc.Write(ctx, &service.WriteAuditEventInput{
+		TenantID:   tenantID,
+		ActorID:    &userID,
+		EntityType: "document",
+		EntityID:   documentID,
+		Action:     service.AuditActionUpdate,
+		Metadata: map[string]interface{}{
+			"action": "rename",
+			"title":  body.Title,
+		},
+	})
+
+	slog.Info("document title updated", "document_id", documentID, "title", body.Title, "tenant_id", tenantID, "actor_id", userID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"id":    documentID,
+		"title": body.Title,
+	})
+}

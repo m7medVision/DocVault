@@ -33,6 +33,7 @@ type ReminderRepository interface {
 	Create(ctx context.Context, reminder *model.ReminderRule) error
 	GetByID(ctx context.Context, tenantID, id string) (*model.ReminderRule, error)
 	GetByDocument(ctx context.Context, tenantID, documentID string) ([]model.ReminderRule, error)
+	ListByTenant(ctx context.Context, tenantID string, activeOnly bool) ([]model.ReminderRule, error)
 	ListUpcoming(ctx context.Context, tenantID string, withinDays int) ([]model.ReminderRule, error)
 	Update(ctx context.Context, reminder *model.ReminderRule) error
 	Delete(ctx context.Context, tenantID, id string) error
@@ -47,6 +48,7 @@ type FolderRepository interface {
 	GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Folder, error)
 	ListByParent(ctx context.Context, tenantID, orgID, parentID string) ([]model.Folder, error)
 	ListRoot(ctx context.Context, tenantID, orgID string) ([]model.Folder, error)
+	ListAll(ctx context.Context, tenantID, orgID string) ([]model.Folder, error)
 	Update(ctx context.Context, folder *model.Folder) error
 	Delete(ctx context.Context, tenantID, orgID, id string) error
 }

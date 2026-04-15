@@ -106,3 +106,59 @@ func (s *FolderService) List(ctx context.Context, input *ListFoldersInput) (*Lis
 
 	return &ListFoldersOutput{Folders: folders}, nil
 }
+
+func (s *FolderService) ListAll(ctx context.Context, tenantID, orgID string) ([]model.Folder, error) {
+	if tenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+	if orgID == "" {
+		return nil, fmt.Errorf("org_id is required")
+	}
+
+	if s.repo == nil {
+		return nil, ErrFolderRepositoryNotConfigured
+	}
+
+	return s.repo.ListAll(ctx, tenantID, orgID)
+}
+
+func (s *FolderService) Rename(ctx context.Context, tenantID, orgID, folderID, newName string) error {
+	if tenantID == "" {
+		return fmt.Errorf("tenant_id is required")
+	}
+	if orgID == "" {
+		return fmt.Errorf("org_id is required")
+	}
+	if folderID == "" {
+		return fmt.Errorf("folder_id is required")
+	}
+	if newName == "" {
+		return fmt.Errorf("new_name is required")
+	}
+
+	folder, err := s.repo.GetByID(ctx, tenantID, orgID, folderID)
+	if err != nil {
+		return fmt.Errorf("folder not found: %w", err)
+	}
+
+	folder.Name = newName
+	if err := s.repo.Update(ctx, folder); err != nil {
+		return fmt.Errorf("failed to rename folder: %w", err)
+	}
+
+	return nil
+}
+
+func (s *FolderService) Delete(ctx context.Context, tenantID, orgID, folderID string) error {
+	if tenantID == "" {
+		return fmt.Errorf("tenant_id is required")
+	}
+	if orgID == "" {
+		return fmt.Errorf("org_id is required")
+	}
+	if folderID == "" {
+		return fmt.Errorf("folder_id is required")
+	}
+
+	return s.repo.Delete(ctx, tenantID, orgID, folderID)
+}

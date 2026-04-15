@@ -402,3 +402,114 @@ func (s *DocumentService) GetPages(ctx context.Context, tenantID, orgID, documen
 
 	return s.repo.GetPages(ctx, tenantID, documentID)
 }
+
+// MoveDocumentInput contains the data needed to move a document.
+type MoveDocumentInput struct {
+	TenantID   string
+	OrgID      string
+	DocumentID string
+	FolderID   *string
+}
+
+// MoveDocumentOutput contains the result of moving a document.
+type MoveDocumentOutput struct {
+	Message    string
+	FolderID   *string
+	FolderName string
+}
+
+// Move moves a document to a different folder.
+func (s *DocumentService) Move(ctx context.Context, input *MoveDocumentInput) (*MoveDocumentOutput, error) {
+	if input.TenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+	if input.OrgID == "" {
+		return nil, fmt.Errorf("org_id is required")
+	}
+	if input.DocumentID == "" {
+		return nil, fmt.Errorf("document_id is required")
+	}
+
+	doc, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)
+	if err != nil {
+		return nil, fmt.Errorf("document not found: %w", err)
+	}
+
+	doc.FolderID = input.FolderID
+	if err := s.repo.Update(ctx, doc); err != nil {
+		return nil, fmt.Errorf("failed to move document: %w", err)
+	}
+
+	folderName := ""
+	if input.FolderID != nil && *input.FolderID != "" {
+		folderName = *input.FolderID
+	}
+
+	return &MoveDocumentOutput{
+		Message:    "Document moved successfully",
+		FolderID:   input.FolderID,
+		FolderName: folderName,
+	}, nil
+}
+
+// UpdateTitleInput contains the data needed to update a document title.
+type UpdateTitleInput struct {
+	TenantID   string
+	OrgID      string
+	DocumentID string
+	Title      string
+}
+
+// UpdateTitle updates a document's title.
+func (s *DocumentService) UpdateTitle(ctx context.Context, input *UpdateTitleInput) error {
+	if input.TenantID == "" {
+		return fmt.Errorf("tenant_id is required")
+	}
+	if input.OrgID == "" {
+		return fmt.Errorf("org_id is required")
+	}
+	if input.DocumentID == "" {
+		return fmt.Errorf("document_id is required")
+	}
+	if input.Title == "" {
+		return fmt.Errorf("title is required")
+	}
+
+	doc, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)
+	if err != nil {
+		return fmt.Errorf("document not found: %w", err)
+	}
+
+	doc.Title = input.Title
+	if err := s.repo.Update(ctx, doc); err != nil {
+		return fmt.Errorf("failed to update title: %w", err)
+	}
+
+	return nil
+}
+
+type ProcessingStatus struct {
+	Status   string
+	Message  string
+	Progress int
+}
+
+func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, orgID, documentID string) (string, string, int) {
+	doc, err := s.repo.GetByID(ctx, tenantID, orgID, documentID)
+	if err != nil {
+		return "unknown", "Document not found", 0
+	}
+
+	switch doc.Status {
+	case "pending":
+		return "pending", "Waiting in queue...", 10
+	case "processing":
+		return "processing", "Processing document...", 50
+	case "processed":
+		return "processed", "Processing complete", 100
+	case "failed":
+		return "failed", "Processing failed", 0
+	default:
+		return string(doc.Status), "", 0
+	}
+}
