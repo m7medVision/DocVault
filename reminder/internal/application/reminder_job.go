@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/docvault/reminder/internal/database"
 	"github.com/docvault/reminder/internal/reminder"
 	"github.com/docvault/reminder/internal/sentry"
 	"github.com/docvault/reminder/internal/telemetry"
@@ -34,16 +32,22 @@ type QueueMessage struct {
 }
 
 type ReminderJobHandler struct {
-	extractor *reminder.ReminderExtractor
-	db        *database.ReminderStore
-	logger    *slog.Logger
+	extractor     *reminder.ReminderExtractor
+	dateExtractor reminder.DateExtractor
+	db            ReminderRuleStore
+	logger        *slog.Logger
 }
 
-func NewReminderJobHandler(extractor *reminder.ReminderExtractor, db *database.ReminderStore) *ReminderJobHandler {
+type ReminderRuleStore interface {
+	SaveReminderRule(ctx context.Context, rule *reminder.ReminderRule) error
+}
+
+func NewReminderJobHandler(extractor *reminder.ReminderExtractor, dateExtractor reminder.DateExtractor, db ReminderRuleStore) *ReminderJobHandler {
 	return &ReminderJobHandler{
-		extractor: extractor,
-		db:        db,
-		logger:    slog.Default(),
+		extractor:     extractor,
+		dateExtractor: dateExtractor,
+		db:            db,
+		logger:        slog.Default(),
 	}
 }
 
@@ -74,28 +78,28 @@ func (h *ReminderJobHandler) Handle(ctx context.Context, delivery amqp.Delivery)
 		"tenant_id", msg.TenantID,
 	)
 
-	dateEx := reminder.NewDateExtractor()
-	parsedDates, err := dateEx.ExtractDates(msg.SourceText, "")
-	if err != nil {
-		h.logger.Warn("date extraction failed", "error", err)
+	if h.dateExtractor == nil {
+		h.logger.Info("reminder extraction disabled",
+			"document_id", msg.DocumentID,
+		)
+		telemetry.GetProvider().RecordJob(ctx, "reminder", true, time.Since(start))
+		return nil
 	}
 
-	dates := convertToExtractedDates(parsedDates)
-	if dates.ExpiryDate == nil && msg.ExpiryDate != nil {
-		if parsedExpiry, ok := parseMessageDate(*msg.ExpiryDate); ok {
-			dates.ExpiryDate = &parsedExpiry
-			dates.DatesFound = append(dates.DatesFound, reminder.DateMatch{
-				Date:       parsedExpiry,
-				Pattern:    "queue.expiry_date",
-				Context:    "processing metadata",
-				Confidence: 0.95,
-			})
-		}
+	dates, err := h.dateExtractor.ExtractDates(ctx, msg.SourceText, stringValue(msg.DocumentType))
+	if err != nil {
+		h.logger.Warn("llm date extraction failed",
+			"document_id", msg.DocumentID,
+			"error", err,
+		)
+		telemetry.RecordError(ctx, err)
+		telemetry.GetProvider().RecordJob(ctx, "reminder", true, time.Since(start))
+		return nil
 	}
 
 	h.logger.Info("dates extracted",
 		"document_id", msg.DocumentID,
-		"dates_found", len(parsedDates),
+		"dates_found", len(dates.DatesFound),
 	)
 
 	rules, err := h.extractor.ExtractRules(
@@ -114,7 +118,7 @@ func (h *ReminderJobHandler) Handle(ctx context.Context, delivery amqp.Delivery)
 	if len(rules) == 0 {
 		h.logger.Info("no reminder rules created",
 			"document_id", msg.DocumentID,
-			"reason", "no_future_dates_found",
+			"reason", noReminderReason(dates),
 		)
 		telemetry.GetProvider().RecordJob(ctx, "reminder", true, time.Since(start))
 		return nil
@@ -147,46 +151,9 @@ func stringValue(value *string) string {
 	return *value
 }
 
-func parseMessageDate(raw string) (time.Time, bool) {
-	formats := []string{
-		time.RFC3339,
-		"2006-01-02",
-		"02/01/2006",
-		"01/02/2006",
-		"02-01-2006",
-		"01-02-2006",
+func noReminderReason(dates *reminder.ExtractedDates) string {
+	if dates == nil || len(dates.DatesFound) == 0 {
+		return "no_dates_found"
 	}
-
-	raw = strings.TrimSpace(raw)
-	for _, format := range formats {
-		parsed, err := time.Parse(format, raw)
-		if err == nil {
-			return parsed, true
-		}
-	}
-
-	return time.Time{}, false
-}
-
-func convertToExtractedDates(parsed []reminder.ParsedDate) *reminder.ExtractedDates {
-	result := &reminder.ExtractedDates{}
-	for _, d := range parsed {
-		dm := reminder.DateMatch{
-			Date:       d.Date,
-			Pattern:    d.Pattern,
-			Context:    d.Context,
-			Confidence: d.Confidence,
-		}
-		result.DatesFound = append(result.DatesFound, dm)
-		if strings.Contains(d.Pattern, "expir") || strings.Contains(d.Pattern, "valid") {
-			result.ExpiryDate = &d.Date
-		} else if strings.Contains(d.Pattern, "issue") || strings.Contains(d.Pattern, "dated") {
-			result.IssueDate = &d.Date
-		} else if strings.Contains(d.Pattern, "due") {
-			result.DueDate = &d.Date
-		} else if strings.Contains(d.Pattern, "renew") {
-			result.RenewalDate = &d.Date
-		}
-	}
-	return result
+	return "no_future_dates_found"
 }

@@ -28,8 +28,10 @@ type Config struct {
 	RedisURL string
 
 	// Reminder extraction
-	ReminderExtractionEnabled bool
-	DateParseFormats          []string
+	ReminderExtractionEnabled  bool
+	OpenRouterAPIKey           string
+	ReminderExtractionModel    string
+	ReminderExtractionMaxChars int
 
 	// Notification
 	SMTPHost     string
@@ -58,36 +60,25 @@ type Config struct {
 // Load reads configuration from environment variables.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Environment:               getEnv("ENVIRONMENT", "development"),
-		RabbitMQURL:               normalizeRabbitMQURL(getEnv("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault")),
-		ReminderQueue:             getEnv("RABBITMQ_QUEUE_REMINDER", "docvault.reminder.jobs"),
-		DeadLetterQueue:           getEnv("DLQ_QUEUE", "docvault.reminder.jobs.dlq"),
-		PrefetchCount:             getEnvInt("PREFETCH_COUNT", 10),
-		DatabaseURL:               getEnv("DATABASE_URL", "postgres://docvault:docvault_dev@localhost:5432/docvault"),
-		RedisURL:                  getEnv("REDIS_URL", "redis://localhost:6379/0"),
-		ReminderExtractionEnabled: getEnvBool("REMINDER_EXTRACTION_ENABLED", true),
-		NotifyDaysBefore:          []int{30, 7, 1},
-		NotifyOnDate:              true,
-		NotifyAtTime:              "09:00",
-		MaxRetryAttempts:          getEnvInt("MAX_RETRY_ATTEMPTS", 3),
-		RetryBackoffDuration:      5 * time.Minute,
-		LogLevel:                  getEnv("LOG_LEVEL", "info"),
-		OTELEndpoint:              getEnv("OTEL_EXPORTER_ENDPOINT", ""),
-		SentryDSN:                 getEnv("SENTRY_DSN_WORKER", ""),
-	}
-
-	// Date formats for parsing
-	cfg.DateParseFormats = []string{
-		time.RFC3339,
-		"2006-01-02",
-		"01/02/2006",
-		"02/01/2006",
-		"2006/01/02",
-		"01/02/2006",
-		"January 2, 2006",
-		"2 January 2006",
-		"Jan 2, 2006",
-		"2 Jan 2006",
+		Environment:                getEnv("ENVIRONMENT", "development"),
+		RabbitMQURL:                normalizeRabbitMQURL(getEnv("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault")),
+		ReminderQueue:              getEnv("RABBITMQ_QUEUE_REMINDER", "docvault.reminder.jobs"),
+		DeadLetterQueue:            getEnv("DLQ_QUEUE", "docvault.reminder.jobs.dlq"),
+		PrefetchCount:              getEnvInt("PREFETCH_COUNT", 10),
+		DatabaseURL:                getEnv("DATABASE_URL", "postgres://docvault:docvault_dev@localhost:5432/docvault"),
+		RedisURL:                   getEnv("REDIS_URL", "redis://localhost:6379/0"),
+		ReminderExtractionEnabled:  getEnvBool("REMINDER_EXTRACTION_ENABLED", true),
+		OpenRouterAPIKey:           getEnv("OPENROUTER_API_KEY", ""),
+		ReminderExtractionModel:    getEnv("REMINDER_EXTRACTION_MODEL", "mistralai/mistral-large"),
+		ReminderExtractionMaxChars: getEnvInt("REMINDER_EXTRACTION_MAX_CHARS", 16000),
+		NotifyDaysBefore:           []int{30, 7, 1},
+		NotifyOnDate:               true,
+		NotifyAtTime:               "09:00",
+		MaxRetryAttempts:           getEnvInt("MAX_RETRY_ATTEMPTS", 3),
+		RetryBackoffDuration:       5 * time.Minute,
+		LogLevel:                   getEnv("LOG_LEVEL", "info"),
+		OTELEndpoint:               getEnv("OTEL_EXPORTER_ENDPOINT", ""),
+		SentryDSN:                  getEnv("SENTRY_DSN_WORKER", ""),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -146,6 +137,12 @@ func (c *Config) Validate() error {
 	}
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("DATABASE_URL is required")
+	}
+	if c.ReminderExtractionEnabled && c.OpenRouterAPIKey == "" {
+		return fmt.Errorf("OPENROUTER_API_KEY is required when REMINDER_EXTRACTION_ENABLED=true")
+	}
+	if c.ReminderExtractionEnabled && strings.TrimSpace(c.ReminderExtractionModel) == "" {
+		return fmt.Errorf("REMINDER_EXTRACTION_MODEL is required when REMINDER_EXTRACTION_ENABLED=true")
 	}
 	return nil
 }

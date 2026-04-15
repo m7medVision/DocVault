@@ -233,7 +233,16 @@ func runWorker(cfg *config.Config) {
 	}
 
 	extractor := reminder.NewReminderExtractor(cfg.NotifyDaysBefore)
-	handler := application.NewReminderJobHandler(extractor, db)
+	var dateExtractor reminder.DateExtractor
+	if cfg.ReminderExtractionEnabled {
+		dateExtractor = reminder.NewOpenRouterDateExtractor(
+			cfg.OpenRouterAPIKey,
+			cfg.ReminderExtractionModel,
+			cfg.ReminderExtractionMaxChars,
+			nil,
+		)
+	}
+	handler := application.NewReminderJobHandler(extractor, dateExtractor, db)
 
 	conn, err := transport.NewRabbitMQConnection(transport.RabbitMQConfig{
 		URL:      cfg.RabbitMQURL,
