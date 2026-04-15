@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/casbin/casbin/v3 v3.8.1
 	github.com/casbin/gorm-adapter/v3 v3.41.0
+	github.com/coder/websocket v1.8.14
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/golang-jwt/jwt/v5 v5.3.1

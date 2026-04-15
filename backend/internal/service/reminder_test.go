@@ -12,12 +12,16 @@ import (
 
 type stubReminderRepository struct {
 	getByDocumentReminders []model.ReminderRule
+	listByTenantReminders  []model.ReminderRule
 	listUpcomingReminders  []model.ReminderRule
 	getByDocumentTenantID  string
 	getByDocumentID        string
+	listByTenantTenantID   string
+	listByTenantActiveOnly bool
 	listUpcomingTenantID   string
 	listUpcomingWithinDays int
 	getByDocumentCalled    bool
+	listByTenantCalled     bool
 	listUpcomingCalled     bool
 }
 
@@ -34,6 +38,13 @@ func (s *stubReminderRepository) GetByDocument(_ context.Context, tenantID, docu
 	s.getByDocumentTenantID = tenantID
 	s.getByDocumentID = documentID
 	return s.getByDocumentReminders, nil
+}
+
+func (s *stubReminderRepository) ListByTenant(_ context.Context, tenantID string, activeOnly bool) ([]model.ReminderRule, error) {
+	s.listByTenantCalled = true
+	s.listByTenantTenantID = tenantID
+	s.listByTenantActiveOnly = activeOnly
+	return s.listByTenantReminders, nil
 }
 
 func (s *stubReminderRepository) ListUpcoming(_ context.Context, tenantID string, withinDays int) ([]model.ReminderRule, error) {
@@ -63,9 +74,9 @@ func (s *stubReminderRepository) GetPendingEvents(context.Context, time.Time) ([
 	return nil, nil
 }
 
-func TestReminderServiceListUsesUpcomingWindow(t *testing.T) {
+func TestReminderServiceListUsesTenantListing(t *testing.T) {
 	repo := &stubReminderRepository{
-		listUpcomingReminders: []model.ReminderRule{{ID: "rule-1"}},
+		listByTenantReminders: []model.ReminderRule{{ID: "rule-1"}},
 	}
 
 	svc := NewReminderService(repo)
@@ -74,10 +85,11 @@ func TestReminderServiceListUsesUpcomingWindow(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.True(t, repo.listUpcomingCalled)
+	assert.True(t, repo.listByTenantCalled)
 	assert.False(t, repo.getByDocumentCalled)
-	assert.Equal(t, "tenant-1", repo.listUpcomingTenantID)
-	assert.Equal(t, 30, repo.listUpcomingWithinDays)
+	assert.False(t, repo.listUpcomingCalled)
+	assert.Equal(t, "tenant-1", repo.listByTenantTenantID)
+	assert.False(t, repo.listByTenantActiveOnly)
 	assert.Len(t, output.Reminders, 1)
 	assert.Equal(t, "rule-1", output.Reminders[0].ID)
 }
@@ -100,4 +112,35 @@ func TestReminderServiceListByDocument(t *testing.T) {
 	assert.Equal(t, "doc-1", repo.getByDocumentID)
 	assert.Len(t, output.Reminders, 1)
 	assert.Equal(t, "rule-2", output.Reminders[0].ID)
+}
+
+func TestReminderServiceListActiveOnlyFiltersDocumentResults(t *testing.T) {
+	repo := &stubReminderRepository{
+		getByDocumentReminders: []model.ReminderRule{{ID: "rule-1", Active: true}, {ID: "rule-2", Active: false}},
+	}
+
+	svc := NewReminderService(repo)
+	output, err := svc.List(context.Background(), &ListRemindersInput{
+		TenantID:   "tenant-1",
+		DocumentID: "doc-1",
+		ActiveOnly: true,
+	})
+
+	require.NoError(t, err)
+	assert.Len(t, output.Reminders, 1)
+	assert.Equal(t, "rule-1", output.Reminders[0].ID)
+}
+
+func TestReminderServiceListActiveOnlyPassesFilterToTenantListing(t *testing.T) {
+	repo := &stubReminderRepository{}
+
+	svc := NewReminderService(repo)
+	_, err := svc.List(context.Background(), &ListRemindersInput{
+		TenantID:   "tenant-1",
+		ActiveOnly: true,
+	})
+
+	require.NoError(t, err)
+	assert.True(t, repo.listByTenantCalled)
+	assert.True(t, repo.listByTenantActiveOnly)
 }

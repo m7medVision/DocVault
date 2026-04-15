@@ -25,10 +25,13 @@ import {
   FileText,
   Languages,
   PanelRight,
+  Calendar,
+  Bell,
 } from "lucide-react";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { FilePreview } from "@/components/FilePreview";
 import { useDocumentDetail } from "@/features/documents/useDocumentDetail";
+import { useDocumentReminders } from "@/features/documents/useDocumentReminders";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -43,6 +46,17 @@ export default function DocumentDetailPage() {
   const [editingMetadata, setEditingMetadata] = useState<string | null>(null);
   const [correctedValue, setCorrectedValue] = useState("");
   const [metadataOpen, setMetadataOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
+
+  const { reminders } = useDocumentReminders(documentId);
+
+  const extractedDates = document?.metadata?.filter(
+    (m) =>
+      m.key.includes("date") ||
+      m.key.includes("expiry") ||
+      m.key.includes("deadline") ||
+      m.key.includes("due")
+  );
 
   const handleEditMetadata = (key: string, currentValue?: string) => {
     setEditingMetadata(key);
@@ -132,6 +146,17 @@ export default function DocumentDetailPage() {
                 </div>
               )}
               <div className="ml-auto flex items-center gap-2">
+                {(reminders.length > 0 || (extractedDates && extractedDates.length > 0)) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setRemindersOpen(true)}
+                  >
+                    <Bell className="size-4" />
+                    {t("viewDates")}
+                  </Button>
+                )}
                 {document.metadata && document.metadata.length > 0 && (
                   <Button
                     variant="outline"
@@ -294,6 +319,74 @@ export default function DocumentDetailPage() {
             ) : (
               <p className="text-sm text-muted-foreground">
                 {tCommon("noMetadata")}
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={remindersOpen} onOpenChange={setRemindersOpen}>
+        <SheetContent side="bottom" className="max-h-[60vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Calendar className="size-5" />
+              {t("datesAndReminders")}
+            </SheetTitle>
+            <SheetDescription>
+              {document.title}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 px-4 pt-4">
+            {reminders.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <Bell className="size-4" />
+                  {t("reminders")}
+                </h3>
+                {reminders.map((reminder) => (
+                  <div key={reminder.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {new Date(reminder.trigger_date).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {reminder.rule_type.replace(/_/g, " ")}
+                      </p>
+                    </div>
+                    <Badge variant={reminder.status === "pending" ? "default" : "secondary"}>
+                      {reminder.days_until > 0
+                        ? t("inDays", { count: reminder.days_until })
+                        : reminder.days_until === 0
+                        ? t("today")
+                        : t("overdue")}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            {extractedDates && extractedDates.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="size-4" />
+                  {t("extractedDates")}
+                </h3>
+                {extractedDates.map((item) => (
+                  <div key={item.key} className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-xs uppercase text-muted-foreground">
+                        {item.key.replace(/_/g, " ")}
+                      </p>
+                      <p className="text-sm font-medium">
+                        {item.corrected_value || item.extracted_value}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {reminders.length === 0 && (!extractedDates || extractedDates.length === 0) && (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t("noDatesOrReminders")}
               </p>
             )}
           </div>

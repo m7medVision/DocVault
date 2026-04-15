@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/useAuth";
 import AuthNav from "@/components/AuthNav";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
+import { Toaster } from "sonner";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -74,6 +75,7 @@ export default async function LocaleLayout({
           <footer className="border-t p-4 text-center text-sm text-muted-foreground">
             {tCommon("footer", { appName: tCommon("appName") })}
           </footer>
+          <Toaster position="bottom-right" />
         </div>
       </AuthProvider>
     </NextIntlClientProvider>

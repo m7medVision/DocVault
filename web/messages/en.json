@@ -133,7 +133,15 @@
     "other": "Other",
     "pending": "Pending",
     "processed": "Processed",
-    "failed": "Failed"
+    "failed": "Failed",
+    "viewDates": "View dates",
+    "datesAndReminders": "Dates & Reminders",
+    "reminders": "Reminders",
+    "extractedDates": "Extracted Dates",
+    "noDatesOrReminders": "No dates or reminders found",
+    "inDays": "In {count} days",
+    "today": "Today",
+    "overdue": "Overdue"
   },
   "search": {
     "placeholder": "Search documents...",

@@ -133,7 +133,15 @@
     "other": "أخرى",
     "pending": "قيد الانتظار",
     "processed": "تمت المعالجة",
-    "failed": "فشل"
+    "failed": "فشل",
+    "viewDates": "عرض التواريخ",
+    "datesAndReminders": "التواريخ والتذكيرات",
+    "reminders": "التذكيرات",
+    "extractedDates": "التواريخ المستخرجة",
+    "noDatesOrReminders": "لم يتم العثور على تواريخ أو تذكيرات",
+    "inDays": "خلال {count} أيام",
+    "today": "اليوم",
+    "overdue": "متأخر"
   },
   "search": {
     "placeholder": "البحث في المستندات...",

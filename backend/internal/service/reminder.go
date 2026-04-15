@@ -50,10 +50,19 @@ func (s *ReminderService) List(ctx context.Context, input *ListRemindersInput) (
 		if err != nil {
 			return nil, err
 		}
+		if input.ActiveOnly {
+			filtered := make([]model.ReminderRule, 0, len(reminders))
+			for _, reminder := range reminders {
+				if reminder.Active {
+					filtered = append(filtered, reminder)
+				}
+			}
+			reminders = filtered
+		}
 		return &ListRemindersOutput{Reminders: reminders}, nil
 	}
 
-	reminders, err := s.repo.ListUpcoming(ctx, input.TenantID, 30)
+	reminders, err := s.repo.ListByTenant(ctx, input.TenantID, input.ActiveOnly)
 	if err != nil {
 		return nil, err
 	}

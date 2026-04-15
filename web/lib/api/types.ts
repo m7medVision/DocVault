@@ -96,3 +96,31 @@ export interface ListDocumentsOptions {
   cursor?: string;
   limit?: number;
 }
+
+export interface Folder {
+  id: string;
+  tenant_id: string;
+  org_id: string;
+  parent_id?: string;
+  name: string;
+  created_by?: string;
+  created_at: string;
+}
+
+export interface FolderListResponse {
+  folders: Folder[];
+}
+
+export interface SuggestFolderResponse {
+  suggested_folder_id?: string;
+  suggested_folder_name?: string;
+  suggested_name?: string;
+  confidence: number;
+  should_create_new: boolean;
+}
+
+export interface MoveDocumentResponse {
+  message: string;
+  folder_id?: string;
+  folder_name: string;
+}

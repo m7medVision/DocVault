@@ -93,6 +93,40 @@ func (r *reminderRepository) GetByDocument(ctx context.Context, tenantID, docume
 	return reminders, nil
 }
 
+// ListByTenant lists reminders for a tenant, optionally filtering to active only.
+func (r *reminderRepository) ListByTenant(ctx context.Context, tenantID string, activeOnly bool) ([]model.ReminderRule, error) {
+	query := `
+		SELECT id, document_id, tenant_id, rule_type, trigger_date, notify_days_before, source, active, created_at
+		FROM reminder_rules
+		WHERE tenant_id = $1
+	`
+	args := []interface{}{tenantID}
+	if activeOnly {
+		query += ` AND active = true`
+	}
+	query += ` ORDER BY trigger_date ASC, created_at DESC`
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list reminders: %w", err)
+	}
+	defer rows.Close()
+
+	reminders := make([]model.ReminderRule, 0)
+	for rows.Next() {
+		var reminder model.ReminderRule
+		if err := rows.Scan(
+			&reminder.ID, &reminder.DocumentID, &reminder.TenantID, &reminder.RuleType,
+			&reminder.TriggerDate, &reminder.NotifyDaysBefore, &reminder.Source, &reminder.Active, &reminder.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan reminder: %w", err)
+		}
+		reminders = append(reminders, reminder)
+	}
+
+	return reminders, nil
+}
+
 // ListUpcoming lists reminders due within the given number of days.
 func (r *reminderRepository) ListUpcoming(ctx context.Context, tenantID string, withinDays int) ([]model.ReminderRule, error) {
 	query := `
