@@ -145,9 +145,9 @@ export function FolderExplorer({
     }
   };
 
-  const handleDragOver = (e: React.DragEvent, _folderId: string) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    e.currentTarget.setAttribute('data-drop-target', 'true');
+    e.currentTarget.setAttribute("data-drop-target", "true");
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -198,7 +198,7 @@ export function FolderExplorer({
             onFolderSelect?.(folder.id);
             if (hasChildren) toggleExpand(folder.id);
           }}
-          onDragOver={(e) => handleDragOver(e, folder.id)}
+          onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, folder.id)}
           data-folder-id={folder.id}

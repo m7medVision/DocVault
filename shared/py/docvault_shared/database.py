@@ -30,6 +30,8 @@ class Document(Base):
     doc_type = Column(String)
     status = Column(String, nullable=False)
     language = Column(String)
+    processing_stage = Column(String)
+    processing_error = Column(Text)
     created_at = Column(DateTime)
 
 

@@ -73,6 +73,10 @@ func (s *stubDocumentRepository) GetFullDocument(context.Context, string, string
 	return nil, nil, nil, nil
 }
 
+func (s *stubDocumentRepository) UpdateProcessingFields(context.Context, string, string, *string, *string, *string, *string, *float32, *bool) error {
+	return nil
+}
+
 type stubQueuePublisher struct {
 	body []byte
 }

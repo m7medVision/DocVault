@@ -1,30 +1,59 @@
 'use client';
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Upload, X, FileText, CheckCircle2, AlertCircle, Sparkles, FolderIcon, Loader2 } from "lucide-react";
+import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2, FolderOpen, FilePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useUploadWithProgress, ALLOWED_FILE_TYPES, MAX_FILE_SIZE } from "@/features/documents/useUploadWithProgress";
-import { suggestFolder, moveDocument, updateDocumentTitle, listAllFolders, createFolder } from "@/lib/api/folders";
-import type { Folder, SuggestFolderResponse } from "@/lib/api/types";
+import { Badge } from "@/components/ui/badge";
+import { useUploadWithProgress, ALLOWED_FILE_TYPES, MAX_FILE_SIZE, type UploadStatus } from "@/features/documents/useUploadWithProgress";
+import { getDocument } from "@/features/documents/api";
+import type { DocumentDetailResponse } from "@/lib/api/types";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
-interface UploadedFile {
+interface CompletedUpload {
   id: string;
   name: string;
-  size: number;
-  status: 'idle' | 'uploading' | 'processing' | 'success' | 'error';
-  progress: number;
-  message: string;
-  error?: string;
+  suggestedFolderName?: string;
+  suggestedFilename?: string;
+  suggestionConfidence?: number;
+  suggestionCreateNew?: boolean;
 }
 
 export default function UploadPage() {
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const router = useRouter();
+
+  const [completedUploads, setCompletedUploads] = useState<Map<number, CompletedUpload>>(new Map());
+
+  const handleComplete = useCallback(async (documentId: string, fileName: string, index: number) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/documents/${documentId}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data: DocumentDetailResponse = await res.json();
+
+      setCompletedUploads((prev) => {
+        const next = new Map(prev);
+        next.set(index, {
+          id: documentId,
+          name: fileName,
+          suggestedFolderName: data.document.suggested_folder_name ?? undefined,
+          suggestedFilename: data.document.suggested_filename ?? undefined,
+          suggestionConfidence: data.document.suggestion_confidence ?? undefined,
+          suggestionCreateNew: data.document.suggestion_create_new ?? undefined,
+        });
+        return next;
+      });
+    } catch {
+      // non-fatal — suggestion not critical
+    }
+  }, []);
 
   const {
     files,
@@ -36,17 +65,7 @@ export default function UploadPage() {
     removeFile,
     upload,
     setDragging,
-  } = useUploadWithProgress();
-
-  const [showSuggestion, setShowSuggestion] = useState(false);
-  const [suggestions, setSuggestions] = useState<Map<string, SuggestFolderResponse>>(new Map());
-  const [folders, setFolders] = useState<Folder[]>([]);
-
-  useEffect(() => {
-    listAllFolders()
-      .then((res) => setFolders(res.folders))
-      .catch(() => {});
-  }, []);
+  } = useUploadWithProgress({ onComplete: handleComplete });
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -95,10 +114,11 @@ export default function UploadPage() {
     addFiles(validFiles);
   };
 
-  const getFolderPath = (folderId: string | undefined): string => {
-    if (!folderId) return "Root";
-    const folder = folders.find((f) => f.id === folderId);
-    return folder?.name || "Unknown";
+  const uploadIcon = (s: UploadStatus) => {
+    if (s === 'completed') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+    if (s === 'error') return <AlertCircle className="h-5 w-5 text-destructive" />;
+    if (s === 'processing' || s === 'uploading') return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
+    return <FileText className="h-5 w-5 text-muted-foreground" />;
   };
 
   return (
@@ -181,21 +201,13 @@ export default function UploadPage() {
       {uploads.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <h3 className="mb-3 font-medium">Upload Progress</h3>
+            <h3 className="mb-3 font-medium">{t("processingStatus", "Processing Status")}</h3>
             <div className="space-y-4">
               {uploads.map((upload, index) => (
                 <div key={index} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {upload.status === 'success' ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : upload.status === 'error' ? (
-                        <AlertCircle className="h-5 w-5 text-destructive" />
-                      ) : upload.status === 'processing' ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                      ) : (
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                      )}
+                      {uploadIcon(upload.status)}
                       <span className="text-sm font-medium truncate max-w-[200px]">
                         {upload.name}
                       </span>
@@ -205,6 +217,20 @@ export default function UploadPage() {
                     </span>
                   </div>
                   <Progress value={upload.progress} className="h-2" />
+                  {upload.status === 'completed' && completedUploads.has(index) && (
+                    <SuggestionCard
+                      index={index}
+                      completed={completedUploads.get(index)!}
+                      t={t}
+                      onDismiss={() => {
+                        setCompletedUploads((prev) => {
+                          const next = new Map(prev);
+                          next.delete(index);
+                          return next;
+                        });
+                      }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -212,7 +238,7 @@ export default function UploadPage() {
         </Card>
       )}
 
-      {status === "success" && !showSuggestion && uploads.length === 0 && (
+      {status === "completed" && uploads.length === 0 && (
         <Card className="border-green-500 bg-green-500/10">
           <CardContent className="flex items-center gap-3 p-4 text-green-700 dark:text-green-400">
             <CheckCircle2 className="h-5 w-5" />
@@ -235,6 +261,78 @@ export default function UploadPage() {
           <span>{status === "uploading" ? tCommon("uploading") : "Processing..."}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function SuggestionCard({
+  index,
+  completed,
+  t,
+  onDismiss,
+}: {
+  index: number;
+  completed: CompletedUpload;
+  t: ReturnType<typeof useTranslations>;
+  onDismiss: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleAccept = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/documents/${completed.id}/move`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ folder_id: null }),
+      });
+      toast.success(t("suggestionAccepted", "Suggestion accepted"));
+      onDismiss();
+    } catch {
+      toast.error(t("suggestionFailed", "Failed to apply suggestion"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!completed.suggestedFolderName && !completed.suggestedFilename) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">{t("suggestionLabel", "Suggestion")}</p>
+      {completed.suggestedFolderName && (
+        <div className="flex items-center gap-2 text-sm">
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <span>{t("suggestedFolder", "Suggested folder")}: </span>
+          <Badge variant="outline">{completed.suggestedFolderName}</Badge>
+        </div>
+      )}
+      {completed.suggestedFilename && (
+        <div className="flex items-center gap-2 text-sm">
+          <FilePen className="h-4 w-4 text-muted-foreground" />
+          <span>{t("suggestedName", "Suggested name")}: </span>
+          <Badge variant="outline">{completed.suggestedFilename}</Badge>
+        </div>
+      )}
+      {completed.suggestionConfidence != null && (
+        <p className="text-xs text-muted-foreground">
+          {t("confidence", "Confidence")}: {(completed.suggestionConfidence * 100).toFixed(0)}%
+        </p>
+      )}
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" variant="default" onClick={handleAccept} disabled={loading}>
+          {t("acceptSuggestion", "Accept")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDismiss}>
+          {tCommon("cancel")}
+        </Button>
+      </div>
     </div>
   );
 }

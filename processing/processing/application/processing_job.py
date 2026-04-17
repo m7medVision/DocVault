@@ -10,8 +10,17 @@ from docvault_shared.config import config
 from docvault_shared.transport.publisher import QueuePublisher
 
 
+SUGGESTION_FOLDER_BY_TYPE = {
+    "invoice": "Invoices",
+    "contract": "Contracts",
+    "identity": "Identity",
+    "warranty": "Warranties",
+    "receipt": "Receipts",
+}
+
+
 class ProcessingJobHandler:
-    """Handles document processing job execution (chunk + embed + classify)."""
+    """Handles document processing job execution (chunk + embed + classify + suggest)."""
 
     def __init__(
         self,
@@ -22,6 +31,7 @@ class ProcessingJobHandler:
         ocr_repo: Any,
         reminder_publisher: Any,
         connection: Any,
+        folder_repo: Any | None = None,
         translator: Any | None = None,
     ):
         self.chunker = chunker
@@ -30,6 +40,7 @@ class ProcessingJobHandler:
         self.pg_repo = pg_repo
         self.ocr_repo = ocr_repo
         self.reminder_publisher = reminder_publisher
+        self.folder_repo = folder_repo
         self._connection = connection
         if translator is None:
             from ..translation import document_translator
@@ -191,6 +202,8 @@ class ProcessingJobHandler:
                 if p.get("text")
             ]
 
+            await self.pg_repo.update_processing_stage(document_id, "processing_running")
+
             chunk_result = self.chunker.chunk_ocr_result(
                 document_id,
                 page_objects,
@@ -202,6 +215,8 @@ class ProcessingJobHandler:
             if chunks:
                 raw_embeddings = await self.embedder(chunks)
 
+            await self.pg_repo.update_processing_stage(document_id, "indexing")
+
             await self.pg_repo.delete_by_document(document_id)
 
             if chunks:
@@ -211,10 +226,27 @@ class ProcessingJobHandler:
                     embeddings=raw_embeddings,
                 )
 
+            await self.pg_repo.upsert_metadata_rows(
+                document_id=document_id,
+                metadata=metadata,
+            )
+
             await self.ocr_repo.update_document_metadata(
                 document_id=document_id,
                 doc_type=metadata.get("doc_type"),
                 language=metadata.get("language"),
+            )
+
+            await self.pg_repo.update_processing_stage(document_id, "suggesting")
+
+            suggestion = await self._generate_suggestion(document_id, tenant_id, org_id, metadata)
+
+            await self.pg_repo.persist_suggestions(
+                document_id=document_id,
+                suggested_folder_name=suggestion.get("folder_name"),
+                suggested_filename=suggestion.get("filename"),
+                confidence=suggestion.get("confidence"),
+                create_new=suggestion.get("create_new"),
             )
 
             try:
@@ -232,10 +264,7 @@ class ProcessingJobHandler:
                     error=str(reminder_err),
                 )
 
-            await self.ocr_repo.update_document_status(
-                document_id,
-                "processed",
-            )
+            await self.pg_repo.update_processing_stage(document_id, "completed")
 
             duration = time.time() - start_time
             telemetry.record_job(
@@ -247,6 +276,53 @@ class ProcessingJobHandler:
                     "embedding_count": len(raw_embeddings),
                 },
             )
+
+    async def _generate_suggestion(
+        self,
+        document_id: str,
+        tenant_id: str,
+        org_id: str,
+        metadata: dict,
+    ) -> dict:
+        """Generate folder and filename suggestions using rule-based mapping."""
+        doc_type = metadata.get("doc_type", "other")
+        title = metadata.get("title", "")
+
+        suggested_folder_name = SUGGESTION_FOLDER_BY_TYPE.get(doc_type, "Documents")
+        existing_folder_id = None
+        create_new = True
+
+        if self.folder_repo:
+            try:
+                folders = await self.folder_repo.list_all(tenant_id, org_id)
+                for folder in folders:
+                    if folder.name == suggested_folder_name:
+                        existing_folder_id = folder.id
+                        create_new = False
+                        break
+                if not existing_folder_id:
+                    create_new = True
+            except Exception as folder_err:
+                telemetry.get_logger().warning(
+                    "folder_list_failed_non_fatal",
+                    document_id=document_id,
+                    error=str(folder_err),
+                )
+                create_new = True
+
+        suggested_filename = title if title else None
+
+        confidence = 0.5
+        if doc_type != "other":
+            confidence = 0.8
+
+        return {
+            "folder_name": suggested_folder_name,
+            "folder_id": existing_folder_id,
+            "filename": suggested_filename,
+            "confidence": confidence,
+            "create_new": create_new,
+        }
 
     async def _load_pages_for_legacy_message(
         self,

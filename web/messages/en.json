@@ -141,7 +141,15 @@
     "noDatesOrReminders": "No dates or reminders found",
     "inDays": "In {count} days",
     "today": "Today",
-    "overdue": "Overdue"
+    "overdue": "Overdue",
+    "processingStatus": "Processing Status",
+    "suggestionLabel": "AI Suggestion",
+    "suggestedFolder": "Suggested folder",
+    "suggestedName": "Suggested name",
+    "suggestionAccepted": "Suggestion applied",
+    "suggestionFailed": "Failed to apply suggestion",
+    "acceptSuggestion": "Accept",
+    "confidence": "Confidence"
   },
   "search": {
     "placeholder": "Search documents...",

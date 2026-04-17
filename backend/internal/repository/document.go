@@ -26,12 +26,12 @@ func (r *documentRepository) Create(ctx context.Context, doc *model.Document) er
 		return fmt.Errorf("document is nil")
 	}
 	query := `
-		INSERT INTO documents (id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+		INSERT INTO documents (id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, processing_stage, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
 	`
 	_, err := r.db.Exec(ctx, query,
 		doc.ID, doc.TenantID, doc.OrgID, doc.FolderID, doc.OwnerID,
-		doc.Title, doc.DocType, doc.Status, doc.Language,
+		doc.Title, doc.DocType, doc.Status, doc.Language, doc.ProcessingStage,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create document: %w", err)
@@ -42,14 +42,20 @@ func (r *documentRepository) Create(ctx context.Context, doc *model.Document) er
 // GetByID retrieves a document by ID.
 func (r *documentRepository) GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Document, error) {
 	query := `
-		SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, created_at
+		SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
+		       processing_stage, processing_error,
+		       suggested_folder_name, suggested_filename, suggestion_confidence, suggestion_create_new,
+		       created_at
 		FROM documents
 		WHERE id = $1 AND tenant_id = $2 AND org_id = $3
 	`
 	var doc model.Document
 	err := r.db.QueryRow(ctx, query, id, tenantID, orgID).Scan(
 		&doc.ID, &doc.TenantID, &doc.OrgID, &doc.FolderID, &doc.OwnerID,
-		&doc.Title, &doc.DocType, &doc.Status, &doc.Language, &doc.CreatedAt,
+		&doc.Title, &doc.DocType, &doc.Status, &doc.Language,
+		&doc.ProcessingStage, &doc.ProcessingError,
+		&doc.SuggestedFolderName, &doc.SuggestedFilename, &doc.SuggestionConfidence, &doc.SuggestionCreateNew,
+		&doc.CreatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -362,4 +368,23 @@ func (r *documentRepository) GetFullDocument(ctx context.Context, tenantID, orgI
 	}
 
 	return doc, versions, metadata, nil
+}
+
+// UpdateProcessingFields updates the processing stage, error, and AI suggestion fields.
+func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string, suggestedFolderName *string, suggestedFilename *string, suggestionConfidence *float32, suggestionCreateNew *bool) error {
+	query := `
+		UPDATE documents
+		SET processing_stage = COALESCE($1, processing_stage),
+		    processing_error = COALESCE($2, processing_error),
+		    suggested_folder_name = COALESCE($3, suggested_folder_name),
+		    suggested_filename = COALESCE($4, suggested_filename),
+		    suggestion_confidence = COALESCE($5, suggestion_confidence),
+		    suggestion_create_new = COALESCE($6, suggestion_create_new)
+		WHERE id = $7 AND tenant_id = $8
+	`
+	_, execErr := r.db.Exec(ctx, query, stage, errMsg, suggestedFolderName, suggestedFilename, suggestionConfidence, suggestionCreateNew, documentID, tenantID)
+	if execErr != nil {
+		return fmt.Errorf("failed to update processing fields: %w", execErr)
+	}
+	return nil
 }

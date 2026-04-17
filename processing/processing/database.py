@@ -75,6 +75,41 @@ class Document(Base):
     doc_type = Column(String)
     status = Column(String, nullable=False)
     language = Column(String)
+    processing_stage = Column(String)
+    processing_error = Column(Text)
+    suggested_folder_name = Column(String)
+    suggested_filename = Column(String)
+    suggestion_confidence = Column(Float)
+    suggestion_create_new = Column(Integer)
+    created_at = Column(DateTime)
+
+
+class DocumentMetadata(Base):
+    """Model for document_metadata table."""
+
+    __tablename__ = "document_metadata"
+
+    id = Column(String, primary_key=True)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    key = Column(String, nullable=False)
+    extracted_value = Column(Text)
+    corrected_value = Column(Text)
+    corrected_by = Column(String)
+    corrected_at = Column(DateTime)
+    created_at = Column(DateTime)
+
+
+class Folder(Base):
+    """Model for folders table."""
+
+    __tablename__ = "folders"
+
+    id = Column(String, primary_key=True)
+    tenant_id = Column(String, nullable=False)
+    org_id = Column(String, nullable=False)
+    parent_id = Column(String)
+    name = Column(String, nullable=False)
+    created_by = Column(String)
     created_at = Column(DateTime)
 
 
@@ -355,6 +390,152 @@ class PGVectorRepository:
                 error=str(e),
             )
             raise
+
+        finally:
+            session.close()
+
+    async def update_processing_stage(
+        self,
+        document_id: str,
+        stage: str,
+        error_msg: Optional[str] = None,
+    ) -> None:
+        """Update processing_stage and optionally processing_error."""
+        session = self.get_session()
+
+        try:
+            doc = session.query(Document).filter(Document.id == document_id).first()
+            if not doc:
+                logger.warning("document_not_found_for_stage_update", document_id=document_id)
+                return
+
+            doc.processing_stage = stage
+            if error_msg is not None:
+                doc.processing_error = error_msg
+
+            session.commit()
+            logger.info("processing_stage_updated", document_id=document_id, stage=stage)
+
+        except Exception as e:
+            session.rollback()
+            logger.error("failed_to_update_processing_stage", document_id=document_id, error=str(e))
+            raise
+
+        finally:
+            session.close()
+
+    async def upsert_metadata_rows(
+        self,
+        document_id: str,
+        metadata: dict,
+    ) -> None:
+        """Insert or update metadata rows for a document."""
+        session = self.get_session()
+
+        try:
+            for key, value in metadata.items():
+                if value is None:
+                    continue
+                row_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}:{key}"))
+                existing = (
+                    session.query(DocumentMetadata)
+                    .filter(
+                        DocumentMetadata.document_id == document_id,
+                        DocumentMetadata.key == key,
+                    )
+                    .first()
+                )
+                if existing:
+                    existing.extracted_value = str(value)
+                else:
+                    session.add(
+                        DocumentMetadata(
+                            id=row_id,
+                            document_id=document_id,
+                            key=str(key),
+                            extracted_value=str(value),
+                            created_at=datetime.utcnow(),
+                        )
+                    )
+            session.commit()
+            logger.info("metadata_rows_upserted", document_id=document_id, count=len(metadata))
+
+        except Exception as e:
+            session.rollback()
+            logger.error("failed_to_upsert_metadata_rows", document_id=document_id, error=str(e))
+            raise
+
+        finally:
+            session.close()
+
+    async def persist_suggestions(
+        self,
+        document_id: str,
+        suggested_folder_name: Optional[str] = None,
+        suggested_filename: Optional[str] = None,
+        confidence: Optional[float] = None,
+        create_new: Optional[bool] = None,
+    ) -> None:
+        """Persist AI-generated folder/name suggestions on the document."""
+        session = self.get_session()
+
+        try:
+            doc = session.query(Document).filter(Document.id == document_id).first()
+            if not doc:
+                logger.warning("document_not_found_for_suggestions", document_id=document_id)
+                return
+
+            if suggested_folder_name is not None:
+                doc.suggested_folder_name = suggested_folder_name
+            if suggested_filename is not None:
+                doc.suggested_filename = suggested_filename
+            if confidence is not None:
+                doc.suggestion_confidence = confidence
+            if create_new is not None:
+                doc.suggestion_create_new = 1 if create_new else 0
+
+            session.commit()
+            logger.info(
+                "suggestions_persisted",
+                document_id=document_id,
+                folder=suggested_folder_name,
+                filename=suggested_filename,
+            )
+
+        except Exception as e:
+            session.rollback()
+            logger.error("failed_to_persist_suggestions", document_id=document_id, error=str(e))
+            raise
+
+        finally:
+            session.close()
+
+    async def list_folders(self, tenant_id: str, org_id: str) -> list:
+        """List all folders for a tenant/org."""
+        session = self.get_session()
+
+        try:
+            folders = (
+                session.query(Folder)
+                .filter(
+                    Folder.tenant_id == tenant_id,
+                    Folder.org_id == org_id,
+                )
+                .all()
+            )
+            return [
+                type(
+                    "Folder",
+                    (),
+                    {
+                        "id": f.id,
+                        "name": f.name,
+                        "tenant_id": f.tenant_id,
+                        "org_id": f.org_id,
+                    },
+                )()
+                for f in folders
+            ]
 
         finally:
             session.close()

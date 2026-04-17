@@ -79,6 +79,7 @@ def main() -> None:
             chunk_persistence,
             reminder_publisher,
             conn,
+            folder_repo=chunk_persistence,
         )
         consumer = QueueConsumer(
             conn, config.rabbitmq_queue_processing, f"{config.rabbitmq_queue_processing}.dlq"

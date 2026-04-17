@@ -141,7 +141,15 @@
     "noDatesOrReminders": "لم يتم العثور على تواريخ أو تذكيرات",
     "inDays": "خلال {count} أيام",
     "today": "اليوم",
-    "overdue": "متأخر"
+    "overdue": "متأخر",
+    "processingStatus": "حالة المعالجة",
+    "suggestionLabel": "اقتراح الذكاء الاصطناعي",
+    "suggestedFolder": "المجلد المقترح",
+    "suggestedName": "الاسم المقترح",
+    "suggestionAccepted": "تم تطبيق الاقتراح",
+    "suggestionFailed": "فشل تطبيق الاقتراح",
+    "acceptSuggestion": "قبول",
+    "confidence": "الثقة"
   },
   "search": {
     "placeholder": "البحث في المستندات...",

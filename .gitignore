@@ -39,3 +39,4 @@ Thumbs.db
 *.log
 .devenv/
 erl_crash.dump
+/web/.env.sentry-build-plugin

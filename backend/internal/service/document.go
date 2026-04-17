@@ -488,10 +488,48 @@ func (s *DocumentService) UpdateTitle(ctx context.Context, input *UpdateTitleInp
 	return nil
 }
 
+// UpdateProcessingFieldsInput contains processing stage/suggestion update data.
+type UpdateProcessingFieldsInput struct {
+	TenantID             string
+	OrgID                string
+	DocumentID           string
+	Stage                *string
+	ErrorMsg             *string
+	SuggestedFolderName  *string
+	SuggestedFilename    *string
+	SuggestionConfidence *float32
+	SuggestionCreateNew  *bool
+}
+
+// UpdateProcessingFields updates the processing stage, error, and AI suggestion fields.
+func (s *DocumentService) UpdateProcessingFields(ctx context.Context, input *UpdateProcessingFieldsInput) error {
+	if input.TenantID == "" || input.OrgID == "" || input.DocumentID == "" {
+		return fmt.Errorf("tenant_id, org_id, and document_id are required")
+	}
+	return s.repo.UpdateProcessingFields(ctx, input.TenantID, input.DocumentID, input.Stage, input.ErrorMsg, input.SuggestedFolderName, input.SuggestedFilename, input.SuggestionConfidence, input.SuggestionCreateNew)
+}
+
 type ProcessingStatus struct {
 	Status   string
 	Message  string
 	Progress int
+}
+
+var stageProgress = map[string]struct {
+	Message  string
+	Progress int
+}{
+	"uploaded":           {"Upload received", 5},
+	"ocr_queued":         {"Queued for OCR...", 15},
+	"ocr_running":        {"Running OCR...", 30},
+	"ocr_complete":       {"OCR complete", 55},
+	"processing_queued":  {"Queued for processing...", 65},
+	"processing_running": {"Extracting metadata...", 75},
+	"indexing":           {"Indexing document...", 85},
+	"suggesting":         {"Generating suggestions...", 90},
+	"completed":          {"Processing complete", 100},
+	"ocr_failed":         {"OCR failed", 0},
+	"processing_failed":  {"Processing failed", 0},
 }
 
 func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, orgID, documentID string) (string, string, int) {
@@ -500,14 +538,28 @@ func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, org
 		return "unknown", "Document not found", 0
 	}
 
+	if doc.ProcessingStage != nil {
+		stage := *doc.ProcessingStage
+		if info, ok := stageProgress[stage]; ok {
+			if stage == "ocr_failed" || stage == "processing_failed" {
+				errMsg := ""
+				if doc.ProcessingError != nil {
+					errMsg = *doc.ProcessingError
+				}
+				return "failed", errMsg, 0
+			}
+			return stage, info.Message, info.Progress
+		}
+	}
+
 	switch doc.Status {
-	case "pending":
+	case model.DocumentStatusPending:
 		return "pending", "Waiting in queue...", 10
-	case "processing":
+	case model.DocumentStatusProcessing:
 		return "processing", "Processing document...", 50
-	case "processed":
-		return "processed", "Processing complete", 100
-	case "failed":
+	case model.DocumentStatusProcessed:
+		return "completed", "Processing complete", 100
+	case model.DocumentStatusFailed:
 		return "failed", "Processing failed", 0
 	default:
 		return string(doc.Status), "", 0
