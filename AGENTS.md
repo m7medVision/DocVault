@@ -2,39 +2,36 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
-## Quick Reference
+## Tech Stack & Commands
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
-```
+Use `just` as the primary task runner.
 
-## Non-Interactive Shell Commands
+| Service | Language | Dev Command | Lint/Verify |
+| :--- | :--- | :--- | :--- |
+| **Backend** | Go | `just dev-backend` | `go test ./...` |
+| **Reminder** | Go | `just dev-reminder` | `go test ./...` |
+| **OCR** | Python | `just dev-ocr` | `uv run ruff check .` |
+| **Processing**| Python | `just dev-processing`| `uv run ruff check .` |
+| **Web** | Next.js | `just dev-web` | `bun run lint` |
+| **Mobile** | Expo | `just dev-mobile` | - |
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+### Infrastructure
+- **Start/Stop:** `just dev-up` / `just dev-down` (Docker Compose).
+- **Database:** `just db-migrate` (uses `goose` in `backend/internal/migrate/sql`).
+- **Dependencies:** `just dev-setup` installs all deps (uv, bun, go).
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
+## Architecture & Workflows
 
-**Use these forms instead:**
-```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
+### Multi-Service Flow
+1. **Infrastructure**: Postgres (pgvector), RabbitMQ, Redis, MinIO.
+2. **OCR Pipeline**: `docvault.ocr.jobs` -> OCR Service -> `docvault.processing.jobs` -> Processing Service.
+3. **Storage**: MinIO for files, Postgres for metadata/vectors.
 
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
-```
-
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
+### Critical Conventions
+- **Migrations**: Always use `goose` via `just db-migrate`. New migrations go in `backend/internal/migrate/sql`.
+- **Python**: Uses `uv` for dependency management (`uv sync`, `uv run`).
+- **Frontend**: Uses `bun` for package management.
+- **Non-Interactive**: ALWAYS use `-f` with `rm`, `cp`, `mv` and `-y` with package managers.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
@@ -82,4 +79,3 @@ bd close <id>         # Complete work
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
-Use 'bd' for task tracking

@@ -15,3 +15,5 @@ processing/reminder_publisher.py
 processing/translation.py
 processing/application/__init__.py
 processing/application/processing_job.py
+tests/test_processing_job.py
+tests/test_translation.py

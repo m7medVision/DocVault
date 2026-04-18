@@ -51,24 +51,24 @@ dev-restart:
     just dev-up
 
 dev-backend:
-    cd backend && go run ./cmd/api
+    cd backend && air -c .air.toml
 
 dev-reminder:
-    cd reminder && go run ./cmd/reminder
+    cd reminder && air -c .air.toml
 
 # OCR Service
 dev-ocr-install:
     cd ocr && uv sync --all-extras
 
 dev-ocr: dev-ocr-install
-    cd ocr && uv run python -m ocr.main
+    cd ocr && uv run watchfiles "python -m ocr.main" .
 
 # Processing Pipeline Service
 dev-processing-install:
     cd processing && uv sync --all-extras
 
 dev-processing: dev-processing-install
-    cd processing && uv run python -m processing.main
+    cd processing && uv run watchfiles "python -m processing.main" .
 
 dev-web-install:
 	cd web && bun install
@@ -88,6 +88,8 @@ dev-tmux:
 
 dev-setup:
     just dev-up
+    @echo "Installing air (Go hot-reload)..."
+    go install github.com/air-verse/air@latest 2>/dev/null || echo "air already installed or go not found"
     just dev-ocr-install
     just dev-processing-install
     just dev-web-install
