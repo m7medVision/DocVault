@@ -12,7 +12,7 @@ func TestLoadRejectsUnapprovedEmbeddingModel(t *testing.T) {
 }
 
 func TestLoadAcceptsOpenRouterEmbeddingModel(t *testing.T) {
-	t.Setenv("EMBEDDING_MODEL", "mistralai/mistral-embed-2312")
+	t.Setenv("EMBEDDING_MODEL", "openai/text-embedding-3-large")
 
 	_, err := Load()
 	if err != nil {
@@ -34,6 +34,8 @@ func TestLoadRequiresOpenRouterAPIKeyOutsideDevelopment(t *testing.T) {
 }
 
 func TestLoadNormalizesLegacyRabbitMQURL(t *testing.T) {
+	t.Setenv("EMBEDDING_MODEL", defaultEmbeddingModel)
+
 	t.Setenv("RABBITMQ_URL", "amqp://docvault:changeme@localhost:5672//docvault")
 
 	cfg, err := Load()

@@ -35,6 +35,7 @@ type Handler struct {
 	reminderSvc     *service.ReminderService
 	notificationSvc *service.NotificationService
 	searchSvc       *service.SearchService
+	chatSvc         *service.ChatService
 	userRepo        repository.UserRepository
 	membershipRepo  repository.MembershipRepository
 	policyRepo      repository.PolicyRepository
@@ -51,7 +52,8 @@ func New(cfg *config.Config, repos *repository.Repositories, dbPool *pgxpool.Poo
 		auditSvc:        service.NewAuditService(repos.Audit),
 		reminderSvc:     service.NewReminderService(repos.Reminder),
 		notificationSvc: service.NewNotificationService(repos.Notification),
-		searchSvc:       service.NewSearchService(search.NewOpenRouterEmbedder(cfg.OpenRouterAPIKey, cfg.EmbeddingModel), repos.Search),
+		searchSvc:       service.NewSearchService(search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel), repos.Search),
+		chatSvc:         service.NewChatService(repos.Document),
 		userRepo:        repos.User,
 		membershipRepo:  repos.Membership,
 		policyRepo:      repos.Policy,

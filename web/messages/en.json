@@ -149,7 +149,15 @@
     "suggestionAccepted": "Suggestion applied",
     "suggestionFailed": "Failed to apply suggestion",
     "acceptSuggestion": "Accept",
+    "chatWithDoc": "Chat",
     "confidence": "Confidence"
+  },
+  "chat": {
+    "title": "Chat with Document",
+    "placeholder": "Ask a question about this document...",
+    "emptyState": "Ask questions about this document to get started.",
+    "thinking": "Thinking...",
+    "error": "Something went wrong. Please try again."
   },
   "search": {
     "placeholder": "Search documents...",

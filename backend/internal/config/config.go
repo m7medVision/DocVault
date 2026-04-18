@@ -97,6 +97,7 @@ type SearchConfig struct {
 	EmbeddingAPIKey   string
 	EmbeddingURL      string
 	EmbeddingDim      int
+	ChatModel         string
 }
 
 type StorageConfig struct {
@@ -166,6 +167,7 @@ func Load() (*Config, error) {
 			EmbeddingAPIKey:   getEnvString("OPENROUTER_API_KEY", ""),
 			EmbeddingURL:      getEnvString("EMBEDDING_URL", ""),
 			EmbeddingDim:      getEnvInt("EMBEDDING_DIM", 1024),
+			ChatModel:         getEnvString("OPENROUTER_CHAT_MODEL", "google/gemini-2.0-flash-001"),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),
@@ -248,13 +250,13 @@ func (c *Config) validate() error {
 }
 
 func validateAISettings() error {
-	if err := validateOpenRouterModelName(getEnvString("EMBEDDING_MODEL", defaultEmbeddingModel), "EMBEDDING_MODEL"); err != nil {
+	if err := validateEmbeddingModelName(getEnvString("EMBEDDING_MODEL", defaultEmbeddingModel), "EMBEDDING_MODEL"); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateOpenRouterModelName(modelName string, settingName string) error {
+func validateEmbeddingModelName(modelName string, settingName string) error {
 	normalized := strings.TrimSpace(modelName)
 	if normalized == "" {
 		return fmt.Errorf("%s must not be empty", settingName)

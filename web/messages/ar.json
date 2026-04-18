@@ -149,7 +149,15 @@
     "suggestionAccepted": "تم تطبيق الاقتراح",
     "suggestionFailed": "فشل تطبيق الاقتراح",
     "acceptSuggestion": "قبول",
+    "chatWithDoc": "محادثة",
     "confidence": "الثقة"
+  },
+  "chat": {
+    "title": "محادثة مع المستند",
+    "placeholder": "اطرح سؤالاً عن هذا المستند...",
+    "emptyState": "ابدأ بطرح أسئلة عن هذا المستند.",
+    "thinking": "جار التفكير...",
+    "error": "حدث خطأ. يرجى المحاولة مرة أخرى."
   },
   "search": {
     "placeholder": "البحث في المستندات...",

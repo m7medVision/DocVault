@@ -27,11 +27,13 @@ import {
   PanelRight,
   Calendar,
   Bell,
+  MessageSquare,
 } from "lucide-react";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { FilePreview } from "@/components/FilePreview";
 import { useDocumentDetail } from "@/features/documents/useDocumentDetail";
 import { useDocumentReminders } from "@/features/documents/useDocumentReminders";
+import { ChatPanel } from "@/components/ChatPanel";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -39,7 +41,7 @@ export default function DocumentDetailPage() {
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
 
-  const { document, loading, error, presignedUrl, handleDownload, handleUpdateMetadata } =
+  const { document, loading, error, presignedUrl, handleDownload, handleUpdateMetadata, handleRenameTitle } =
     useDocumentDetail(documentId);
 
   const [selectedPage, setSelectedPage] = useState(0);
@@ -47,6 +49,9 @@ export default function DocumentDetailPage() {
   const [correctedValue, setCorrectedValue] = useState("");
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
 
   const { reminders } = useDocumentReminders(documentId);
 
@@ -68,6 +73,23 @@ export default function DocumentDetailPage() {
     await handleUpdateMetadata(editingMetadata, correctedValue);
     setEditingMetadata(null);
     setCorrectedValue("");
+  };
+
+  const handleEditTitle = () => {
+    setTitleValue(document.title);
+    setEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    const trimmed = titleValue.trim();
+    if (!trimmed) return;
+    const ok = await handleRenameTitle(trimmed);
+    if (ok) setEditingTitle(false);
+  };
+
+  const handleCancelTitle = () => {
+    setEditingTitle(false);
+    setTitleValue("");
   };
 
   const getStatusVariant = (status: string) => {
@@ -106,7 +128,24 @@ export default function DocumentDetailPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="space-y-2">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">{document.title}</h1>
+          {editingTitle ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') handleCancelTitle();
+                }}
+                className="text-2xl font-bold h-auto py-1"
+                autoFocus
+              />
+              <Button size="sm" onClick={handleSaveTitle}>{tCommon("save")}</Button>
+              <Button size="sm" variant="outline" onClick={handleCancelTitle}>{tCommon("cancel")}</Button>
+            </div>
+          ) : (
+            <h1 className="text-3xl font-bold cursor-pointer hover:text-primary transition-colors" onClick={handleEditTitle}>{document.title}</h1>
+          )}
           <Badge variant={getStatusVariant(document.status)}>
             {document.status}
           </Badge>
@@ -146,6 +185,15 @@ export default function DocumentDetailPage() {
                 </div>
               )}
               <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setChatOpen(true)}
+                >
+                  <MessageSquare className="size-4" />
+                  {t("chatWithDoc")}
+                </Button>
                 {(reminders.length > 0 || (extractedDates && extractedDates.length > 0)) && (
                   <Button
                     variant="outline"
@@ -389,6 +437,23 @@ export default function DocumentDetailPage() {
                 {t("noDatesOrReminders")}
               </p>
             )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={chatOpen} onOpenChange={setChatOpen}>
+        <SheetContent side="right" className="w-[500px] sm:max-w-[500px] p-0 flex flex-col">
+          <SheetHeader className="px-4 pt-4 pb-2">
+            <SheetTitle className="flex items-center gap-2">
+              <MessageSquare className="size-5" />
+              {t("chatWithDoc")}
+            </SheetTitle>
+            <SheetDescription>
+              {document.title}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 min-h-0">
+            <ChatPanel documentId={documentId} />
           </div>
         </SheetContent>
       </Sheet>
