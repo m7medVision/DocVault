@@ -17,12 +17,28 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { messages } = body as {
-    messages: { role: string; content: string }[];
+    messages: Array<{
+      id?: string;
+      role: string;
+      parts?: Array<{ type: string; content?: string }>;
+      content?: string;
+    }>;
   };
 
   if (!messages || !Array.isArray(messages)) {
     return new Response("Missing messages", { status: 400 });
   }
+
+  const normalizedMessages = messages.map((msg) => {
+    if (Array.isArray(msg.parts)) {
+      const text = msg.parts
+        .filter((p) => p.type === "text" && typeof p.content === "string")
+        .map((p) => p.content)
+        .join("");
+      return { role: msg.role, content: text };
+    }
+    return { role: msg.role, content: msg.content ?? "" };
+  });
 
   const backendRes = await fetch(
     `${SERVER_API_BASE_URL}/documents/${documentId}/chat`,
@@ -32,7 +48,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages: normalizedMessages }),
     }
   );
 

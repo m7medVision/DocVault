@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/docvault/backend/internal/repository"
 )
@@ -105,17 +106,35 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 
 	flusher, canFlush := w.(http.Flusher)
 
+	messageID := fmt.Sprintf("msg_%d", time.Now().UnixNano())
+	timestamp := time.Now().UnixMilli()
+
+	writeChunk := func(chunk map[string]interface{}) {
+		chunkBytes, err := json.Marshal(chunk)
+		if err != nil {
+			return
+		}
+		fmt.Fprintf(w, "data: %s\n\n", string(chunkBytes))
+		if canFlush {
+			flusher.Flush()
+		}
+	}
+
+	writeChunk(map[string]interface{}{
+		"type":      "TEXT_MESSAGE_START",
+		"messageId": messageID,
+		"role":      "assistant",
+		"timestamp": timestamp,
+	})
+
 	scanner := bufio.NewScanner(resp.Body)
+	hasContent := false
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		if strings.HasPrefix(line, "data: ") {
 			data := strings.TrimPrefix(line, "data: ")
 			if data == "[DONE]" {
-				fmt.Fprintf(w, "data: [DONE]\n\n")
-				if canFlush {
-					flusher.Flush()
-				}
 				break
 			}
 
@@ -144,32 +163,39 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 				continue
 			}
 
-			sseChunk := map[string]interface{}{
-				"choices": []map[string]interface{}{
-					{
-						"delta": map[string]string{
-							"content": content,
-						},
-					},
-				},
-			}
-
-			chunkBytes, err := json.Marshal(sseChunk)
-			if err != nil {
-				continue
-			}
-
-			fmt.Fprintf(w, "data: %s\n\n", string(chunkBytes))
-			if canFlush {
-				flusher.Flush()
-			}
+			hasContent = true
+			writeChunk(map[string]interface{}{
+				"type":      "TEXT_MESSAGE_CONTENT",
+				"messageId": messageID,
+				"delta":     content,
+				"timestamp": timestamp,
+			})
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		slog.Error("error reading streaming response", "error", err)
+		writeChunk(map[string]interface{}{
+			"type":      "RUN_ERROR",
+			"error":     map[string]string{"message": fmt.Sprintf("error reading streaming response: %v", err)},
+			"timestamp": timestamp,
+		})
 		return fmt.Errorf("error reading streaming response: %w", err)
 	}
+
+	if hasContent {
+		writeChunk(map[string]interface{}{
+			"type":         "TEXT_MESSAGE_END",
+			"messageId":    messageID,
+			"finishReason": "stop",
+			"timestamp":    timestamp,
+		})
+	}
+
+	writeChunk(map[string]interface{}{
+		"type":      "RUN_FINISHED",
+		"timestamp": timestamp,
+	})
 
 	return nil
 }

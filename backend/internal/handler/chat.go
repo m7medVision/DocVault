@@ -69,16 +69,9 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	if err := h.chatSvc.StreamChat(ctx, input, w); err != nil {
 		slog.Error("chat stream failed", "error", err, "document_id", documentID, "tenant_id", tenantID)
 		errorChunk := map[string]interface{}{
-			"choices": []map[string]interface{}{
-				{
-					"delta": map[string]string{
-						"content": "",
-					},
-				},
-			},
-			"error": map[string]interface{}{
+			"type": "RUN_ERROR",
+			"error": map[string]string{
 				"message": err.Error(),
-				"type":    "internal_error",
 			},
 		}
 		chunkBytes, _ := json.Marshal(errorChunk)
