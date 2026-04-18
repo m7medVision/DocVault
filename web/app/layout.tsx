@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html suppressHydrationWarning>
+    <html dir="ltr" lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider
           attribute="class"

@@ -91,3 +91,6 @@ export async function downloadDocument(
 ): Promise<DocumentDownloadResponse> {
   return apiFetch<DocumentDownloadResponse>(`/documents/${id}/download`);
 }
+export async function getDocumentStats(): Promise<import('./types').DocumentStats> {
+  return apiFetch<import('./types').DocumentStats>('/documents/stats');
+}

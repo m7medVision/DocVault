@@ -15,7 +15,12 @@ const compat = new FlatCompat({
 
 export default defineConfig([
   {
-    ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
+    ignores: ["**/.next/**", "**/node_modules/**", "**/next-env.d.ts"],
+  },
+  {
+    linterOptions: {
+      noInlineConfig: true,
+    },
   },
   ...compat.extends(...nextCoreWebVitals.extends, ...nextTypescript.extends),
   {
@@ -116,18 +121,6 @@ export default defineConfig([
           ],
         },
       ],
-    },
-  },
-  {
-    files: ["components/ui/**"],
-    rules: {
-      "i18next/no-literal-string": "off",
-    },
-  },
-  {
-    files: ["next.config.js"],
-    rules: {
-      "@typescript-eslint/no-require-imports": "off",
     },
   },
 ]);

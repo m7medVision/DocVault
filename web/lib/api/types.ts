@@ -116,3 +116,9 @@ export interface MoveDocumentResponse {
   folder_id?: string;
   folder_name: string;
 }
+export interface DocumentStats {
+  total_documents: number;
+  pending_documents: number;
+  completed_this_week: number;
+  storage_used_bytes: number;
+}

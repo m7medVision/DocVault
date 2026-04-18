@@ -1,16 +1,15 @@
-// @ts-check
-const createNextIntlPlugin = require('next-intl/plugin');
-const { withSentryConfig } = require('@sentry/nextjs');
+import createNextIntlPlugin from "next-intl/plugin";
+import { withSentryConfig } from "@sentry/nextjs";
 
-const withNextIntl = createNextIntlPlugin('./i18n.ts');
+const withNextIntl = createNextIntlPlugin("./i18n.ts");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ['@opentelemetry/*', '@vercel/otel'],
+  serverExternalPackages: ["@opentelemetry/*", "@vercel/otel"],
 };
 
-module.exports = withSentryConfig(
+export default withSentryConfig(
   withNextIntl(nextConfig),
   {
     // For all available options, see:
