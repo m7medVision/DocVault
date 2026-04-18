@@ -381,3 +381,41 @@ func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantI
 	}
 	return nil
 }
+
+func (r *documentRepository) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
+	query := `
+		WITH doc_stats AS (
+			SELECT
+				COUNT(*) as total_documents,
+				COUNT(*) FILTER (WHERE status = 'pending' OR status = 'processing') as pending_documents,
+				COUNT(*) FILTER (WHERE status = 'processed' AND created_at >= NOW() - INTERVAL '7 days') as completed_this_week
+			FROM documents
+			WHERE tenant_id = $1
+		),
+		storage_stats AS (
+			SELECT COALESCE(SUM(v.file_size), 0) as storage_used_bytes
+			FROM documents d
+			JOIN document_versions v ON d.id = v.document_id
+			WHERE d.tenant_id = $1
+		)
+		SELECT
+			d.total_documents,
+			d.pending_documents,
+			d.completed_this_week,
+			s.storage_used_bytes
+		FROM doc_stats d, storage_stats s
+	`
+
+	var stats model.DocumentStats
+	err := r.db.QueryRow(ctx, query, tenantID).Scan(
+		&stats.TotalDocuments,
+		&stats.PendingDocuments,
+		&stats.CompletedThisWeek,
+		&stats.StorageUsedBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting document stats: %w", err)
+	}
+
+	return &stats, nil
+}

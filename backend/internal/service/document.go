@@ -572,3 +572,7 @@ func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, org
 		return string(doc.Status), "", 0
 	}
 }
+
+func (s *DocumentService) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
+	return s.repo.GetStats(ctx, tenantID)
+}

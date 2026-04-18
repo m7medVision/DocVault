@@ -230,3 +230,11 @@ type Notification struct {
 	CreatedAt time.Time              `json:"created_at"`
 	ReadAt    *time.Time             `json:"read_at,omitempty"`
 }
+
+// DocumentStats represents summary metrics for a tenant's documents.
+type DocumentStats struct {
+	TotalDocuments   int64 `json:"total_documents"`
+	PendingDocuments int64 `json:"pending_documents"`
+	CompletedThisWeek int64 `json:"completed_this_week"`
+	StorageUsedBytes int64 `json:"storage_used_bytes"`
+}

@@ -167,3 +167,7 @@ func newTestFileHeader(t *testing.T, filename string, contents []byte) *multipar
 
 var _ repository.DocumentRepository = (*stubDocumentRepository)(nil)
 var _ service.QueuePublisher = (*stubQueuePublisher)(nil)
+
+func (m *stubDocumentRepository) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
+	return &model.DocumentStats{}, nil
+}

@@ -27,6 +27,7 @@ type DocumentRepository interface {
 	UpdateMetadataField(ctx context.Context, tenantID, documentID, key, correctedValue, correctedBy string) error
 	GetFullDocument(ctx context.Context, tenantID, orgID, documentID string) (*model.Document, []model.DocumentVersion, []model.DocumentMetadata, error)
 	UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error
+	GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error)
 }
 
 // ReminderRepository provides reminder data access.

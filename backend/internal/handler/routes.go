@@ -27,6 +27,7 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("GET /api/v1/auth/me", authHandler.Me)
 
 	handle("POST /api/v1/documents/upload", h.UploadDocument, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
+	handle("GET /api/v1/documents/stats", h.GetStats, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 	handle("GET /api/v1/documents", h.ListDocuments, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 	handle("GET /api/v1/documents/{id}", h.GetDocument, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 	handle("DELETE /api/v1/documents/{id}", h.DeleteDocument, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionDelete))

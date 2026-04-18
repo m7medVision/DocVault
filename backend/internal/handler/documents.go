@@ -593,3 +593,21 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 		"title": body.Title,
 	})
 }
+
+func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantID := middleware.GetTenantID(ctx)
+	if tenantID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	stats, err := h.documentSvc.GetStats(ctx, tenantID)
+	if err != nil {
+		slog.Error("failed to get stats", "error", err, "tenant_id", tenantID)
+		respondError(w, http.StatusInternalServerError, "failed to get stats")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, stats)
+}
