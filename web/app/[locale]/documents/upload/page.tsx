@@ -158,7 +158,7 @@ export default function UploadPage() {
       {uploads.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <h3 className="mb-3 font-medium">{t("processingStatus", "Processing Status")}</h3>
+            <h3 className="mb-3 font-medium">{t("processingStatus")}</h3>
             <div className="space-y-4">
               {uploads.map((upload, index) => (
                 <div key={index} className="space-y-2">

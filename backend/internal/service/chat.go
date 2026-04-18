@@ -15,10 +15,14 @@ import (
 	"github.com/docvault/backend/internal/repository"
 )
 
-const systemPrompt = `You are a helpful assistant that answers questions about a specific document. 
-Use only the information provided in the document context below to answer the user's questions.
-If the answer cannot be found in the document, say so clearly.
-Be concise and accurate. When referencing specific parts of the document, mention the page number if available.`
+const systemPrompt = `You are a helpful assistant that answers questions about a specific document.
+Answer naturally and directly in the user's language.
+Use only the information provided in the document context below. Do not invent facts.
+Prefer concise summaries over copying long passages from the document.
+Use Markdown only when it improves readability.
+Do not restate the user's question.
+Mention page numbers only when they are genuinely helpful.
+If the answer cannot be found in the document, say that plainly.`
 
 type ChatMessage struct {
 	Role    string `json:"role"`

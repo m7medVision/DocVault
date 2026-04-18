@@ -249,7 +249,7 @@ export default function FileBrowserPage() {
             <span className="flex-1 truncate text-sm">
               {folder.name}
               {hasDocuments && (
-                <span className="ml-2 text-xs text-muted-foreground">
+                <span className="ms-2 text-xs text-muted-foreground">
                   ({folder.documents.length})
                 </span>
               )}
@@ -275,7 +275,7 @@ export default function FileBrowserPage() {
                   setEditingName(folder.name);
                 }}
               >
-                <Pencil className="mr-2 h-4 w-4" />
+                <Pencil className="me-2 h-4 w-4" />
                 {tCommon("rename")}
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -285,7 +285,7 @@ export default function FileBrowserPage() {
                   setNewFolderName("");
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="me-2 h-4 w-4" />
                 {tFolder("newSubfolder")}
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -295,7 +295,7 @@ export default function FileBrowserPage() {
                   handleDeleteFolder(folder.id);
                 }}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                <Trash2 className="me-2 h-4 w-4" />
                 {tCommon("delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -384,12 +384,12 @@ export default function FileBrowserPage() {
             size="sm"
             onClick={() => loadData()}
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
+            <RefreshCw className="me-2 h-4 w-4" />
             {tCommon("refresh")}
           </Button>
           <Button asChild>
             <Link href="/documents/upload">
-              <Upload className="mr-2 h-4 w-4" />
+              <Upload className="me-2 h-4 w-4" />
               {t("upload")}
             </Link>
           </Button>
@@ -455,7 +455,7 @@ export default function FileBrowserPage() {
                 <Button
                   variant="link"
                   size="sm"
-                  className="ml-2"
+                  className="ms-2"
                   onClick={() => setSelectedFolderId(null)}
                 >
                   {tCommon("showAll")}

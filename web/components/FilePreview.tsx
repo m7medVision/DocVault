@@ -37,11 +37,11 @@ function ImageViewer({ url }: { url: string }) {
         "flex items-center justify-center min-h-[600px] p-4"
       )}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="Document preview"
-        className="max-h-[800px] max-w-full rounded object-contain"
+      <div
+        role="img"
+        aria-label="Document preview"
+        className="h-[800px] w-full rounded bg-contain bg-center bg-no-repeat"
+        style={{ backgroundImage: `url("${url}")` }}
       />
     </div>
   );

@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { useTranslations } from "next-intl";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Send, Loader2, Bot, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,37 +38,49 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
           </div>
         )}
 
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex gap-3 ${
-              message.role === "user" ? "justify-end" : "justify-start"
-            }`}
-          >
-            {message.role === "assistant" && (
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <Bot className="size-4 text-primary" />
-              </div>
-            )}
+        {messages.map((message) => {
+          const textContent =
+            message.parts
+              ?.map((part) => (part.type === "text" ? part.content : ""))
+              .join("") ?? "";
+
+          return (
             <div
-              className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                message.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
+              key={message.id}
+              className={`flex gap-3 ${
+                message.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              {message.parts?.map((part, i) => {
-                if (part.type === "text") return <span key={i}>{part.content}</span>;
-                return null;
-              })}
-            </div>
-            {message.role === "user" && (
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary">
-                <User className="size-4 text-primary-foreground" />
+              {message.role === "assistant" && (
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Bot className="size-4 text-primary" />
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                  message.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                }`}
+              >
+                {message.role === "assistant" ? (
+                  <div className="prose prose-sm max-w-none break-words dark:prose-invert prose-p:my-0 prose-headings:mb-2 prose-headings:mt-4 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {textContent}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <span className="whitespace-pre-wrap">{textContent}</span>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+              {message.role === "user" && (
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary">
+                  <User className="size-4 text-primary-foreground" />
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {isLoading && (
           <div className="flex gap-3 justify-start">

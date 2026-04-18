@@ -151,7 +151,7 @@ export default function DocumentsPage() {
                     )}
                     <Badge
                       variant={getStatusVariant(doc.status)}
-                      className="ml-auto"
+                      className="ms-auto"
                     >
                       {doc.status}
                     </Badge>

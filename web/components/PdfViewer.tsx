@@ -26,11 +26,6 @@ interface PDFPage {
   }) => { promise: Promise<void> };
 }
 
-interface PDFDocumentProxy {
-  numPages: number;
-  getPage: (n: number) => Promise<PDFPage>;
-}
-
 export function PdfViewer({ url, failedMessage, loadingMessage }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -44,7 +39,7 @@ export function PdfViewer({ url, failedMessage, loadingMessage }: PdfViewerProps
   const [pdfReady, setPdfReady] = useState(false);
 
   const pdfjsLibRef = useRef<typeof import("pdfjs-dist") | null>(null);
-  const docRef = useRef<PDFDocumentProxy | null>(null);
+  const docRef = useRef<unknown>(null);
   const numPagesRef = useRef(0);
 
   // Init: load CDN script + resize observer
@@ -53,7 +48,7 @@ export function PdfViewer({ url, failedMessage, loadingMessage }: PdfViewerProps
     script.src = `${PDFJS_CDN}/pdf.min.mjs`;
     script.type = "module";
     script.onload = () => {
-      const pdfjs = (window as Record<string, unknown>).pdfjsLib as typeof import("pdfjs-dist");
+      const pdfjs = (globalThis as unknown as Record<string, unknown>).pdfjsLib as typeof import("pdfjs-dist");
       if (pdfjs) {
         pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.mjs`;
         pdfjsLibRef.current = pdfjs;
@@ -99,7 +94,7 @@ export function PdfViewer({ url, failedMessage, loadingMessage }: PdfViewerProps
     const renderPage = async () => {
       if (!pdfjsLibRef.current || !canvasRef.current || !docRef.current) return;
       try {
-        const page = await docRef.current.getPage(pageNumber);
+        const page = await (docRef.current as { getPage: (n: number) => Promise<PDFPage> }).getPage(pageNumber);
         const viewport = page.getViewport({ scale: 1.2 }) as unknown as { width: number; height: number };
         const computedScale = (containerWidth - 4) / viewport.width;
         const scaledViewport = page.getViewport({ scale: computedScale }) as unknown as { width: number; height: number };
@@ -108,7 +103,7 @@ export function PdfViewer({ url, failedMessage, loadingMessage }: PdfViewerProps
         canvas.width = scaledViewport.width;
         canvas.height = scaledViewport.height;
 
-        await page.render({ canvasContext: canvas.getContext("2d")!, viewport: scaledViewport }).promise;
+        await (page as unknown as { render: (opts: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<void> } }).render({ canvasContext: canvas.getContext("2d")!, viewport: scaledViewport }).promise;
 
         if (textLayerRef.current) {
           textLayerRef.current.innerHTML = "";
