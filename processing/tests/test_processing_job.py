@@ -14,8 +14,12 @@ async def test_processing_job_loads_pages_from_storage_for_legacy_message() -> N
     classifier = Mock()
     classifier.extract = AsyncMock(return_value={"language": "en", "doc_type": "invoice"})
     pg_repo = Mock()
+    pg_repo.update_processing_stage = AsyncMock()
     pg_repo.delete_by_document = AsyncMock()
     pg_repo.save_chunks = AsyncMock()
+    pg_repo.upsert_metadata_rows = AsyncMock()
+    pg_repo.auto_organize = AsyncMock()
+    pg_repo.get_document_title = AsyncMock(return_value="test.pdf")
     ocr_repo = Mock()
     ocr_repo.get_document_pages = AsyncMock(
         return_value=[

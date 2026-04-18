@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -88,6 +89,9 @@ func (h *ReminderJobHandler) Handle(ctx context.Context, delivery amqp.Delivery)
 
 	dates, err := h.dateExtractor.ExtractDates(ctx, msg.SourceText, stringValue(msg.DocumentType))
 	if err != nil {
+		if isTransientError(err) {
+			return fmt.Errorf("transient LLM error: %w", err)
+		}
 		h.logger.Warn("llm date extraction failed",
 			"document_id", msg.DocumentID,
 			"error", err,
@@ -156,4 +160,17 @@ func noReminderReason(dates *reminder.ExtractedDates) string {
 		return "no_dates_found"
 	}
 	return "no_future_dates_found"
+}
+
+func isTransientError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, marker := range []string{"status 429", "status 500", "status 502", "status 503"} {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
 }

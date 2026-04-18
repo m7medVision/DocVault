@@ -294,10 +294,21 @@ func (s *DocumentService) Get(ctx context.Context, input *GetDocumentInput) (*Ge
 		return nil, fmt.Errorf("failed to get document: %w", err)
 	}
 
+	userFacingKeys := map[string]bool{
+		"issuer": true, "amount": true, "currency": true,
+		"issue_date": true, "due_date": true, "expiry_date": true, "document_number": true,
+	}
+	filtered := make([]model.DocumentMetadata, 0, len(metadata))
+	for _, m := range metadata {
+		if userFacingKeys[m.Key] {
+			filtered = append(filtered, m)
+		}
+	}
+
 	return &GetDocumentOutput{
 		Document: *doc,
 		Versions: versions,
-		Metadata: metadata,
+		Metadata: filtered,
 	}, nil
 }
 
@@ -490,15 +501,11 @@ func (s *DocumentService) UpdateTitle(ctx context.Context, input *UpdateTitleInp
 
 // UpdateProcessingFieldsInput contains processing stage/suggestion update data.
 type UpdateProcessingFieldsInput struct {
-	TenantID             string
-	OrgID                string
-	DocumentID           string
-	Stage                *string
-	ErrorMsg             *string
-	SuggestedFolderName  *string
-	SuggestedFilename    *string
-	SuggestionConfidence *float32
-	SuggestionCreateNew  *bool
+	TenantID   string
+	OrgID      string
+	DocumentID string
+	Stage      *string
+	ErrorMsg   *string
 }
 
 // UpdateProcessingFields updates the processing stage, error, and AI suggestion fields.
@@ -506,7 +513,7 @@ func (s *DocumentService) UpdateProcessingFields(ctx context.Context, input *Upd
 	if input.TenantID == "" || input.OrgID == "" || input.DocumentID == "" {
 		return fmt.Errorf("tenant_id, org_id, and document_id are required")
 	}
-	return s.repo.UpdateProcessingFields(ctx, input.TenantID, input.DocumentID, input.Stage, input.ErrorMsg, input.SuggestedFolderName, input.SuggestedFilename, input.SuggestionConfidence, input.SuggestionCreateNew)
+	return s.repo.UpdateProcessingFields(ctx, input.TenantID, input.DocumentID, input.Stage, input.ErrorMsg)
 }
 
 type ProcessingStatus struct {

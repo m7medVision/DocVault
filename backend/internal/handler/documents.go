@@ -565,6 +565,10 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.documentSvc.UpdateTitle(ctx, input); err != nil {
+		if strings.Contains(err.Error(), "idx_documents_unique_title") {
+			http.Error(w, `{"error":"a document with this title already exists in this folder","code":"CONFLICT"}`, http.StatusConflict)
+			return
+		}
 		slog.Error("update title failed", "error", err, "document_id", documentID)
 		http.Error(w, fmt.Sprintf(`{"error":"%s","code":"INTERNAL_ERROR"}`, err.Error()), http.StatusInternalServerError)
 		return

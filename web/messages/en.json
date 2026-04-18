@@ -29,7 +29,11 @@
     "noOcrText": "No OCR text available",
     "noMetadata": "No metadata available",
     "close": "Close",
-    "footer": "© 2026 {appName}"
+    "footer": "© 2026 {appName}",
+    "refresh": "Refresh",
+    "showAll": "(show all)",
+    "createOne": "Create one",
+    "rename": "Rename"
   },
   "nav": {
     "home": "Home",
@@ -150,7 +154,8 @@
     "suggestionFailed": "Failed to apply suggestion",
     "acceptSuggestion": "Accept",
     "chatWithDoc": "Chat",
-    "confidence": "Confidence"
+    "confidence": "Confidence",
+    "fileBrowser": "File Browser"
   },
   "chat": {
     "title": "Chat with Document",
@@ -158,6 +163,11 @@
     "emptyState": "Ask questions about this document to get started.",
     "thinking": "Thinking...",
     "error": "Something went wrong. Please try again."
+  },
+  "folder": {
+    "newSubfolder": "New Subfolder",
+    "folders": "Folders",
+    "noFolders": "No folders yet"
   },
   "search": {
     "placeholder": "Search documents...",

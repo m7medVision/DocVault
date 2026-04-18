@@ -19,11 +19,12 @@ const (
 )
 
 type OpenRouterDateExtractor struct {
-	apiKey   string
-	model    string
-	maxChars int
-	baseURL  string
-	client   *http.Client
+	apiKey        string
+	model         string
+	fallbackModel string
+	maxChars      int
+	baseURL       string
+	client        *http.Client
 }
 
 type openRouterChatRequest struct {
@@ -79,7 +80,7 @@ type llmExtractionHit struct {
 	Confidence float64 `json:"confidence"`
 }
 
-func NewOpenRouterDateExtractor(apiKey, model string, maxChars int, client *http.Client) *OpenRouterDateExtractor {
+func NewOpenRouterDateExtractor(apiKey, model string, maxChars int, client *http.Client, fallbackModels ...string) *OpenRouterDateExtractor {
 	if client == nil {
 		client = &http.Client{Timeout: defaultReminderExtractionHTTPTimeout}
 	}
@@ -87,12 +88,18 @@ func NewOpenRouterDateExtractor(apiKey, model string, maxChars int, client *http
 		maxChars = defaultReminderExtractionMaxChars
 	}
 
+	var fallback string
+	if len(fallbackModels) > 0 {
+		fallback = strings.TrimSpace(fallbackModels[0])
+	}
+
 	return &OpenRouterDateExtractor{
-		apiKey:   strings.TrimSpace(apiKey),
-		model:    strings.TrimSpace(model),
-		maxChars: maxChars,
-		baseURL:  defaultOpenRouterBaseURL,
-		client:   client,
+		apiKey:        strings.TrimSpace(apiKey),
+		model:         strings.TrimSpace(model),
+		fallbackModel: fallback,
+		maxChars:      maxChars,
+		baseURL:       defaultOpenRouterBaseURL,
+		client:        client,
 	}
 }
 
@@ -108,8 +115,23 @@ func (e *OpenRouterDateExtractor) ExtractDates(ctx context.Context, text string,
 		return nil, fmt.Errorf("REMINDER_EXTRACTION_MODEL is required for reminder extraction")
 	}
 
+	result, err := e.callModel(ctx, e.model, docType, trimmed)
+	if err != nil {
+		if isTransientHTTPError(err) && e.fallbackModel != "" {
+			result, fallbackErr := e.callModel(ctx, e.fallbackModel, docType, trimmed)
+			if fallbackErr == nil {
+				return result, nil
+			}
+		}
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (e *OpenRouterDateExtractor) callModel(ctx context.Context, model string, docType string, text string) (*ExtractedDates, error) {
 	body, err := json.Marshal(openRouterChatRequest{
-		Model: e.model,
+		Model: model,
 		Messages: []openRouterChatMessage{
 			{
 				Role:    "system",
@@ -117,7 +139,7 @@ func (e *OpenRouterDateExtractor) ExtractDates(ctx context.Context, text string,
 			},
 			{
 				Role:    "user",
-				Content: e.buildPrompt(docType, trimmed),
+				Content: e.buildPrompt(docType, text),
 			},
 		},
 		ResponseFormat: openRouterResponseFormat{
@@ -340,4 +362,17 @@ func truncateRunes(text string, maxChars int) string {
 		return text
 	}
 	return string(runes[:maxChars])
+}
+
+func isTransientHTTPError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	for _, marker := range []string{"status 429", "status 500", "status 502", "status 503"} {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
 }

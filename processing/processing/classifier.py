@@ -3,11 +3,8 @@
 import re
 import structlog
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 from typing import Optional
-
-from docvault_shared.config import config
 
 logger = structlog.get_logger(__name__)
 
@@ -98,9 +95,8 @@ class DocumentClassifier:
             r"company\s*[:]\s*([A-Z][A-Za-z\s]+)",
         ],
         "amount": [
-            r"\$?\s*(\d+[,.]?\d*\.?\d{0,2})\s*(?:USD|EUR|GBP)?",
-            r"total\s*[:]?\s*\$?\s*(\d+[,.]?\d*\.?\d{0,2})",
-            r"(?:amount|sum)\s*[:]?\s*\$?\s*(\d+[,.]?\d*\.?\d{0,2})",
+            r"(?:total\s*(?:due|amount)?|subtotal|sum|amount\s*(?:due|payable)?)\s*[:.]?\s*\$?\s*(\d{1,3}(?:[,.]?\d{0,2})*\.?\d{0,2})",
+            r"\$\s*(\d{1,3}(?:[,.]?\d{0,2})*\.?\d{0,2})",
         ],
         "currency": [
             r"(USD|EUR|GBP|SAR|AED|JPY|CNY)",
@@ -110,6 +106,10 @@ class DocumentClassifier:
             r"(?:dated?|dated?\s+on)\s+[:.]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
             r"(?:issued?\s+on|effective\s+date)\s+[:.]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
             r"(\d{4}-\d{2}-\d{2})",
+        ],
+        "due_date": [
+            r"(?:due\s*(?:date|on|by)|payment\s*due)\s*[:.]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            r"(?:due\s*(?:date|on|by)|payment\s*due)\s*[:.]?\s*([A-Z][a-z]+ \d{1,2},?\s*\d{4})",
         ],
         "expiry_date": [
             r"(?:expires?|valid\s+until|expiration\s+date)\s+[:.]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
@@ -201,16 +201,12 @@ class MetadataExtractor:
             **classification.extracted_metadata,
         }
 
-        if classification.confidence < 0.8:
-            metadata["needs_review"] = True
-            metadata["type_confidence"] = classification.confidence
-
         logger.info(
             "metadata_extracted",
             document_id=document_id,
-            doc_type=metadata.get("doc_type"),
+            doc_type=classification.doc_type.value,
             has_amount="amount" in metadata,
-            language=metadata.get("language"),
+            language=classification.language,
         )
 
         return metadata
@@ -218,3 +214,36 @@ class MetadataExtractor:
 
 classifier = DocumentClassifier()
 metadata_extractor = MetadataExtractor()
+
+
+TYPE_LABELS = {
+    "invoice": "Invoice",
+    "contract": "Contract",
+    "identity": "ID",
+    "warranty": "Warranty",
+    "receipt": "Receipt",
+    "other": "Document",
+}
+
+
+def generate_display_title(metadata: dict, original_title: str) -> str:
+    _, _, ext = original_title.rpartition(".")
+    if ext and "." in ext:
+        ext = ""
+
+    doc_type = metadata.get("doc_type", "other")
+    parts = [TYPE_LABELS.get(doc_type, "Document")]
+
+    doc_num = metadata.get("document_number")
+    if doc_num:
+        parts.append(doc_num)
+
+    issuer = metadata.get("issuer")
+    if issuer:
+        parts.append(issuer)
+
+    if len(parts) > 1:
+        name = " ".join(parts) + ("." + ext if ext else "")
+        return name
+
+    return original_title

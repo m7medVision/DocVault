@@ -74,22 +74,18 @@ const (
 
 // Document represents a stable identity record for an uploaded file.
 type Document struct {
-	ID                   string         `json:"id"`
-	TenantID             string         `json:"tenant_id"`
-	OrgID                string         `json:"org_id"`
-	FolderID             *string        `json:"folder_id,omitempty"`
-	OwnerID              string         `json:"owner_id"`
-	Title                string         `json:"title"`
-	DocType              string         `json:"doc_type"`
-	Status               DocumentStatus `json:"status"`
-	Language             *string        `json:"language,omitempty"`
-	ProcessingStage      *string        `json:"processing_stage,omitempty"`
-	ProcessingError      *string        `json:"processing_error,omitempty"`
-	SuggestedFolderName  *string        `json:"suggested_folder_name,omitempty"`
-	SuggestedFilename    *string        `json:"suggested_filename,omitempty"`
-	SuggestionConfidence *float32       `json:"suggestion_confidence,omitempty"`
-	SuggestionCreateNew  *bool          `json:"suggestion_create_new,omitempty"`
-	CreatedAt            time.Time      `json:"created_at"`
+	ID              string         `json:"id"`
+	TenantID        string         `json:"tenant_id"`
+	OrgID           string         `json:"org_id"`
+	FolderID        *string        `json:"folder_id,omitempty"`
+	OwnerID         string         `json:"owner_id"`
+	Title           string         `json:"title"`
+	DocType         string         `json:"doc_type"`
+	Status          DocumentStatus `json:"status"`
+	Language        *string        `json:"language,omitempty"`
+	ProcessingStage *string        `json:"processing_stage,omitempty"`
+	ProcessingError *string        `json:"processing_error,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
 }
 
 // DocumentVersion represents a single version of a document.

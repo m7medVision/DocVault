@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Folder as FolderIcon,
   FolderOpen,
@@ -51,6 +52,9 @@ export function FolderExplorer({
   onDocumentClick,
   onRefresh,
 }: FolderTreeProps) {
+  const t = useTranslations("documents");
+  const tCommon = useTranslations("common");
+  const tFolder = useTranslations("folder");
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -256,7 +260,7 @@ export function FolderExplorer({
                 }}
               >
                 <Pencil className="mr-2 h-4 w-4" />
-                Rename
+                {tCommon("rename")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
@@ -266,7 +270,7 @@ export function FolderExplorer({
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                New Subfolder
+                {tFolder("newSubfolder")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
@@ -276,7 +280,7 @@ export function FolderExplorer({
                 }}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                {tCommon("delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -323,7 +327,7 @@ export function FolderExplorer({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-2 border-b">
-        <h3 className="font-medium text-sm">Folders</h3>
+        <h3 className="font-medium text-sm">{tFolder("folders")}</h3>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -344,14 +348,14 @@ export function FolderExplorer({
         ) : rootFolders.length === 0 && !showNewFolderInput ? (
           <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
             <FolderIcon className="h-8 w-8 mb-2 opacity-50" />
-            <p>No folders yet</p>
+            <p>{tFolder("noFolders")}</p>
             <Button
               variant="link"
               size="sm"
               className="mt-1"
               onClick={() => setShowNewFolderInput(true)}
             >
-              Create one
+              {tCommon("createOne")}
             </Button>
           </div>
         ) : (
@@ -385,7 +389,7 @@ export function FolderExplorer({
       {documents.length > 0 && (
         <div className="border-t p-2">
           <h4 className="mb-2 px-2 text-xs font-medium text-muted-foreground uppercase">
-            Documents
+            {t("title")}
           </h4>
           <div className="space-y-0.5 max-h-48 overflow-y-auto">
             {documents.map((doc) => (

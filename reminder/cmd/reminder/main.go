@@ -240,6 +240,7 @@ func runWorker(cfg *config.Config) {
 			cfg.ReminderExtractionModel,
 			cfg.ReminderExtractionMaxChars,
 			nil,
+			cfg.ReminderExtractionFallbackModel,
 		)
 	}
 	handler := application.NewReminderJobHandler(extractor, dateExtractor, db)

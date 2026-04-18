@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const defaultEmbeddingModel = "mistralai/mistral-embed-2312"
+const defaultEmbeddingModel = "openai/text-embedding-3-large"
 
 var approvedEmbeddingModels = []string{defaultEmbeddingModel}
 

@@ -5,13 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
-
-const ExpectedEmbeddingDimensions = 1024
 
 type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float32, error)
@@ -19,15 +18,17 @@ type Embedder interface {
 }
 
 type OpenRouterEmbedder struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey     string
+	model      string
+	dimensions int
+	client     *http.Client
 }
 
-func NewOpenRouterEmbedder(apiKey, model string) *OpenRouterEmbedder {
+func NewOpenRouterEmbedder(apiKey, model string, dimensions int) *OpenRouterEmbedder {
 	return &OpenRouterEmbedder{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:     apiKey,
+		model:      model,
+		dimensions: dimensions,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -42,8 +43,9 @@ func (e *OpenRouterEmbedder) Embed(ctx context.Context, text string) ([]float32,
 	url := "https://openrouter.ai/api/v1/embeddings"
 
 	reqBody := map[string]interface{}{
-		"model": e.model,
-		"input": text,
+		"model":      e.model,
+		"input":      text,
+		"dimensions": e.dimensions,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -66,7 +68,8 @@ func (e *OpenRouterEmbedder) Embed(ctx context.Context, text string) ([]float32,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OpenRouter API error: status %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return nil, fmt.Errorf("OpenRouter API error: status %d body %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var result struct {
@@ -82,11 +85,11 @@ func (e *OpenRouterEmbedder) Embed(ctx context.Context, text string) ([]float32,
 	if len(result.Data) == 0 || len(result.Data[0].Embedding) == 0 {
 		return nil, fmt.Errorf("no embedding returned from OpenRouter")
 	}
-	if len(result.Data[0].Embedding) != ExpectedEmbeddingDimensions {
+	if len(result.Data[0].Embedding) != e.dimensions {
 		return nil, fmt.Errorf(
 			"unexpected embedding size returned from OpenRouter: got %d want %d",
 			len(result.Data[0].Embedding),
-			ExpectedEmbeddingDimensions,
+			e.dimensions,
 		)
 	}
 

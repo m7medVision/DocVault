@@ -17,7 +17,7 @@ def _load_repo_env() -> None:
 _load_repo_env()
 
 
-DEFAULT_EMBEDDING_MODEL = "mistralai/mistral-embed-2312"
+DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-large"
 APPROVED_OPENROUTER_EMBEDDING_MODELS = (DEFAULT_EMBEDDING_MODEL,)
 OPENROUTER_EMBEDDING_DIMENSIONS = 1024
 DEFAULT_TRANSLATION_MODEL = "mistralai/mistral-large"

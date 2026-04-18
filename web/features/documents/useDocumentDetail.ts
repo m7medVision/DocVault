@@ -12,6 +12,8 @@ import {
   type DocumentMetadata,
   type DocumentVersion,
 } from '@/features/documents/api';
+import { updateDocumentTitle } from '@/lib/api/folders';
+import { toast } from 'sonner';
 
 export type DocumentDetail = Document & {
   pages?: DocumentPage[];
@@ -24,8 +26,10 @@ export interface UseDocumentDetailResult {
   loading: boolean;
   error: string | null;
   presignedUrl: string | null;
+  downloadLoading: boolean;
   handleDownload: () => void;
   handleUpdateMetadata: (key: string, value: string) => void;
+  handleRenameTitle: (title: string) => Promise<boolean>;
 }
 
 export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
@@ -59,7 +63,6 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
           const dl = await downloadDocument(documentId);
           setPresignedUrl(dl.download_url);
         } catch {
-          // download URL fetch failed silently
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load document');
@@ -77,7 +80,6 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
       const url = presignedUrl || (await downloadDocument(documentId)).download_url;
       window.open(url, '_blank');
     } catch {
-      // download failed silently
     } finally {
       setDownloadLoading(false);
     }
@@ -97,12 +99,30 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
     });
   };
 
+  const handleRenameTitle = async (title: string): Promise<boolean> => {
+    try {
+      await updateDocumentTitle(documentId, title);
+      setDocument((prev) => {
+        if (!prev) return prev;
+        return { ...prev, title };
+      });
+      toast.success('Document renamed');
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to rename document';
+      toast.error(message);
+      return false;
+    }
+  };
+
   return {
     document,
     loading,
     error,
     presignedUrl,
+    downloadLoading,
     handleDownload,
     handleUpdateMetadata,
+    handleRenameTitle,
   };
 }

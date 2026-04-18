@@ -319,7 +319,7 @@ func TestSearchService_Pagination(t *testing.T) {
 }
 
 func TestSearch_AggregatesFileScoresAndPassesVectorQuery(t *testing.T) {
-	embedding := make([]float32, expectedEmbeddingDimensions)
+	embedding := make([]float32, 1024)
 	embedding[0] = 0.25
 	embedding[1] = 0.75
 
@@ -373,7 +373,7 @@ func TestSearch_AggregatesFileScoresAndPassesVectorQuery(t *testing.T) {
 }
 
 func TestSearch_SortsFilesByMaxScoreBeforeCombinedChunkEvidence(t *testing.T) {
-	embedding := make([]float32, expectedEmbeddingDimensions)
+	embedding := make([]float32, 1024)
 	embedding[0] = 1
 
 	repo := &stubSearchRepository{

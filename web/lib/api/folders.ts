@@ -2,7 +2,6 @@ import { apiFetch } from './core';
 import type {
   Folder,
   FolderListResponse,
-  SuggestFolderResponse,
   MoveDocumentResponse,
 } from './types';
 
@@ -43,15 +42,6 @@ export async function renameFolder(
 
 export async function deleteFolder(id: string): Promise<void> {
   await apiFetch(`/folders/${id}`, { method: 'DELETE' });
-}
-
-export async function suggestFolder(
-  documentId: string
-): Promise<{ suggestion: SuggestFolderResponse }> {
-  return apiFetch<{ suggestion: SuggestFolderResponse }>('/documents/suggest-folder', {
-    method: 'POST',
-    body: JSON.stringify({ document_id: documentId }),
-  });
 }
 
 export async function moveDocument(

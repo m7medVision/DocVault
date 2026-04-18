@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   Folder as FolderIcon,
@@ -45,6 +46,9 @@ interface FolderNode extends Folder {
 }
 
 export default function FileBrowserPage() {
+  const t = useTranslations("documents");
+  const tCommon = useTranslations("common");
+  const tFolder = useTranslations("folder");
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +59,7 @@ export default function FileBrowserPage() {
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [draggedDocId, setDraggedDocId] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -69,7 +73,12 @@ export default function FileBrowserPage() {
       const roots: FolderNode[] = [];
 
       foldersRes.folders.forEach((f) => {
-        folderMap.set(f.id, { ...f, children: [], isOpen: expandedIds.has(f.id), documents: [] });
+        folderMap.set(f.id, {
+          ...f,
+          children: [],
+          isOpen: expandedIds.has(f.id),
+          documents: [],
+        });
       });
 
       folderMap.forEach((node) => {
@@ -93,7 +102,7 @@ export default function FileBrowserPage() {
     } finally {
       setLoading(false);
     }
-  }, [expandedIds, refreshKey]);
+  }, [expandedIds]);
 
   useEffect(() => {
     loadData();
@@ -118,7 +127,7 @@ export default function FileBrowserPage() {
       setNewFolderName("");
       setShowNewFolderInput(false);
       toast.success("Folder created");
-      setRefreshKey((k) => k + 1);
+      loadData();
     } catch {
       toast.error("Failed to create folder");
     }
@@ -133,7 +142,7 @@ export default function FileBrowserPage() {
       await renameFolder(folderId, editingName.trim());
       setEditingId(null);
       toast.success("Folder renamed");
-      setRefreshKey((k) => k + 1);
+      loadData();
     } catch {
       toast.error("Failed to rename folder");
     }
@@ -143,7 +152,7 @@ export default function FileBrowserPage() {
     try {
       await deleteFolder(folderId);
       toast.success("Folder deleted");
-      setRefreshKey((k) => k + 1);
+      loadData();
     } catch {
       toast.error("Failed to delete folder");
     }
@@ -167,7 +176,7 @@ export default function FileBrowserPage() {
     try {
       await moveDocument(docId, folderId);
       toast.success("Document moved");
-      setRefreshKey((k) => k + 1);
+      loadData();
     } catch {
       toast.error("Failed to move document");
     }
@@ -196,7 +205,7 @@ export default function FileBrowserPage() {
           className={cn(
             "group flex items-center gap-1 rounded-md px-2 py-1.5 cursor-pointer transition-colors",
             isSelected && "bg-primary/10 text-primary",
-            !isSelected && "hover:bg-accent"
+            !isSelected && "hover:bg-accent",
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => {
@@ -267,7 +276,7 @@ export default function FileBrowserPage() {
                 }}
               >
                 <Pencil className="mr-2 h-4 w-4" />
-                Rename
+                {tCommon("rename")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
@@ -277,7 +286,7 @@ export default function FileBrowserPage() {
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                New Subfolder
+                {tFolder("newSubfolder")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
@@ -287,7 +296,7 @@ export default function FileBrowserPage() {
                 }}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                {tCommon("delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -307,7 +316,7 @@ export default function FileBrowserPage() {
                 className={cn(
                   "group flex items-center gap-2 rounded-md px-2 py-1.5 cursor-grab transition-colors",
                   draggedDocId === doc.id && "opacity-50",
-                  "hover:bg-accent"
+                  "hover:bg-accent",
                 )}
                 draggable
                 onDragStart={(e) => handleDocumentDragStart(e, doc.id)}
@@ -369,20 +378,20 @@ export default function FileBrowserPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">File Browser</h1>
+        <h1 className="text-3xl font-bold">{t("fileBrowser")}</h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setRefreshKey((k) => k + 1)}
+            onClick={() => loadData()}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            {tCommon("refresh")}
           </Button>
           <Button asChild>
             <Link href="/documents/upload">
               <Upload className="mr-2 h-4 w-4" />
-              Upload
+              {t("upload")}
             </Link>
           </Button>
         </div>
@@ -392,7 +401,7 @@ export default function FileBrowserPage() {
         <Card className="lg:col-span-1">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-sm">Folders</h3>
+              <h3 className="font-medium text-sm">{tFolder("folders")}</h3>
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -432,7 +441,7 @@ export default function FileBrowserPage() {
               {rootFolders.length === 0 && !showNewFolderInput && (
                 <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
                   <FolderIcon className="h-8 w-8 mb-2 opacity-50" />
-                  <p>No folders yet</p>
+                  <p>{tFolder("noFolders")}</p>
                 </div>
               )}
             </div>
@@ -442,9 +451,7 @@ export default function FileBrowserPage() {
         <Card className="lg:col-span-2">
           <CardContent className="p-4">
             <h3 className="font-medium text-sm mb-4">
-              {selectedFolderId
-                ? `Documents in folder`
-                : "All Documents"}
+              {selectedFolderId ? `Documents in folder` : "All Documents"}
               {selectedFolderId && (
                 <Button
                   variant="link"
@@ -452,7 +459,7 @@ export default function FileBrowserPage() {
                   className="ml-2"
                   onClick={() => setSelectedFolderId(null)}
                 >
-                  (show all)
+                  {tCommon("showAll")}
                 </Button>
               )}
             </h3>
@@ -460,23 +467,23 @@ export default function FileBrowserPage() {
             <div className="space-y-2">
               {(selectedFolderId
                 ? documents.filter((d) => d.folder_id === selectedFolderId)
-                : rootDocuments
+                : documents
               ).length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
                   <FileText className="h-8 w-8 mb-2 opacity-50" />
-                  <p>No documents</p>
+                  <p>{t("noDocuments")}</p>
                 </div>
               ) : (
                 (selectedFolderId
                   ? documents.filter((d) => d.folder_id === selectedFolderId)
-                  : rootDocuments
+                  : documents
                 ).map((doc) => (
                   <Link
                     key={doc.id}
                     href={`/documents/${doc.id}`}
                     className={cn(
                       "group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-accent",
-                      draggedDocId === doc.id && "opacity-50"
+                      draggedDocId === doc.id && "opacity-50",
                     )}
                     draggable
                     onDragStart={(e) => handleDocumentDragStart(e, doc.id)}
@@ -504,15 +511,24 @@ export default function FileBrowserPage() {
   );
 }
 
-function Badge({ variant = "outline", children, className }: { variant?: string; children: React.ReactNode; className?: string }) {
+function Badge({
+  variant = "outline",
+  children,
+  className,
+}: {
+  variant?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors",
         variant === "outline" && "border-border text-foreground",
         variant === "secondary" && "bg-secondary text-secondary-foreground",
-        variant === "destructive" && "bg-destructive text-destructive-foreground",
-        className
+        variant === "destructive" &&
+          "bg-destructive text-destructive-foreground",
+        className,
       )}
     >
       {children}

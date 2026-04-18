@@ -8,9 +8,8 @@ import {
   deleteFolder,
   moveDocument,
   updateDocumentTitle,
-  suggestFolder,
 } from '@/lib/api/folders';
-import type { Folder, SuggestFolderResponse } from '@/lib/api/types';
+import type { Folder } from '@/lib/api/types';
 import { toast } from 'sonner';
 
 export interface UseFolderActionsOptions {
@@ -27,7 +26,6 @@ export interface UseFolderActionsResult {
   remove: (folderId: string) => Promise<boolean>;
   moveDoc: (documentId: string, folderId?: string) => Promise<boolean>;
   renameDoc: (documentId: string, title: string) => Promise<boolean>;
-  suggest: (documentId: string) => Promise<SuggestFolderResponse | null>;
 }
 
 export function useFolderActions(
@@ -128,19 +126,6 @@ export function useFolderActions(
     [options]
   );
 
-  const suggest = useCallback(
-    async (documentId: string): Promise<SuggestFolderResponse | null> => {
-      try {
-        const response = await suggestFolder(documentId);
-        return response.suggestion;
-      } catch {
-        toast.error('Failed to get suggestion');
-        return null;
-      }
-    },
-    []
-  );
-
   return {
     folders,
     loading,
@@ -151,6 +136,5 @@ export function useFolderActions(
     remove,
     moveDoc,
     renameDoc,
-    suggest,
   };
 }

@@ -111,14 +111,6 @@ export interface FolderListResponse {
   folders: Folder[];
 }
 
-export interface SuggestFolderResponse {
-  suggested_folder_id?: string;
-  suggested_folder_name?: string;
-  suggested_name?: string;
-  confidence: number;
-  should_create_new: boolean;
-}
-
 export interface MoveDocumentResponse {
   message: string;
   folder_id?: string;

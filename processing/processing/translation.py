@@ -38,8 +38,10 @@ class OpenRouterTranslationService:
         self.model_name = config.translation_model.strip()
         if not self.model_name:
             raise ValueError("TRANSLATION_MODEL must not be empty")
-        base_url = "https://openrouter.ai/api/v1"
-        self.client = openai.OpenAI(api_key=self.api_key, base_url=base_url)
+        self.client = openai.OpenAI(
+            api_key=self.api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
 
     async def translate_text(
         self,

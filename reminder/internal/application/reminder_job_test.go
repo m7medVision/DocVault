@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func (s *stubReminderStore) SaveReminderRule(ctx context.Context, rule *reminder
 func TestReminderJobHandlerSkipsWhenLLMExtractionFails(t *testing.T) {
 	handler := NewReminderJobHandler(
 		reminder.NewReminderExtractor([]int{30, 7, 1}),
-		stubDateExtractor{err: context.DeadlineExceeded},
+		stubDateExtractor{err: fmt.Errorf("OpenRouter API error: status 400 body bad request")},
 		&stubReminderStore{},
 	)
 
@@ -48,7 +49,30 @@ func TestReminderJobHandlerSkipsWhenLLMExtractionFails(t *testing.T) {
 
 	err = handler.Handle(context.Background(), amqp.Delivery{Body: body})
 	if err != nil {
-		t.Fatalf("Handle() unexpected error: %v", err)
+		t.Fatalf("Handle() unexpected error for permanent failure: %v", err)
+	}
+}
+
+func TestReminderJobHandlerReturnsErrorOnTransientFailure(t *testing.T) {
+	handler := NewReminderJobHandler(
+		reminder.NewReminderExtractor([]int{30, 7, 1}),
+		stubDateExtractor{err: fmt.Errorf("OpenRouter API error: status 429 body rate limited")},
+		&stubReminderStore{},
+	)
+
+	body, err := json.Marshal(QueueMessage{
+		JobID:      "job-1",
+		DocumentID: "doc-1",
+		TenantID:   "tenant-1",
+		SourceText: "Warranty End Date: April 14, 2027",
+	})
+	if err != nil {
+		t.Fatalf("Marshal() unexpected error: %v", err)
+	}
+
+	err = handler.Handle(context.Background(), amqp.Delivery{Body: body})
+	if err == nil {
+		t.Fatal("Handle() expected error for transient failure")
 	}
 }
 

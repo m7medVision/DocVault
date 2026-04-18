@@ -1,59 +1,16 @@
 'use client';
 
-import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2, FolderOpen, FilePen } from "lucide-react";
+import { Upload, X, FileText, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { useUploadWithProgress, ALLOWED_FILE_TYPES, MAX_FILE_SIZE, type UploadStatus } from "@/features/documents/useUploadWithProgress";
-import { getDocument } from "@/features/documents/api";
-import type { DocumentDetailResponse } from "@/lib/api/types";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-
-interface CompletedUpload {
-  id: string;
-  name: string;
-  suggestedFolderName?: string;
-  suggestedFilename?: string;
-  suggestionConfidence?: number;
-  suggestionCreateNew?: boolean;
-}
 
 export default function UploadPage() {
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
-  const router = useRouter();
-
-  const [completedUploads, setCompletedUploads] = useState<Map<number, CompletedUpload>>(new Map());
-
-  const handleComplete = useCallback(async (documentId: string, fileName: string, index: number) => {
-    try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/documents/${documentId}`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return;
-      const data: DocumentDetailResponse = await res.json();
-
-      setCompletedUploads((prev) => {
-        const next = new Map(prev);
-        next.set(index, {
-          id: documentId,
-          name: fileName,
-          suggestedFolderName: data.document.suggested_folder_name ?? undefined,
-          suggestedFilename: data.document.suggested_filename ?? undefined,
-          suggestionConfidence: data.document.suggestion_confidence ?? undefined,
-          suggestionCreateNew: data.document.suggestion_create_new ?? undefined,
-        });
-        return next;
-      });
-    } catch {
-      // non-fatal — suggestion not critical
-    }
-  }, []);
 
   const {
     files,
@@ -65,7 +22,7 @@ export default function UploadPage() {
     removeFile,
     upload,
     setDragging,
-  } = useUploadWithProgress({ onComplete: handleComplete });
+  } = useUploadWithProgress();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -217,20 +174,6 @@ export default function UploadPage() {
                     </span>
                   </div>
                   <Progress value={upload.progress} className="h-2" />
-                  {upload.status === 'completed' && completedUploads.has(index) && (
-                    <SuggestionCard
-                      index={index}
-                      completed={completedUploads.get(index)!}
-                      t={t}
-                      onDismiss={() => {
-                        setCompletedUploads((prev) => {
-                          const next = new Map(prev);
-                          next.delete(index);
-                          return next;
-                        });
-                      }}
-                    />
-                  )}
                 </div>
               ))}
             </div>
@@ -261,78 +204,6 @@ export default function UploadPage() {
           <span>{status === "uploading" ? tCommon("uploading") : "Processing..."}</span>
         </div>
       )}
-    </div>
-  );
-}
-
-function SuggestionCard({
-  index,
-  completed,
-  t,
-  onDismiss,
-}: {
-  index: number;
-  completed: CompletedUpload;
-  t: ReturnType<typeof useTranslations>;
-  onDismiss: () => void;
-}) {
-  const [loading, setLoading] = useState(false);
-
-  const handleAccept = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("access_token");
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/documents/${completed.id}/move`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ folder_id: null }),
-      });
-      toast.success(t("suggestionAccepted", "Suggestion accepted"));
-      onDismiss();
-    } catch {
-      toast.error(t("suggestionFailed", "Failed to apply suggestion"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!completed.suggestedFolderName && !completed.suggestedFilename) {
-    return null;
-  }
-
-  return (
-    <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">{t("suggestionLabel", "Suggestion")}</p>
-      {completed.suggestedFolderName && (
-        <div className="flex items-center gap-2 text-sm">
-          <FolderOpen className="h-4 w-4 text-muted-foreground" />
-          <span>{t("suggestedFolder", "Suggested folder")}: </span>
-          <Badge variant="outline">{completed.suggestedFolderName}</Badge>
-        </div>
-      )}
-      {completed.suggestedFilename && (
-        <div className="flex items-center gap-2 text-sm">
-          <FilePen className="h-4 w-4 text-muted-foreground" />
-          <span>{t("suggestedName", "Suggested name")}: </span>
-          <Badge variant="outline">{completed.suggestedFilename}</Badge>
-        </div>
-      )}
-      {completed.suggestionConfidence != null && (
-        <p className="text-xs text-muted-foreground">
-          {t("confidence", "Confidence")}: {(completed.suggestionConfidence * 100).toFixed(0)}%
-        </p>
-      )}
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" variant="default" onClick={handleAccept} disabled={loading}>
-          {t("acceptSuggestion", "Accept")}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onDismiss}>
-          {tCommon("cancel")}
-        </Button>
-      </div>
     </div>
   );
 }

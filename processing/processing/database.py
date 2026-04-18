@@ -5,7 +5,16 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.types import UserDefinedType
@@ -77,10 +86,6 @@ class Document(Base):
     language = Column(String)
     processing_stage = Column(String)
     processing_error = Column(Text)
-    suggested_folder_name = Column(String)
-    suggested_filename = Column(String)
-    suggestion_confidence = Column(Float)
-    suggestion_create_new = Column(Integer)
     created_at = Column(DateTime)
 
 
@@ -430,11 +435,20 @@ class PGVectorRepository:
         metadata: dict,
     ) -> None:
         """Insert or update metadata rows for a document."""
+        allowed_keys = {
+            "issuer",
+            "amount",
+            "currency",
+            "issue_date",
+            "due_date",
+            "expiry_date",
+            "document_number",
+        }
         session = self.get_session()
 
         try:
             for key, value in metadata.items():
-                if value is None:
+                if value is None or key not in allowed_keys:
                     continue
                 row_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}:{key}"))
                 existing = (
@@ -468,47 +482,159 @@ class PGVectorRepository:
         finally:
             session.close()
 
-    async def persist_suggestions(
+    async def ensure_folder(self, tenant_id: str, org_id: str, folder_name: str) -> str:
+        session = self.get_session()
+
+        try:
+            existing = (
+                session.query(Folder)
+                .filter(
+                    Folder.tenant_id == tenant_id,
+                    Folder.org_id == org_id,
+                    Folder.parent_id.is_(None),
+                    Folder.name == folder_name,
+                )
+                .first()
+            )
+            if existing:
+                return existing.id
+
+            new_id = str(uuid.uuid4())
+            session.add(
+                Folder(
+                    id=new_id,
+                    tenant_id=tenant_id,
+                    org_id=org_id,
+                    name=folder_name,
+                    created_at=datetime.utcnow(),
+                )
+            )
+            session.commit()
+            return new_id
+
+        except Exception as e:
+            session.rollback()
+            if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+                existing = (
+                    session.query(Folder)
+                    .filter(
+                        Folder.tenant_id == tenant_id,
+                        Folder.org_id == org_id,
+                        Folder.parent_id.is_(None),
+                        Folder.name == folder_name,
+                    )
+                    .first()
+                )
+                if existing:
+                    return existing.id
+            logger.error("ensure_folder_failed", error=str(e))
+            raise
+
+        finally:
+            session.close()
+
+    async def resolve_unique_title(
+        self,
+        tenant_id: str,
+        org_id: str,
+        folder_id: Optional[str],
+        desired_title: str,
+        exclude_document_id: str,
+    ) -> str:
+        session = self.get_session()
+
+        try:
+            query = session.query(Document.title).filter(
+                Document.tenant_id == tenant_id,
+                Document.org_id == org_id,
+                Document.folder_id == folder_id if folder_id else Document.folder_id.is_(None),
+                Document.id != exclude_document_id,
+            )
+            existing_titles = {row.title for row in query.all()}
+
+            if desired_title not in existing_titles:
+                return desired_title
+
+            base, dot, ext = desired_title.rpartition(".")
+            if not dot:
+                base = desired_title
+                ext = ""
+
+            counter = 2
+            while True:
+                candidate = f"{base} ({counter}){dot}{ext}" if ext else f"{base} ({counter})"
+                if candidate not in existing_titles:
+                    return candidate
+                counter += 1
+
+        finally:
+            session.close()
+
+    async def auto_organize(
         self,
         document_id: str,
-        suggested_folder_name: Optional[str] = None,
-        suggested_filename: Optional[str] = None,
-        confidence: Optional[float] = None,
-        create_new: Optional[bool] = None,
+        tenant_id: str,
+        org_id: str,
+        doc_type: str,
+        desired_title: str,
     ) -> None:
-        """Persist AI-generated folder/name suggestions on the document."""
+        folder_map = {
+            "invoice": "Invoices",
+            "contract": "Contracts",
+            "identity": "Identity",
+            "warranty": "Warranties",
+            "receipt": "Receipts",
+        }
+        folder_name = folder_map.get(doc_type, "Documents")
+
+        folder_id = await self.ensure_folder(tenant_id, org_id, folder_name)
+        unique_title = await self.resolve_unique_title(
+            tenant_id,
+            org_id,
+            folder_id,
+            desired_title,
+            document_id,
+        )
+
         session = self.get_session()
 
         try:
             doc = session.query(Document).filter(Document.id == document_id).first()
             if not doc:
-                logger.warning("document_not_found_for_suggestions", document_id=document_id)
+                logger.warning("document_not_found_for_auto_organize", document_id=document_id)
                 return
 
-            if suggested_folder_name is not None:
-                doc.suggested_folder_name = suggested_folder_name
-            if suggested_filename is not None:
-                doc.suggested_filename = suggested_filename
-            if confidence is not None:
-                doc.suggestion_confidence = confidence
-            if create_new is not None:
-                doc.suggestion_create_new = 1 if create_new else 0
-
+            doc.folder_id = folder_id
+            doc.title = unique_title
             session.commit()
             logger.info(
-                "suggestions_persisted",
+                "auto_organized",
                 document_id=document_id,
-                folder=suggested_folder_name,
-                filename=suggested_filename,
+                folder_id=folder_id,
+                title=unique_title,
             )
 
         except Exception as e:
             session.rollback()
-            logger.error("failed_to_persist_suggestions", document_id=document_id, error=str(e))
+            logger.error("auto_organize_failed", document_id=document_id, error=str(e))
             raise
 
         finally:
             session.close()
+
+    async def get_document_title(self, document_id: str) -> Optional[str]:
+        session = self.get_session()
+
+        try:
+            doc = session.query(Document).filter(Document.id == document_id).first()
+            return doc.title if doc else None
+
+        finally:
+            session.close()
+
+    async def list_all(self, tenant_id: str, org_id: str) -> list:
+        """Alias for list_folders."""
+        return await self.list_folders(tenant_id, org_id)
 
     async def list_folders(self, tenant_id: str, org_id: str) -> list:
         """List all folders for a tenant/org."""

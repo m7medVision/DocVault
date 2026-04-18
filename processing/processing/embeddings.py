@@ -15,7 +15,7 @@ logger = structlog.get_logger(__name__)
 
 
 class OpenRouterEmbeddingProvider:
-    """OpenRouter embedding provider using OpenAI-compatible API."""
+    """Embedding provider backed by OpenRouter's OpenAI-compatible API."""
 
     def __init__(self, api_key: str | None = None, model: str | None = None):
         self.model_name = validate_openrouter_model_name(
@@ -23,13 +23,16 @@ class OpenRouterEmbeddingProvider:
             APPROVED_OPENROUTER_EMBEDDING_MODELS,
         )
         self.api_key = api_key or config.openrouter_api_key
-        base_url = "https://openrouter.ai/api/v1"
-        self.client = openai.OpenAI(api_key=self.api_key, base_url=base_url)
+        self.client = openai.OpenAI(
+            api_key=self.api_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
 
     def generate_embedding(self, text: str) -> list[float]:
         response = self.client.embeddings.create(
             model=self.model_name,
             input=text,
+            dimensions=OPENROUTER_EMBEDDING_DIMENSIONS,
         )
         embedding = response.data[0].embedding
         logger.debug(

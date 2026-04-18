@@ -29,7 +29,11 @@
     "noOcrText": "لا يوجد نص OCR متاح",
     "noMetadata": "لا توجد بيانات وصفية متاحة",
     "close": "إغلاق",
-    "footer": "© 2026 {appName}"
+    "footer": "© 2026 {appName}",
+    "refresh": "تحديث",
+    "showAll": "(عرض الكل)",
+    "createOne": "إنشاء واحد",
+    "rename": "إعادة تسمية"
   },
   "nav": {
     "home": "الرئيسية",
@@ -150,7 +154,8 @@
     "suggestionFailed": "فشل تطبيق الاقتراح",
     "acceptSuggestion": "قبول",
     "chatWithDoc": "محادثة",
-    "confidence": "الثقة"
+    "confidence": "الثقة",
+    "fileBrowser": "متصفح الملفات"
   },
   "chat": {
     "title": "محادثة مع المستند",
@@ -158,6 +163,11 @@
     "emptyState": "ابدأ بطرح أسئلة عن هذا المستند.",
     "thinking": "جار التفكير...",
     "error": "حدث خطأ. يرجى المحاولة مرة أخرى."
+  },
+  "folder": {
+    "newSubfolder": "مجلد فرعي جديد",
+    "folders": "مجلدات",
+    "noFolders": "لا توجد مجلدات بعد"
   },
   "search": {
     "placeholder": "البحث في المستندات...",

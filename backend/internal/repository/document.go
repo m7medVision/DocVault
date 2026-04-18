@@ -44,7 +44,6 @@ func (r *documentRepository) GetByID(ctx context.Context, tenantID, orgID, id st
 	query := `
 		SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
 		       processing_stage, processing_error,
-		       suggested_folder_name, suggested_filename, suggestion_confidence, suggestion_create_new,
 		       created_at
 		FROM documents
 		WHERE id = $1 AND tenant_id = $2 AND org_id = $3
@@ -54,7 +53,6 @@ func (r *documentRepository) GetByID(ctx context.Context, tenantID, orgID, id st
 		&doc.ID, &doc.TenantID, &doc.OrgID, &doc.FolderID, &doc.OwnerID,
 		&doc.Title, &doc.DocType, &doc.Status, &doc.Language,
 		&doc.ProcessingStage, &doc.ProcessingError,
-		&doc.SuggestedFolderName, &doc.SuggestedFilename, &doc.SuggestionConfidence, &doc.SuggestionCreateNew,
 		&doc.CreatedAt,
 	)
 	if err != nil {
@@ -370,19 +368,14 @@ func (r *documentRepository) GetFullDocument(ctx context.Context, tenantID, orgI
 	return doc, versions, metadata, nil
 }
 
-// UpdateProcessingFields updates the processing stage, error, and AI suggestion fields.
-func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string, suggestedFolderName *string, suggestedFilename *string, suggestionConfidence *float32, suggestionCreateNew *bool) error {
+func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error {
 	query := `
 		UPDATE documents
 		SET processing_stage = COALESCE($1, processing_stage),
-		    processing_error = COALESCE($2, processing_error),
-		    suggested_folder_name = COALESCE($3, suggested_folder_name),
-		    suggested_filename = COALESCE($4, suggested_filename),
-		    suggestion_confidence = COALESCE($5, suggestion_confidence),
-		    suggestion_create_new = COALESCE($6, suggestion_create_new)
-		WHERE id = $7 AND tenant_id = $8
+		    processing_error = COALESCE($2, processing_error)
+		WHERE id = $3 AND tenant_id = $4
 	`
-	_, execErr := r.db.Exec(ctx, query, stage, errMsg, suggestedFolderName, suggestedFilename, suggestionConfidence, suggestionCreateNew, documentID, tenantID)
+	_, execErr := r.db.Exec(ctx, query, stage, errMsg, documentID, tenantID)
 	if execErr != nil {
 		return fmt.Errorf("failed to update processing fields: %w", execErr)
 	}

@@ -52,7 +52,7 @@ func New(cfg *config.Config, repos *repository.Repositories, dbPool *pgxpool.Poo
 		auditSvc:        service.NewAuditService(repos.Audit),
 		reminderSvc:     service.NewReminderService(repos.Reminder),
 		notificationSvc: service.NewNotificationService(repos.Notification),
-		searchSvc:       service.NewSearchService(search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel), repos.Search),
+		searchSvc:       service.NewSearchService(search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim), repos.Search),
 		chatSvc:         service.NewChatService(repos.Document),
 		userRepo:        repos.User,
 		membershipRepo:  repos.Membership,
