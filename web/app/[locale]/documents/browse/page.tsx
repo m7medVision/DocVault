@@ -365,7 +365,6 @@ export default function FileBrowserPage() {
   };
 
   const rootFolders = folders.filter((f) => !f.parent_id);
-  const rootDocuments = documents.filter((d) => !d.folder_id);
 
   if (loading) {
     return (
