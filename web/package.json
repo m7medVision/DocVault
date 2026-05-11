@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.7.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.41.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.75.0",
     "@opentelemetry/exporter-trace-otlp-grpc": "^0.48.0",
     "@opentelemetry/instrumentation-http": "^0.48.0",
     "@opentelemetry/propagator-b3": "^1.22.0",
