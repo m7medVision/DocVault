@@ -1,5 +1,5 @@
 
-# A Mobile-First Smart Document Management Platform for Personal and Small-Business Records
+# A Smart Document Management Platform for Personal and Small-Business Records
 
 **Author:** Mohammed Bin Saif Bin Khalfan Al Jahwari
 **Student ID:** 20-0201
@@ -11,7 +11,7 @@
 
 Important documents are often stored in places that were never meant to function as a reliable records system. Personal users keep warranties, certificates, and identity papers in phone galleries, messaging applications, or email threads, while small businesses scatter invoices, contracts, and supplier records across shared drives and ad hoc folders. The result is a familiar problem: documents are hard to retrieve, key dates are missed, and there is little control over access, history, or accountability.
 
-This thesis presents the design of a mobile-first smart document management platform for personal and small-business records. The proposed system is conceived as a SaaS product with two primary interfaces: a web application and a mobile application. Its main functions are secure document storage, OCR-first text extraction using Mistral OCR, metadata enrichment, pgvector-based semantic retrieval for a RAG workflow, and reminder workflows for time-sensitive records. Web upload and phone-camera capture are treated as first-class use cases, while channels such as email forwarding and WhatsApp sharing are considered future extensions rather than core MVP requirements.
+This thesis presents the design of a smart document management platform for personal and small-business records. The proposed system is conceived as a SaaS product with both web and mobile clients. Its main functions are secure document storage, OCR-first text extraction using Mistral OCR, metadata enrichment, pgvector-based semantic retrieval for a RAG workflow, and reminder workflows for time-sensitive records. Web upload and mobile capture are supported ingestion paths, while channels such as email forwarding and WhatsApp sharing are considered future extensions rather than core MVP requirements.
 
 The design adopts a selective microservice architecture composed of a Go-based core platform service, a Python-based document-processing service, and an asynchronous worker layer. All uploaded files — including photographs, scanned pages, and born-digital PDFs — pass through a common OCR-first pipeline centered on Mistral OCR so that the system maintains one searchable text path instead of multiple inconsistent extraction branches. Search applies metadata filters and semantic retrieval through pgvector, where each stored chunk carries grounding metadata such as document identity and page location for the later RAG step. Security is addressed through tenant-aware access control, role-based permissions, audit logging, encrypted storage, and short-lived download URLs.
 
@@ -123,7 +123,7 @@ The motivation for the project comes from a practical observation: people often 
 
 ### 1.4 Objectives
 
-The primary objective of this thesis is to produce a coherent system design for a mobile-first smart document management platform. This objective is divided into the following specific goals:
+The primary objective of this thesis is to produce a coherent system design for a smart document management platform. This objective is divided into the following specific goals:
 
 1. Define a suitable product scope for a thesis-scale SaaS document platform.
 2. Identify the main user groups, use cases, and MVP boundaries.
@@ -136,7 +136,7 @@ The primary objective of this thesis is to produce a coherent system design for 
 
 The thesis is guided by the following research questions:
 
-1. What product scope is appropriate for a mobile-first document management platform serving personal and small-business users?
+1. What product scope is appropriate for a smart document management platform serving personal and small-business users?
 2. Which architecture best balances simplicity, maintainability, and future scalability for this problem?
 3. How should OCR, metadata extraction, and Arabic-English retrieval be combined in one practical processing strategy?
 4. Which technology choices are suitable for an MVP without creating avoidable vendor or operational lock-in?
@@ -405,7 +405,7 @@ This chapter presented the implementation design of the proposed platform. It ju
 
 ### 5.1 Summary of the Study
 
-This thesis presented the design of a mobile-first smart document management platform for personal and small-business records.
+This thesis presented the design of a smart document management platform for personal and small-business records.
 
 ### 5.2 Key Findings
 
@@ -415,13 +415,13 @@ Five outcomes stand out from the thesis:
 2. The literature review showed that OCR remains a practical canonical text layer.
 3. The study justified a simplified pgvector-based retrieval strategy.
 4. It argued for a restrained service split.
-5. It defined web and mobile applications as the primary client channels.
+5. It kept both web and mobile applications in scope while leaving room for later extensions.
 
 ### 5.3 Research Questions Revisited
 
 The research questions posed in Chapter 1 are answered as follows:
 
-- RQ1: The appropriate product scope is mobile-first document capture with OCR-backed ingestion, metadata-guided semantic search, reminders, and role-based access control.
+- RQ1: The appropriate product scope is document capture and upload through web and mobile clients, OCR-backed ingestion, metadata-guided semantic search, reminders, and role-based access control.
 - RQ2: A selective microservice architecture with a core platform service, document-processing service, and worker layer best balances simplicity, maintainability, and future scalability.
 - RQ3: OCR, metadata extraction, and Arabic-English retrieval should be combined through an OCR-first pipeline centered on Mistral OCR, layered metadata extraction, and pgvector-backed bilingual semantic search.
 - RQ4: An MVP stack centered on Go, Python, PostgreSQL with pgvector, Mistral OCR, and S3-compatible object storage provides suitable choices without creating avoidable vendor or operational lock-in.
@@ -437,7 +437,7 @@ The first priority for future work is implementation and evaluation. A represent
 
 ### 5.6 Contributions
 
-The main contribution of this thesis is a coherent, defensible system design for a mobile-first SaaS document management platform.
+The main contribution of this thesis is a coherent, defensible system design for a SaaS document management platform.
 
 ### 5.7 Concluding Remarks
 

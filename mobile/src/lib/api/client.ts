@@ -1,24 +1,62 @@
-// Base authenticated fetch client for API calls
-// Provides error handling and response parsing
+import { getAccessToken } from '@/lib/auth/auth-context';
+import { API_BASE_URL } from '@/lib/config';
 
-import { CONFIG } from '../config';
-import { authorizedFetch } from '../auth';
-import { ApiError } from './types';
+type RefreshFn = () => Promise<string | null>;
+let refreshFn: RefreshFn | null = null;
+let inflightRefresh: Promise<string | null> | null = null;
 
-export { ApiError };
-
-export { CONFIG } from '../config';
-
-export async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const error: ApiError = await response.json().catch(() => ({
-      error: 'Request failed',
-      code: response.status.toString(),
-      request_id: '',
-    }));
-    throw error;
-  }
-  return response.json();
+export function setRefreshFunction(fn: RefreshFn | null) {
+  refreshFn = fn;
 }
 
-export { authorizedFetch };
+async function refreshToken(): Promise<string | null> {
+  if (!refreshFn) return null;
+  if (!inflightRefresh) {
+    inflightRefresh = refreshFn().finally(() => { inflightRefresh = null; });
+  }
+  return inflightRefresh;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  retry = true,
+): Promise<T> {
+  const headers = new Headers(options.headers);
+
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  let token = getAccessToken();
+
+  if (!token && retry) {
+    token = await refreshToken();
+  }
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401 && retry) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      return apiFetch<T>(path, options, false);
+    }
+  }
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const message = body && typeof body.error === 'string' ? body.error : `API error ${response.status}`;
+    throw new Error(message);
+  }
+
+  if (response.status === 204) return undefined as T;
+
+  return response.json() as Promise<T>;
+}
