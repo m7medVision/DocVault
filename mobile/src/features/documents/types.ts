@@ -1,49 +1,27 @@
-import type {
-  Document,
-  DocumentDetail,
-  DocumentMetadata,
-  DocumentPage,
-  DocumentVersion,
-  DocumentStatus,
-} from '@/lib/api/types';
-
-export type {
-  Document,
-  DocumentDetail,
-  DocumentMetadata,
-  DocumentPage,
-  DocumentVersion,
-  DocumentStatus,
-};
-
-export interface FilterState {
-  type: string;
-  folder_id: string;
-  status: string;
-}
-
-export interface DocumentListItem {
+export interface Document {
   id: string;
+  tenant_id: string;
+  org_id: string;
+  folder_id?: string;
+  owner_id: string;
   title: string;
   doc_type: string;
   status: string;
-  folder_id?: string;
+  language?: string;
   created_at: string;
-  thumbnail_url?: string;
 }
 
-export interface UploadProgress {
-  bytesUploaded: number;
-  totalBytes: number;
-  percentage: number;
+export interface DocumentListResponse {
+  documents: Document[];
+  cursor?: string;
+  total: number;
 }
 
-export interface SelectedFile {
-  uri: string;
-  name: string;
-  size: number;
-  mimeType: string;
-  type: 'pdf' | 'image';
+export interface ListDocumentsOptions {
+  type?: string;
+  folder_id?: string;
+  status?: string;
+  language?: string;
+  cursor?: string;
+  limit?: number;
 }
-
-export type UploadMode = 'select' | 'preview' | 'uploading' | 'success' | 'error';
