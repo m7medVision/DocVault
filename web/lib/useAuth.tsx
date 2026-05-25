@@ -33,6 +33,7 @@ interface AuthContextType {
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<string | null>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -225,6 +226,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setSession]
   );
 
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : null));
+  }, []);
+
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', {
       method: 'POST',
@@ -245,8 +250,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refresh,
+      updateUser,
     }),
-    [accessToken, expiresAt, isLoading, login, logout, refresh, register, user]
+    [accessToken, expiresAt, isLoading, login, logout, refresh, register, updateUser, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
