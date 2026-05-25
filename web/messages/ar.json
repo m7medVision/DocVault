@@ -257,5 +257,32 @@
     "admin": "مدير",
     "member": "عضو",
     "viewer": "مشاهد"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "إدارة إعدادات حسابك وتفضيلاتك.",
+    "profile": "الملف الشخصي",
+    "profileDescription": "تحديث اسمك واللغة المفضلة.",
+    "displayName": "اسم العرض",
+    "displayNamePlaceholder": "اسمك الكامل",
+    "locale": "اللغة",
+    "localeEnglish": "الإنجليزية",
+    "localeArabic": "العربية",
+    "profileUpdated": "تم تحديث الملف الشخصي بنجاح",
+    "email": "البريد الإلكتروني",
+    "emailDescription": "تغيير عنوان بريدك الإلكتروني. ستحتاج إلى التحقق من البريد الإلكتروني الجديد.",
+    "newEmail": "البريد الإلكتروني الجديد",
+    "newEmailPlaceholder": "جديد@مثال.com",
+    "currentPassword": "كلمة المرور الحالية",
+    "currentPasswordPlaceholder": "أدخل كلمة المرور الحالية",
+    "emailUpdated": "تم تحديث البريد الإلكتروني بنجاح",
+    "password": "كلمة المرور",
+    "passwordDescription": "تحديث كلمة المرور. استخدم كلمة مرور قوية وفريدة.",
+    "newPassword": "كلمة المرور الجديدة",
+    "newPasswordPlaceholder": "أدخل كلمة المرور الجديدة",
+    "passwordUpdated": "تم تحديث كلمة المرور بنجاح",
+    "updateProfile": "تحديث الملف الشخصي",
+    "updateEmail": "تحديث البريد الإلكتروني",
+    "updatePassword": "تحديث كلمة المرور"
   }
 }

@@ -257,5 +257,32 @@
     "admin": "Admin",
     "member": "Member",
     "viewer": "Viewer"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Manage your account settings and preferences.",
+    "profile": "Profile",
+    "profileDescription": "Update your display name and language preference.",
+    "displayName": "Display Name",
+    "displayNamePlaceholder": "Your full name",
+    "locale": "Language",
+    "localeEnglish": "English",
+    "localeArabic": "Arabic",
+    "profileUpdated": "Profile updated successfully",
+    "email": "Email",
+    "emailDescription": "Change your email address. You'll need to verify the new email.",
+    "newEmail": "New Email",
+    "newEmailPlaceholder": "new@example.com",
+    "currentPassword": "Current Password",
+    "currentPasswordPlaceholder": "Enter your current password",
+    "emailUpdated": "Email updated successfully",
+    "password": "Password",
+    "passwordDescription": "Update your password. Use a strong, unique password.",
+    "newPassword": "New Password",
+    "newPasswordPlaceholder": "Enter your new password",
+    "passwordUpdated": "Password updated successfully",
+    "updateProfile": "Update Profile",
+    "updateEmail": "Update Email",
+    "updatePassword": "Update Password"
   }
 }
