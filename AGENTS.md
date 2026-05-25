@@ -12,13 +12,13 @@ Use `just` as the primary task runner.
 | **Reminder** | Go | `just dev-reminder` | `go test ./...` |
 | **OCR** | Python | `just dev-ocr` | `uv run ruff check .` |
 | **Processing**| Python | `just dev-processing`| `uv run ruff check .` |
-| **Web** | Next.js | `just dev-web` | `bun run lint` |
+| **Web** | Next.js | `just dev-web` | `npm run lint` |
 | **Mobile** | Expo | `just dev-mobile` | - |
 
 ### Infrastructure
 - **Start/Stop:** `just dev-up` / `just dev-down` (Docker Compose).
 - **Database:** `just db-migrate` (uses `goose` in `backend/internal/migrate/sql`).
-- **Dependencies:** `just dev-setup` installs all deps (uv, bun, go).
+- **Dependencies:** `just dev-setup` installs all deps (uv, pnpm, go).
 
 ## Architecture & Workflows
 
@@ -30,7 +30,7 @@ Use `just` as the primary task runner.
 ### Critical Conventions
 - **Migrations**: Always use `goose` via `just db-migrate`. New migrations go in `backend/internal/migrate/sql`.
 - **Python**: Uses `uv` for dependency management (`uv sync`, `uv run`).
-- **Frontend**: Uses `bun` for package management.
+- **Frontend**: Uses `pnpm` for dependency management and `npm run ...` for package scripts.
 - **Non-Interactive**: ALWAYS use `-f` with `rm`, `cp`, `mv` and `-y` with package managers.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

@@ -134,7 +134,7 @@ func Load() (*Config, error) {
 		Server: ServerConfig{
 			Port:        getEnvInt("PORT", 8080),
 			Environment: getEnvString("ENVIRONMENT", "development"),
-			CORSOrigins: getEnvStringSlice("CORS_ORIGINS", []string{"http://localhost:3000"}),
+			CORSOrigins: getEnvStringSlice("CORS_ORIGINS", []string{"*"}),
 		},
 		DB: DBConfig{
 			URL:             getEnvString("DATABASE_URL", ""),

@@ -71,16 +71,16 @@ dev-processing: dev-processing-install
     cd processing && uv run watchfiles "python -m processing.main" .
 
 dev-web-install:
-	cd web && bun install
+	cd web && pnpm install
 
 dev-web: dev-web-install
-	cd web && bun run dev
+	cd web && pnpm run dev
 
 dev-mobile-install:
-    cd mobile && bun install
+    cd mobile && pnpm install
 
 dev-mobile: dev-mobile-install
-    cd mobile && bun run start
+    cd mobile && pnpm run start
 
 dev-tmux:
     ./scripts/dev-tmux.sh
