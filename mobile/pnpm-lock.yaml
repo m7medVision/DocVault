@@ -17,6 +17,9 @@ importers:
       '@react-navigation/native':
         specifier: ^7.1.33
         version: 7.2.4(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+      '@tanstack/react-query':
+        specifier: ^5.100.14
+        version: 5.100.14(react@19.2.0)
       expo:
         specifier: ~55.0.24
         version: 55.0.24(@babel/core@7.29.0)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.11)(expo-router@55.0.14)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.0)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
@@ -44,6 +47,9 @@ importers:
       expo-linking:
         specifier: ~55.0.15
         version: 55.0.15(expo@55.0.24)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+      expo-localization:
+        specifier: ^56.0.6
+        version: 56.0.6(expo@55.0.24)(react@19.2.0)
       expo-router:
         specifier: ~55.0.14
         version: 55.0.14(@expo/log-box@55.0.12)(@expo/metro-runtime@55.0.11)(@types/react@19.2.14)(expo-constants@55.0.16)(expo-font@55.0.7)(expo-linking@55.0.15)(expo@55.0.24)(react-dom@19.2.0(react@19.2.0))(react-native-gesture-handler@2.30.1(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-reanimated@4.2.1(react-native-worklets@0.7.4(@babel/core@7.29.0)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-safe-area-context@5.6.2(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-screens@4.23.0(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-web@0.21.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
@@ -68,6 +74,9 @@ importers:
       heroui-native:
         specifier: ^1.0.3
         version: 1.0.3(ff5ad9a3225de2c4536242e5dc786642)
+      i18n-js:
+        specifier: ^4.5.3
+        version: 4.5.3
       react:
         specifier: 19.2.0
         version: 19.2.0
@@ -1398,6 +1407,14 @@ packages:
     resolution: {integrity: sha512-F0F7d01fmkQhsTjXezGBLdrl1KresJTcI3DB8EkScCldyKp3Msz4hub4uyYaVnk88BAS1g5DQjjF6F5qczheLA==}
     engines: {node: '>= 10'}
 
+  '@tanstack/query-core@5.100.14':
+    resolution: {integrity: sha512-5X41dGpxgeaHISCRW2oYwcSycZeULZzAunaudXT9ov1KOTj9xwt0CH6hbwqP1/z74ZWF7rYFnDpyYH07XFcZew==}
+
+  '@tanstack/react-query@5.100.14':
+    resolution: {integrity: sha512-oOr6aRdSFEwWhzxEkD/9ZcItM3+LjBSkeVmadWKwUssAHTsqd/7bOjWrX4AbvEkoEhgAxzN0Xk6H/aYzXiYBAw==}
+    peerDependencies:
+      react: ^18 || ^19
+
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
 
@@ -1839,6 +1856,9 @@ packages:
   big-integer@1.6.52:
     resolution: {integrity: sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==}
     engines: {node: '>=0.6'}
+
+  bignumber.js@11.1.1:
+    resolution: {integrity: sha512-LNkCYMieJqAts/Sj5094B92c5q+yRPlXWpABJnHMbUjB/F8AUjELmSmYX5mxbNiY/QnGnJvJIrnRuW5gUqbW5Q==}
 
   boolbase@1.0.0:
     resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
@@ -2416,6 +2436,12 @@ packages:
       react: '*'
       react-native: '*'
 
+  expo-localization@56.0.6:
+    resolution: {integrity: sha512-zzBVoUFHCVNBywcxGsspoZeIXebihOo/AnmQYE4jMv8gHCSKlLNFT+ft+0+mWcZCMs9necvUs8S8TDonAu/xBA==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+
   expo-modules-autolinking@55.0.22:
     resolution: {integrity: sha512-13x32V0HMHJDjND4K/gU2lQIZNxYn5S5rFzujqHmnXvOO6WGrVVELpk/0p5FmBfeuQ7GGFsATbhazQk+FeukUw==}
     hasBin: true
@@ -2786,6 +2812,9 @@ packages:
 
   hyphenate-style-name@1.1.0:
     resolution: {integrity: sha512-WDC/ui2VVRrz3jOVi+XtjqkDjiVjTtFaAGiW37k6b+ohyQ5wYDOGkvCZa8+H0nx3gyvv0+BST9xuOgIyGQ00gw==}
+
+  i18n-js@4.5.3:
+    resolution: {integrity: sha512-5/tT6R9t9qlYqGhxGq9I9Ap3WKUaAMq5aRuO1gqAcUqm6xGbL0jwTAjSFjgbx935BAV8QbEzvQOzE796dUlEfA==}
 
   ignore@5.3.2:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
@@ -3233,6 +3262,9 @@ packages:
   lodash.throttle@4.1.1:
     resolution: {integrity: sha512-wIkUCfVKpVsWo3JSZlc+8MB5it+2AN5W8J7YVMST30UrvcQNZ1Okbj+rbVniijTWE6FGYy4XJq/rHkas8qJMLQ==}
 
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
+
   log-symbols@2.2.0:
     resolution: {integrity: sha512-VeIAFslyIerEJLXHziedo2basKbMKtTw3vfn5IzG0XTjhAVEJyNHnL2p7vc+wBDSdQuUpNw3M2u6xb9QsAY5Eg==}
     engines: {node: '>=4'}
@@ -3253,6 +3285,9 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
+  make-plural@7.5.0:
+    resolution: {integrity: sha512-0booA+aVYyVFoR67JBHdfVk0U08HmrBH2FrtmBqBa+NldlqXv/G2Z9VQuQq6Wgp2jDWdybEWGfBkk1cq5264WA==}
 
   makeerror@1.0.12:
     resolution: {integrity: sha512-JmqCvUhmt43madlpFzG4BQzG2Z3m6tvQDNKdClZnO3VbIudJYmxsT0FNJMeiB2+JTSlTQTSbU8QdesVmwJcmLg==}
@@ -3859,6 +3894,9 @@ packages:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
     deprecated: Rimraf versions prior to v4 are no longer supported
     hasBin: true
+
+  rtl-detect@1.1.2:
+    resolution: {integrity: sha512-PGMBq03+TTG/p/cRB7HCLKJ1MgDIi07+QU1faSjiYRfmY5UsAttV9Hs08jDAHVwcOwmVLcSJkpwyfXszVjWfIQ==}
 
   safe-array-concat@1.1.4:
     resolution: {integrity: sha512-wtZlHyOje6OZTGqAoaDKxFkgRtkF9CnHAVnCHKfuj200wAgL+bSJhdsCD2l0Qx/2ekEXjPWcyKkfGb5CPboslg==}
@@ -6093,6 +6131,13 @@ snapshots:
       '@tailwindcss/oxide-win32-arm64-msvc': 4.1.17
       '@tailwindcss/oxide-win32-x64-msvc': 4.1.17
 
+  '@tanstack/query-core@5.100.14': {}
+
+  '@tanstack/react-query@5.100.14(react@19.2.0)':
+    dependencies:
+      '@tanstack/query-core': 5.100.14
+      react: 19.2.0
+
   '@tybys/wasm-util@0.10.2':
     dependencies:
       tslib: 2.8.1
@@ -6607,6 +6652,8 @@ snapshots:
       open: 8.4.2
 
   big-integer@1.6.52: {}
+
+  bignumber.js@11.1.1: {}
 
   boolbase@1.0.0: {}
 
@@ -7319,6 +7366,12 @@ snapshots:
       - expo
       - supports-color
 
+  expo-localization@56.0.6(expo@55.0.24)(react@19.2.0):
+    dependencies:
+      expo: 55.0.24(@babel/core@7.29.0)(@expo/dom-webview@55.0.6)(@expo/metro-runtime@55.0.11)(expo-router@55.0.14)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native-worklets@0.7.4(@babel/core@7.29.0)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      react: 19.2.0
+      rtl-detect: 1.1.2
+
   expo-modules-autolinking@55.0.22(typescript@5.9.3):
     dependencies:
       '@expo/require-utils': 55.0.5(typescript@5.9.3)
@@ -7728,6 +7781,12 @@ snapshots:
       - supports-color
 
   hyphenate-style-name@1.1.0: {}
+
+  i18n-js@4.5.3:
+    dependencies:
+      bignumber.js: 11.1.1
+      lodash: 4.18.1
+      make-plural: 7.5.0
 
   ignore@5.3.2: {}
 
@@ -8156,6 +8215,8 @@ snapshots:
 
   lodash.throttle@4.1.1: {}
 
+  lodash@4.18.1: {}
+
   log-symbols@2.2.0:
     dependencies:
       chalk: 2.4.2
@@ -8175,6 +8236,8 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  make-plural@7.5.0: {}
 
   makeerror@1.0.12:
     dependencies:
@@ -8930,6 +8993,8 @@ snapshots:
   rimraf@3.0.2:
     dependencies:
       glob: 7.2.3
+
+  rtl-detect@1.1.2: {}
 
   safe-array-concat@1.1.4:
     dependencies:
