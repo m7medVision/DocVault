@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -59,7 +58,9 @@ export default function AuthNav() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>{tAuth("profile")}</DropdownMenuLabel>
+        <DropdownMenuItem asChild>
+          <Link href={`/${locale}/settings`}>{tAuth("profile")}</Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="text-destructive">
           {tAuth("signOut")}

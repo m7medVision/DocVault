@@ -45,6 +45,7 @@ export function AppSidebar() {
     { title: tNav("upload"), url: `${localePrefix}/documents/upload`, icon: Upload },
     { title: tNav("search"), url: `${localePrefix}/search`, icon: Search },
     { title: tNav("reminders"), url: `${localePrefix}/reminders`, icon: Bell },
+    { title: tNav("settings"), url: `${localePrefix}/settings`, icon: Settings },
   ];
 
   return (
