@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Button, Card , useThemeColor } from 'heroui-native';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
@@ -10,6 +11,7 @@ import { useDocumentPicker } from '@/features/documents/use-document-picker';
 import { useDocuments } from '@/features/documents/use-documents';
 
 export default function DocumentsScreen() {
+  const router = useRouter();
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const filters = { type, status };
@@ -86,20 +88,22 @@ export default function DocumentsScreen() {
       )}
 
       {documents.map((document) => (
-        <Card key={document.id} className="rounded-3xl border border-divider bg-content1 p-4">
-          <View style={styles.documentCard}>
-            <View style={styles.documentTitleRow}>
-              <ThemedText type="smallBold" style={styles.flexText}>
-                {document.title}
+        <Pressable key={document.id} onPress={() => router.push({ pathname: '/documents/[id]', params: { id: document.id } })}>
+          <Card className="rounded-3xl border border-divider bg-content1 p-4">
+            <View style={styles.documentCard}>
+              <View style={styles.documentTitleRow}>
+                <ThemedText type="smallBold" style={styles.flexText}>
+                  {document.title}
+                </ThemedText>
+                <ThemedText type="code">{document.status}</ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {document.doc_type} · {document.language || 'unknown'} ·{' '}
+                {new Date(document.created_at).toLocaleDateString()}
               </ThemedText>
-              <ThemedText type="code">{document.status}</ThemedText>
             </View>
-            <ThemedText type="small" themeColor="textSecondary">
-              {document.doc_type} · {document.language || 'unknown'} ·{' '}
-              {new Date(document.created_at).toLocaleDateString()}
-            </ThemedText>
-          </View>
-        </Card>
+          </Card>
+        </Pressable>
       ))}
     </DocVaultScreen>
   );

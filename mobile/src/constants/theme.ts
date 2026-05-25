@@ -16,7 +16,13 @@ export type ThemeColor =
   | 'danger'
   | 'warning'
   | 'success'
-  | 'foreground';
+  | 'textSecondary'
+  | 'error'
+  | 'errorMuted'
+  | 'warningMuted'
+  | 'successMuted'
+  | 'backgroundElement'
+  | 'backgroundSelected';
 
 export const Fonts = Platform.select({
   ios: {

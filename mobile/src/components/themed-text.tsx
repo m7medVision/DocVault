@@ -21,7 +21,24 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
     'success',
   ]);
 
-  const colorValues = { foreground: text, accent, background, surface, muted, border, danger, warning, success };
+  const colorValues = {
+    foreground: text,
+    accent,
+    background,
+    surface,
+    muted,
+    border,
+    danger,
+    warning,
+    success,
+    textSecondary: muted,
+    error: danger,
+    errorMuted: `${danger}20`,
+    warningMuted: `${warning}20`,
+    successMuted: `${success}20`,
+    backgroundElement: surface,
+    backgroundSelected: accent,
+  };
   const mappedColor = themeColor ? colorValues[themeColor as keyof typeof colorValues] ?? text : text;
 
   return (

@@ -11,8 +11,8 @@ interface DocVaultScreenProps extends ViewProps {
 export function DocVaultScreen({ children, scroll = true, style, ...props }: DocVaultScreenProps) {
   const theme = useTheme();
   const content = (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={[styles.content, style]} {...props}>
+    <SafeAreaView style={[styles.safeArea, !scroll && styles.safeAreaFull]}>
+      <View style={[styles.content, !scroll && styles.contentFull, style]} {...props}>
         {children}
       </View>
     </SafeAreaView>
@@ -45,8 +45,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.four,
   },
+  safeAreaFull: {
+    flex: 1,
+  },
   content: {
     gap: Spacing.three,
     paddingTop: Spacing.three,
+  },
+  contentFull: {
+    flex: 1,
   },
 });

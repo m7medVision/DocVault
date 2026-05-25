@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Button, Card } from 'heroui-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useLocalSearchParams } from 'expo-router';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
 import { ThemedText } from '@/components/themed-text';
@@ -13,22 +14,30 @@ interface CapturedPage {
 }
 
 export default function ScanScreen() {
+  const { autoOpen } = useLocalSearchParams<{ autoOpen?: string }>();
+  const lastAutoOpen = useRef<string | undefined>(undefined);
   const cameraRef = useRef<InstanceType<typeof CameraView>>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [capturedPages, setCapturedPages] = useState<CapturedPage[]>([]);
   const [capturing, setCapturing] = useState(false);
 
-  async function openCamera() {
+  const openCamera = useCallback(async () => {
     if (!permission?.granted) {
       const nextPermission = await requestPermission();
       if (!nextPermission.granted) return;
     }
 
     setCameraOpen(true);
-  }
+  }, [permission, requestPermission]);
 
-  async function capturePage() {
+  useEffect(() => {
+    if (!autoOpen || lastAutoOpen.current === autoOpen) return;
+    lastAutoOpen.current = autoOpen;
+    openCamera();
+  }, [autoOpen, openCamera]);
+
+  const capturePage = useCallback(async () => {
     if (!cameraRef.current || capturing) return;
 
     try {
@@ -44,7 +53,7 @@ export default function ScanScreen() {
     } finally {
       setCapturing(false);
     }
-  }
+  }, [capturing]);
 
   function removePage(uri: string) {
     setCapturedPages((previous) => previous.filter((page) => page.uri !== uri));
@@ -71,12 +80,12 @@ export default function ScanScreen() {
       <Card className="rounded-[32px] bg-content1 p-6">
         <View style={styles.cardBody}>
           <ThemedText type="subtitle">Camera scan</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="small" themeColor="muted">
             Capture pages, review them, then upload the scan into the same OCR pipeline as web
             uploads.
           </ThemedText>
           {permission && !permission.granted && !permission.canAskAgain && (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="small" themeColor="muted">
               Camera permission is blocked. Enable it in system settings to scan documents.
             </ThemedText>
           )}

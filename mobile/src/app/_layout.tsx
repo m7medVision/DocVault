@@ -7,7 +7,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import '@/global.css';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import { AuthProvider, useAuth } from '@/lib/auth/auth-context';
 
 const heroUIConfig: HeroUINativeConfig = {
@@ -43,20 +42,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function TabShell() {
-  const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return (
-      <ThemeProvider value={DefaultTheme}>
-        <Slot />
-      </ThemeProvider>
-    );
-  }
-
-  return <AppTabs />;
-}
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -67,7 +52,7 @@ export default function RootLayout() {
           <AuthProvider>
             <AuthGuard>
               <AnimatedSplashOverlay />
-              <TabShell />
+              <Slot />
             </AuthGuard>
           </AuthProvider>
         </ThemeProvider>
