@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { StyleSheet, View, KeyboardAvoidingView, Platform } from 'react-native';
-import { Button, Card, Input } from 'heroui-native';
+import { Button, Card, Input , useThemeColor } from 'heroui-native';
 
 import { useAuth } from '@/lib/auth/auth-context';
 import { Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
-import { useTheme } from '@/hooks/use-theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
-  const theme = useTheme();
+  const [background, danger] = useThemeColor(['background', 'danger']);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -42,13 +41,13 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: theme.background }]}
+      style={[styles.root, { backgroundColor: background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.container}>
         <View style={styles.header}>
           <ThemedText type="subtitle">Sign in</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="small" themeColor="muted">
             Use your DocVault credentials to continue.
           </ThemedText>
         </View>
@@ -78,14 +77,14 @@ export default function LoginScreen() {
                 autoComplete="current-password"
                 editable={!submitting}
               />
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="small" themeColor="muted">
                 At least 8 characters with uppercase, lowercase, a number, and a symbol.
               </ThemedText>
             </View>
 
             {error && (
-              <View style={styles.errorBox}>
-                <ThemedText type="small" style={{ color: '#ef4444' }}>{error}</ThemedText>
+              <View style={[styles.errorBox, { backgroundColor: `${danger}15` }]}>
+                <ThemedText type="small" themeColor="danger">{error}</ThemedText>
               </View>
             )}
 
@@ -96,7 +95,7 @@ export default function LoginScreen() {
         </Card>
 
         <View style={styles.switchRow}>
-          <ThemedText type="small" themeColor="textSecondary">Need an account?</ThemedText>
+          <ThemedText type="small" themeColor="muted">Need an account?</ThemedText>
           <Button variant="secondary" size="sm" onPress={() => router.push('/register')}>
             <Button.Label>Create account</Button.Label>
           </Button>
@@ -129,7 +128,6 @@ const styles = StyleSheet.create({
   errorBox: {
     borderRadius: Spacing.three,
     padding: Spacing.three,
-    backgroundColor: 'rgba(239,68,68,0.1)',
   },
   switchRow: {
     flexDirection: 'row',

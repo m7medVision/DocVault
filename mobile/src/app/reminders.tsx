@@ -10,7 +10,7 @@ export default function RemindersScreen() {
     <DocVaultScreen>
       <View style={styles.header}>
         <ThemedText type="subtitle">Reminders</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="small" themeColor="muted">
           Track renewals, due dates, expirations, and dismissed alerts.
         </ThemedText>
       </View>
@@ -18,7 +18,7 @@ export default function RemindersScreen() {
       <Card className="rounded-3xl border border-divider bg-content1 p-6">
         <View style={styles.emptyCard}>
           <ThemedText type="smallBold">No reminders loaded</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="small" themeColor="muted">
             The next step is wiring this screen to the reminders API and actions.
           </ThemedText>
         </View>

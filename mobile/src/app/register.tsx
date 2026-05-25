@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { StyleSheet, View, KeyboardAvoidingView, Platform } from 'react-native';
-import { Button, Card, Input } from 'heroui-native';
+import { Button, Card, Input , useThemeColor } from 'heroui-native';
 
 import { useAuth } from '@/lib/auth/auth-context';
 import type { RegisterParams } from '@/lib/auth/api';
 import { Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
-import { useTheme } from '@/hooks/use-theme';
 
 function validatePassword(pw: string): string | null {
   if (pw.length < 8) return 'At least 8 characters';
@@ -20,7 +19,7 @@ function validatePassword(pw: string): string | null {
 
 export default function RegisterScreen() {
   const { register } = useAuth();
-  const theme = useTheme();
+  const [background, danger] = useThemeColor(['background', 'danger']);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,13 +70,13 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: theme.background }]}
+      style={[styles.root, { backgroundColor: background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.container}>
         <View style={styles.header}>
           <ThemedText type="subtitle">Create account</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="small" themeColor="muted">
             We will set up your secure workspace right after registration.
           </ThemedText>
         </View>
@@ -134,8 +133,8 @@ export default function RegisterScreen() {
             </View>
 
             {error && (
-              <View style={styles.errorBox}>
-                <ThemedText type="small" style={{ color: '#ef4444' }}>{error}</ThemedText>
+              <View style={[styles.errorBox, { backgroundColor: `${danger}15` }]}>
+                <ThemedText type="small" themeColor="danger">{error}</ThemedText>
               </View>
             )}
 
@@ -146,7 +145,7 @@ export default function RegisterScreen() {
         </Card>
 
         <View style={styles.switchRow}>
-          <ThemedText type="small" themeColor="textSecondary">Already have an account?</ThemedText>
+          <ThemedText type="small" themeColor="muted">Already have an account?</ThemedText>
           <Button variant="secondary" size="sm" onPress={() => router.push('/login')}>
             <Button.Label>Sign in</Button.Label>
           </Button>
@@ -179,7 +178,6 @@ const styles = StyleSheet.create({
   errorBox: {
     borderRadius: Spacing.three,
     padding: Spacing.three,
-    backgroundColor: 'rgba(239,68,68,0.1)',
   },
   switchRow: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Button, Card } from 'heroui-native';
+import { Button, Card , useThemeColor } from 'heroui-native';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
 import { ThemedText } from '@/components/themed-text';
@@ -106,10 +106,12 @@ export default function DocumentsScreen() {
 }
 
 function FilterChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const [accent, background, foreground] = useThemeColor(['accent', 'background', 'foreground']);
+
   return (
     <Pressable onPress={onPress}>
-      <View style={[styles.chip, selected && styles.selectedChip]}>
-        <ThemedText type="small" style={selected && styles.selectedChipText}>
+      <View style={[styles.chip, { backgroundColor: selected ? accent : background }]}>
+        <ThemedText type="small" style={{ color: selected ? '#fff' : foreground }}>
           {label}
         </ThemedText>
       </View>
@@ -152,13 +154,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    backgroundColor: '#F0F0F3',
-  },
-  selectedChip: {
-    backgroundColor: '#208AEF',
-  },
-  selectedChipText: {
-    color: 'white',
   },
   documentCard: {
     gap: Spacing.one,
