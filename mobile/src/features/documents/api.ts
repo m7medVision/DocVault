@@ -6,7 +6,12 @@ import type {
   DocumentPagesResponse,
   DocumentVersionsResponse,
   DocumentDownloadResponse,
+  DocumentStats,
 } from './types';
+
+export async function getDocumentStats(): Promise<DocumentStats> {
+  return apiFetch<DocumentStats>('/documents/stats');
+}
 
 export async function listDocuments(options: ListDocumentsOptions = {}): Promise<DocumentListResponse> {
   const params = new URLSearchParams();
