@@ -53,5 +53,9 @@ export function useDocumentPicker() {
     setFiles((previous) => previous.filter((file) => file.uri !== uri));
   }
 
-  return { files, error, pickFiles, removeFile };
+  function clearFiles() {
+    setFiles([]);
+  }
+
+  return { files, error, pickFiles, removeFile, clearFiles };
 }

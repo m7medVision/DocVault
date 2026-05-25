@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Button, Card } from 'heroui-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useUpload } from '@/features/documents/use-upload';
 
 interface CapturedPage {
   uri: string;
@@ -15,12 +16,14 @@ interface CapturedPage {
 
 export default function ScanScreen() {
   const { autoOpen } = useLocalSearchParams<{ autoOpen?: string }>();
+  const router = useRouter();
   const lastAutoOpen = useRef<string | undefined>(undefined);
   const cameraRef = useRef<InstanceType<typeof CameraView>>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [capturedPages, setCapturedPages] = useState<CapturedPage[]>([]);
   const [capturing, setCapturing] = useState(false);
+  const { uploading, progress, error, upload } = useUpload();
 
   const openCamera = useCallback(async () => {
     if (!permission?.granted) {
@@ -59,6 +62,24 @@ export default function ScanScreen() {
     setCapturedPages((previous) => previous.filter((page) => page.uri !== uri));
   }
 
+  async function uploadScan() {
+    if (uploading || capturedPages.length === 0) return;
+
+    try {
+      for (const page of capturedPages) {
+        await upload(page.uri, page.name, 'image/jpeg', {
+          title: page.name,
+          doc_type: 'other',
+        });
+      }
+
+      setCapturedPages([]);
+      router.push('/documents');
+    } catch {
+      // useUpload exposes the error message for rendering.
+    }
+  }
+
   if (cameraOpen) {
     return (
       <View style={styles.cameraRoot}>
@@ -89,6 +110,8 @@ export default function ScanScreen() {
               Camera permission is blocked. Enable it in system settings to scan documents.
             </ThemedText>
           )}
+          {error && <ThemedText type="small" themeColor="muted">{error}</ThemedText>}
+          {progress && <ThemedText type="small" themeColor="muted">{progress}</ThemedText>}
           <Button variant="primary" onPress={() => void openCamera()}>
             <Button.Label>{capturedPages.length > 0 ? 'Add another page' : 'Open camera'}</Button.Label>
           </Button>
@@ -109,8 +132,8 @@ export default function ScanScreen() {
                 </View>
               ))}
             </View>
-            <Button variant="primary">
-              <Button.Label>Upload scan</Button.Label>
+            <Button variant="primary" onPress={() => void uploadScan()} isDisabled={uploading}>
+              <Button.Label>{uploading ? 'Uploading...' : 'Upload scan'}</Button.Label>
             </Button>
           </View>
         </Card>

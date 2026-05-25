@@ -9,14 +9,34 @@ import { DOCUMENT_STATUSES, DOCUMENT_TYPES, formatFileSize } from '@/constants/d
 import { Spacing } from '@/constants/theme';
 import { useDocumentPicker } from '@/features/documents/use-document-picker';
 import { useDocuments } from '@/features/documents/use-documents';
+import { useUpload } from '@/features/documents/use-upload';
 
 export default function DocumentsScreen() {
   const router = useRouter();
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const filters = { type, status };
-  const { documents, loading, error } = useDocuments(filters);
-  const { files, error: pickerError, pickFiles, removeFile } = useDocumentPicker();
+  const { documents, loading, error, reload } = useDocuments(filters);
+  const { files, error: pickerError, pickFiles, removeFile, clearFiles } = useDocumentPicker();
+  const { uploading, progress, error: uploadError, upload } = useUpload();
+
+  async function uploadSelectedFiles() {
+    if (uploading || files.length === 0) return;
+
+    try {
+      for (const file of files) {
+        await upload(file.uri, file.name, file.mimeType || 'application/octet-stream', {
+          title: file.name,
+          doc_type: type || 'other',
+        });
+      }
+
+      clearFiles();
+      await reload();
+    } catch {
+      // useUpload exposes the error message for rendering.
+    }
+  }
 
   return (
     <DocVaultScreen>
@@ -33,6 +53,8 @@ export default function DocumentsScreen() {
       </View>
 
       {pickerError && <ThemedText themeColor="textSecondary">{pickerError}</ThemedText>}
+      {uploadError && <ThemedText themeColor="textSecondary">{uploadError}</ThemedText>}
+      {progress && <ThemedText themeColor="textSecondary">{progress}</ThemedText>}
       {files.length > 0 && (
         <Card className="rounded-3xl border border-divider bg-content1 p-4">
           <View style={styles.documentCard}>
@@ -49,8 +71,8 @@ export default function DocumentsScreen() {
                 </View>
               </Pressable>
             ))}
-            <Button variant="secondary">
-              <Button.Label>Upload selected</Button.Label>
+            <Button variant="secondary" onPress={() => void uploadSelectedFiles()} isDisabled={uploading}>
+              <Button.Label>{uploading ? 'Uploading...' : 'Upload selected'}</Button.Label>
             </Button>
           </View>
         </Card>
