@@ -1,43 +1,49 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listReminders, dismissReminder, snoozeReminder } from './api';
-import type { Reminder } from './types';
 
 export function useReminders() {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await listReminders();
-      setReminders(response.reminders);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load reminders');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['reminders'],
+    queryFn: listReminders,
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const dismissMutation = useMutation({
+    mutationFn: dismissReminder,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['reminders'] });
+      const previous = queryClient.getQueryData<{ reminders: typeof data extends { reminders: infer R } ? R : never }>(['reminders']);
+      queryClient.setQueryData(['reminders'], (old: { reminders: { id: string }[] } | undefined) => {
+        if (!old) return old;
+        return { ...old, reminders: old.reminders.filter((r) => r.id !== id) };
+      });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['reminders'], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
 
-  const dismiss = useCallback(async (id: string) => {
-    try {
-      await dismissReminder(id);
-      setReminders((prev) => prev.filter((r) => r.id !== id));
-    } catch {}
-  }, []);
+  const snoozeMutation = useMutation({
+    mutationFn: ({ id, minutes }: { id: string; minutes: number }) => snoozeReminder(id, minutes),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+    },
+  });
 
-  const snooze = useCallback(async (id: string, minutes: number) => {
-    try {
-      await snoozeReminder(id, minutes);
-      void load();
-    } catch {}
-  }, [load]);
-
-  return { reminders, loading, error, reload: load, dismiss, snooze };
+  return {
+    reminders: data?.reminders ?? [],
+    loading: isLoading,
+    error: error ? (error instanceof Error ? error.message : 'Failed to load reminders') : null,
+    reload: refetch,
+    dismiss: (id: string) => dismissMutation.mutateAsync(id),
+    snooze: (id: string, minutes: number) => snoozeMutation.mutateAsync({ id, minutes }),
+  };
 }

@@ -1,42 +1,35 @@
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 
 import { searchDocuments, type SearchOptions } from './api';
 import type { SearchResult } from './types';
 
 export function useSearch() {
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: searchDocuments,
+    onSuccess: () => setHasSearched(true),
+    onError: () => setHasSearched(true),
+  });
 
   async function search(options: SearchOptions) {
     if (!options.query.trim()) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      setHasSearched(true);
-      setResults([]);
-      setTotal(0);
-      const response = await searchDocuments(options);
-      setResults(response.results);
-      setTotal(response.total);
-    } catch (err) {
-      setResults([]);
-      setTotal(0);
-      setError(err instanceof Error ? err.message : 'Search failed');
-    } finally {
-      setLoading(false);
-    }
+    return mutation.mutateAsync(options);
   }
 
   function reset() {
-    setResults([]);
-    setTotal(0);
-    setError(null);
+    mutation.reset();
     setHasSearched(false);
   }
 
-  return { results, total, loading, error, hasSearched, search, reset };
+  return {
+    results: (mutation.data?.results ?? []) as SearchResult[],
+    total: mutation.data?.total ?? 0,
+    loading: mutation.isPending,
+    error: mutation.error ? (mutation.error instanceof Error ? mutation.error.message : 'Search failed') : null,
+    hasSearched,
+    search,
+    reset,
+  };
 }
