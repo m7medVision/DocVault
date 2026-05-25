@@ -3,7 +3,7 @@
 import hashlib
 import structlog
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import Optional
 
 from docvault_shared.config import config
 from docvault_shared.models import ChunkResult, TextChunk

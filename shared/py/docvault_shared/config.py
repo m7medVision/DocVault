@@ -21,6 +21,7 @@ DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-large"
 APPROVED_OPENROUTER_EMBEDDING_MODELS = (DEFAULT_EMBEDDING_MODEL,)
 OPENROUTER_EMBEDDING_DIMENSIONS = 1024
 DEFAULT_TRANSLATION_MODEL = "mistralai/mistral-large"
+DEFAULT_CLASSIFICATION_MODEL = "google/gemini-2.0-flash-001"
 
 
 @dataclass
@@ -48,6 +49,7 @@ class Config:
     openrouter_api_key: str
     embedding_model: str
     translation_model: str
+    classification_model: str
 
     chunk_size: int
     chunk_overlap: int
@@ -119,6 +121,9 @@ def load() -> Config:
             APPROVED_OPENROUTER_EMBEDDING_MODELS,
         ),
         translation_model=os.getenv("TRANSLATION_MODEL", DEFAULT_TRANSLATION_MODEL).strip(),
+        classification_model=os.getenv(
+            "CLASSIFICATION_MODEL", DEFAULT_CLASSIFICATION_MODEL
+        ).strip(),
         chunk_size=int(os.getenv("CHUNK_SIZE", "500")),
         chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "50")),
         min_confidence_threshold=float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.7")),

@@ -272,7 +272,7 @@ def traced(job_type: str):
 
             with start_span(
                 f"{job_type}_job", kind=trace.SpanKind.CONSUMER, attributes={"job.type": job_type}
-            ) as span:
+            ):
                 try:
                     result = func(*args, **kwargs)
                     duration = time.time() - start_time
