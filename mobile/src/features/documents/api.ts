@@ -1,5 +1,12 @@
 import { apiFetch } from '@/lib/api/client';
-import type { DocumentListResponse, ListDocumentsOptions } from './types';
+import type {
+  DocumentListResponse,
+  ListDocumentsOptions,
+  DocumentDetailResponse,
+  DocumentPagesResponse,
+  DocumentVersionsResponse,
+  DocumentDownloadResponse,
+} from './types';
 
 export async function listDocuments(options: ListDocumentsOptions = {}): Promise<DocumentListResponse> {
   const params = new URLSearchParams();
@@ -41,4 +48,20 @@ export async function uploadDocument(fileUri: string, fileName: string, mimeType
     method: 'POST',
     body: formData,
   });
+}
+
+export async function getDocument(id: string): Promise<DocumentDetailResponse> {
+  return apiFetch<DocumentDetailResponse>(`/documents/${id}`);
+}
+
+export async function getDocumentPages(id: string): Promise<DocumentPagesResponse> {
+  return apiFetch<DocumentPagesResponse>(`/documents/${id}/pages`);
+}
+
+export async function getDocumentVersions(id: string): Promise<DocumentVersionsResponse> {
+  return apiFetch<DocumentVersionsResponse>(`/documents/${id}/versions`);
+}
+
+export async function downloadDocument(id: string): Promise<DocumentDownloadResponse> {
+  return apiFetch<DocumentDownloadResponse>(`/documents/${id}/download`);
 }

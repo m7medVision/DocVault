@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const KEYS = {
@@ -6,46 +7,114 @@ const KEYS = {
   USER: 'dv_user',
 } as const;
 
-export async function getStoredAccessToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(KEYS.ACCESS_TOKEN);
+function webSetItem(key: string, value: string | null) {
+  if (value === null) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, value);
+  }
 }
 
-export async function setStoredAccessToken(token: string | null) {
-  if (!token) {
-    await SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN);
+function webGetItem(key: string): string | null {
+  return localStorage.getItem(key);
+}
+
+function isSecureStoreAvailable(): boolean {
+  if (Platform.OS === 'web') return false;
+  return true;
+}
+
+export async function getStoredAccessToken(): Promise<string | null> {
+  if (!isSecureStoreAvailable()) return webGetItem(KEYS.ACCESS_TOKEN);
+  try {
+    return await SecureStore.getItemAsync(KEYS.ACCESS_TOKEN);
+  } catch {
+    return null;
+  }
+}
+
+export async function setStoredAccessToken(token: string | null): Promise<void> {
+  if (!isSecureStoreAvailable()) {
+    webSetItem(KEYS.ACCESS_TOKEN, token);
     return;
   }
-  await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, token);
+  try {
+    if (!token) {
+      await SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN);
+    } else {
+      await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, token);
+    }
+  } catch {
+    webSetItem(KEYS.ACCESS_TOKEN, token);
+  }
 }
 
 export async function getStoredRefreshToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(KEYS.REFRESH_TOKEN);
+  if (!isSecureStoreAvailable()) return webGetItem(KEYS.REFRESH_TOKEN);
+  try {
+    return await SecureStore.getItemAsync(KEYS.REFRESH_TOKEN);
+  } catch {
+    return null;
+  }
 }
 
-export async function setStoredRefreshToken(token: string | null) {
-  if (!token) {
-    await SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN);
+export async function setStoredRefreshToken(token: string | null): Promise<void> {
+  if (!isSecureStoreAvailable()) {
+    webSetItem(KEYS.REFRESH_TOKEN, token);
     return;
   }
-  await SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, token);
+  try {
+    if (!token) {
+      await SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN);
+    } else {
+      await SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, token);
+    }
+  } catch {
+    webSetItem(KEYS.REFRESH_TOKEN, token);
+  }
 }
 
 export async function getStoredUser(): Promise<string | null> {
-  return SecureStore.getItemAsync(KEYS.USER);
+  if (!isSecureStoreAvailable()) return webGetItem(KEYS.USER);
+  try {
+    return await SecureStore.getItemAsync(KEYS.USER);
+  } catch {
+    return null;
+  }
 }
 
-export async function setStoredUser(json: string | null) {
-  if (!json) {
-    await SecureStore.deleteItemAsync(KEYS.USER);
+export async function setStoredUser(json: string | null): Promise<void> {
+  if (!isSecureStoreAvailable()) {
+    webSetItem(KEYS.USER, json);
     return;
   }
-  await SecureStore.setItemAsync(KEYS.USER, json);
+  try {
+    if (!json) {
+      await SecureStore.deleteItemAsync(KEYS.USER);
+    } else {
+      await SecureStore.setItemAsync(KEYS.USER, json);
+    }
+  } catch {
+    webSetItem(KEYS.USER, json);
+  }
 }
 
-export async function clearStoredSession() {
-  await Promise.all([
-    SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN),
-    SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN),
-    SecureStore.deleteItemAsync(KEYS.USER),
-  ]);
+export async function clearStoredSession(): Promise<void> {
+  if (!isSecureStoreAvailable()) {
+    localStorage.removeItem(KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(KEYS.REFRESH_TOKEN);
+    localStorage.removeItem(KEYS.USER);
+    return;
+  }
+  try {
+    await Promise.all([
+      SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN),
+      SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN),
+      SecureStore.deleteItemAsync(KEYS.USER),
+    ]);
+  } catch {
+    localStorage.removeItem(KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(KEYS.REFRESH_TOKEN);
+    localStorage.removeItem(KEYS.USER);
+  }
 }

@@ -13,11 +13,14 @@ import { useLocale } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import { setClientAccessToken, setRefreshHandler } from '@/lib/client-auth';
 import {
+  API_BASE_URL,
   type AuthRouteResponse,
   type AuthSession,
+  type BackendAuthResponse,
   type LoginInput,
   type RegisterInput,
   type User,
+  toAuthSession,
 } from './auth';
 
 interface AuthContextType {
@@ -50,6 +53,20 @@ async function parseAuthResponse(response: Response): Promise<AuthSession> {
   }
 
   return payload.session;
+}
+
+async function parseBackendAuthResponse(response: Response): Promise<AuthSession> {
+  const payload = (await response.json().catch(() => null)) as
+    | BackendAuthResponse
+    | { error?: string }
+    | null;
+
+  if (!response.ok || !payload || !('tokens' in payload)) {
+    const errorMessage = payload && 'error' in payload ? payload.error : undefined;
+    throw new Error(errorMessage || 'Authentication failed');
+  }
+
+  return toAuthSession(payload);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -189,15 +206,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (input: RegisterInput) => {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          email: input.email,
+          password: input.password,
+          display_name: input.displayName,
+          locale: input.locale,
+        }),
       });
 
-      const session = await parseAuthResponse(response);
+      const session = await parseBackendAuthResponse(response);
       setSession(session);
     },
     [setSession]
