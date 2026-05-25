@@ -1,9 +1,10 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { HeroUINativeProvider, type HeroUINativeConfig } from 'heroui-native';
 import { Slot, useRouter, usePathname } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import '@/global.css';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -42,6 +43,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function QueryProvider({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: 2,
+          },
+        },
+      }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -49,12 +70,14 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider config={heroUIConfig}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AuthProvider>
-            <AuthGuard>
-              <AnimatedSplashOverlay />
-              <Slot />
-            </AuthGuard>
-          </AuthProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <AuthGuard>
+                <AnimatedSplashOverlay />
+                <Slot />
+              </AuthGuard>
+            </AuthProvider>
+          </QueryProvider>
         </ThemeProvider>
       </HeroUINativeProvider>
     </GestureHandlerRootView>
