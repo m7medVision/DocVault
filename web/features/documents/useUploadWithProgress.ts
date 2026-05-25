@@ -48,7 +48,21 @@ export const ALLOWED_FILE_TYPES = [
 
 const POLL_INTERVAL_MS = 2000;
 
-function pollDocument(documentId: string, uploadIndex: number, fileName: string, setUploads: React.Dispatch<React.SetStateAction<UploadedFile[]>>, options: UseUploadWithProgressOptions) {
+function getTerminalBatchStatus(uploads: UploadedFile[]): UploadStatus | null {
+  if (uploads.length === 0) return null;
+  if (uploads.every((upload) => upload.status === 'completed')) return 'completed';
+  if (uploads.every((upload) => upload.status === 'completed' || upload.status === 'error')) return 'error';
+  return null;
+}
+
+function pollDocument(
+  documentId: string,
+  uploadIndex: number,
+  fileName: string,
+  setUploads: React.Dispatch<React.SetStateAction<UploadedFile[]>>,
+  setStatus: React.Dispatch<React.SetStateAction<UploadStatus>>,
+  options: UseUploadWithProgressOptions
+) {
   const intervalId = setInterval(async () => {
     try {
       const token = getClientAccessToken();
@@ -63,24 +77,30 @@ function pollDocument(documentId: string, uploadIndex: number, fileName: string,
 
       if (stage === 'completed' || docStatus === 'processed') {
         clearInterval(intervalId);
-        setUploads((prev) =>
-          prev.map((u, i) =>
+        setUploads((prev) => {
+          const nextUploads = prev.map((u, i) =>
             i === uploadIndex
-              ? { ...u, status: 'completed', progress: 100, message: 'Processing complete' }
+              ? { ...u, status: 'completed' as UploadStatus, progress: 100, message: 'Processing complete' }
               : u
-          )
-        );
+          );
+          const terminalStatus = getTerminalBatchStatus(nextUploads);
+          if (terminalStatus) setStatus(terminalStatus);
+          return nextUploads;
+        });
         options.onComplete?.(documentId, fileName);
       } else if (stage === 'ocr_failed' || stage === 'processing_failed' || docStatus === 'failed') {
         clearInterval(intervalId);
         const errMsg = data.document?.processing_error || 'Processing failed';
-        setUploads((prev) =>
-          prev.map((u, i) =>
+        setUploads((prev) => {
+          const nextUploads = prev.map((u, i) =>
             i === uploadIndex
-              ? { ...u, status: 'error', error: errMsg }
+              ? { ...u, status: 'error' as UploadStatus, error: errMsg, progress: 0, message: errMsg }
               : u
-          )
-        );
+          );
+          const terminalStatus = getTerminalBatchStatus(nextUploads);
+          if (terminalStatus) setStatus(terminalStatus);
+          return nextUploads;
+        });
       }
     } catch {
       // polling error — keep trying
@@ -129,7 +149,7 @@ export function useUploadWithProgress(
   const connectProgressStream = useCallback((documentId: string, uploadIndex: number, fileName: string) => {
     const token = getClientAccessToken();
     if (!token) {
-      const intervalId = pollDocument(documentId, uploadIndex, fileName, setUploads, options);
+      const intervalId = pollDocument(documentId, uploadIndex, fileName, setUploads, setStatus, options);
       pollIntervals.current.push(intervalId);
       return null;
     }
@@ -145,25 +165,28 @@ export function useUploadWithProgress(
 
         if (data.error) {
           console.error('WebSocket error:', data.error);
-          const intervalId = pollDocument(documentId, uploadIndex, fileName, setUploads, options);
+          const intervalId = pollDocument(documentId, uploadIndex, fileName, setUploads, setStatus, options);
           pollIntervals.current.push(intervalId);
           ws.close();
           return;
         }
 
-        setUploads((prev) =>
-          prev.map((u, i) =>
+        setUploads((prev) => {
+          const nextUploads = prev.map((u, i) =>
             i === uploadIndex
               ? {
                   ...u,
                   status: data.status === 'failed' ? 'error' : (data.status === 'completed' ? 'completed' : 'processing') as UploadStatus,
-                  progress: data.progress ?? u.progress,
+                  progress: data.status === 'completed' ? 100 : (data.status === 'failed' ? 0 : data.progress ?? u.progress),
                   message: data.message ?? u.message,
                   error: data.status === 'failed' ? (data.message ?? 'Processing failed') : undefined,
                 }
               : u
-          )
-        );
+          );
+          const terminalStatus = getTerminalBatchStatus(nextUploads);
+          if (terminalStatus) setStatus(terminalStatus);
+          return nextUploads;
+        });
 
         if (data.status === 'completed') {
           ws.close();
@@ -177,7 +200,7 @@ export function useUploadWithProgress(
     };
 
     ws.onerror = () => {
-      const intervalId = pollDocument(documentId, uploadIndex, fileName, setUploads, options);
+      const intervalId = pollDocument(documentId, uploadIndex, fileName, setUploads, setStatus, options);
       pollIntervals.current.push(intervalId);
     };
 
@@ -273,6 +296,9 @@ export function useUploadWithProgress(
       setStatus('error');
       setError(failures.join('\n'));
       toast.error('Some files failed to upload');
+    } else {
+      setStatus((current) => current === 'completed' || current === 'error' ? current : 'processing');
+      setFiles([]);
     }
   }, [files, options, connectProgressStream]);
 
