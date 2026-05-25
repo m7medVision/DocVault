@@ -1,7 +1,7 @@
 import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 
 import { Fonts, ThemeColor } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useThemeColor } from 'heroui-native';
 
 export type ThemedTextProps = TextProps & {
   type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
@@ -9,19 +9,32 @@ export type ThemedTextProps = TextProps & {
 };
 
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
-  const theme = useTheme();
+  const [text, accent, background, surface, muted, border, danger, warning, success] = useThemeColor([
+    'foreground',
+    'accent',
+    'background',
+    'surface',
+    'muted',
+    'border',
+    'danger',
+    'warning',
+    'success',
+  ]);
+
+  const colorValues = { foreground: text, accent, background, surface, muted, border, danger, warning, success };
+  const mappedColor = themeColor ? colorValues[themeColor as keyof typeof colorValues] ?? text : text;
 
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
+        { color: mappedColor },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
         type === 'small' && styles.small,
         type === 'smallBold' && styles.smallBold,
         type === 'subtitle' && styles.subtitle,
         type === 'link' && styles.link,
-        type === 'linkPrimary' && styles.linkPrimary,
+        type === 'linkPrimary' && { color: accent },
         type === 'code' && styles.code,
         style,
       ]}
@@ -59,11 +72,6 @@ const styles = StyleSheet.create({
   link: {
     lineHeight: 30,
     fontSize: 14,
-  },
-  linkPrimary: {
-    lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
   },
   code: {
     fontFamily: Fonts.mono,
