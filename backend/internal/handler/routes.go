@@ -25,6 +25,9 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("POST /api/v1/auth/refresh", authHandler.Refresh)
 	handle("POST /api/v1/auth/logout", authHandler.Logout)
 	handle("GET /api/v1/auth/me", authHandler.Me)
+	handle("PATCH /api/v1/profile", authHandler.UpdateProfile)
+	handle("PUT /api/v1/profile/email", authHandler.UpdateEmail)
+	handle("PUT /api/v1/profile/password", authHandler.UpdatePassword)
 
 	handle("POST /api/v1/documents/upload", h.UploadDocument, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
 	handle("GET /api/v1/documents/stats", h.GetStats, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
