@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,12 +16,12 @@ var ErrNotificationNotFound = errors.New("notification not found")
 
 // notificationRepository handles notification data access.
 type notificationRepository struct {
-	db *pgxpool.Pool
+	queries sqldb.Querier
 }
 
 // NewNotificationRepository creates a new NotificationRepository.
 func NewNotificationRepository(db *pgxpool.Pool) NotificationRepository {
-	return &notificationRepository{db: db}
+	return &notificationRepository{queries: sqldb.New(db)}
 }
 
 // Create creates a new notification.
@@ -34,16 +35,18 @@ func (r *notificationRepository) Create(ctx context.Context, notification *model
 		return fmt.Errorf("failed to marshal notification metadata: %w", err)
 	}
 
-	query := `
-		INSERT INTO notifications (id, tenant_id, user_id, type, title, body, link, status, metadata, created_at, read_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10)
-	`
-	_, err = r.db.Exec(ctx, query,
-		notification.ID, notification.TenantID, notification.UserID,
-		notification.Type, notification.Title, notification.Body,
-		notification.Link, notification.Status, metadataJSON,
-		notification.ReadAt,
-	)
+	err = r.queries.CreateNotification(ctx, sqldb.CreateNotificationParams{
+		ID:       notification.ID,
+		TenantID: notification.TenantID,
+		UserID:   notification.UserID,
+		Type:     string(notification.Type),
+		Title:    notification.Title,
+		Body:     &notification.Body,
+		Link:     notification.Link,
+		Status:   string(notification.Status),
+		Metadata: metadataJSON,
+		ReadAt:   timestamptzFromTimePtr(notification.ReadAt),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create notification: %w", err)
 	}
@@ -56,50 +59,34 @@ func (r *notificationRepository) List(ctx context.Context, tenantID, userID stri
 		limit = 20
 	}
 
-	query := `
-		SELECT id, tenant_id, user_id, type, title, body, link, status, metadata, created_at, read_at
-		FROM notifications
-		WHERE tenant_id = $1 AND user_id = $2
-	`
-	args := []interface{}{tenantID, userID}
-	argCount := 2
-
+	var statusFilter *string
 	if status != "" {
-		argCount++
-		query += fmt.Sprintf(" AND status = $%d", argCount)
-		args = append(args, string(status))
+		value := string(status)
+		statusFilter = &value
 	}
+	var cursorFilter *string
 	if cursor != "" {
-		argCount++
-		query += fmt.Sprintf(" AND created_at < (SELECT created_at FROM notifications WHERE id = $%d)", argCount)
-		args = append(args, cursor)
+		cursorFilter = &cursor
 	}
 
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d", limit+1)
-
-	rows, err := r.db.Query(ctx, query, args...)
+	notificationRows, err := r.queries.ListNotifications(ctx, sqldb.ListNotificationsParams{
+		TenantIDArg: tenantID,
+		UserIDArg:   userID,
+		Status:      statusFilter,
+		CursorID:    cursorFilter,
+		LimitCount:  int32(limit + 1),
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list notifications: %w", err)
 	}
-	defer rows.Close()
 
-	notifications := make([]model.Notification, 0)
-	for rows.Next() {
-		var n model.Notification
-		var metadataJSON []byte
-		if err := rows.Scan(
-			&n.ID, &n.TenantID, &n.UserID, &n.Type, &n.Title,
-			&n.Body, &n.Link, &n.Status, &metadataJSON,
-			&n.CreatedAt, &n.ReadAt,
-		); err != nil {
-			return nil, nil, fmt.Errorf("failed to scan notification: %w", err)
+	notifications := make([]model.Notification, 0, len(notificationRows))
+	for _, row := range notificationRows {
+		notification, err := toModelNotification(row)
+		if err != nil {
+			return nil, nil, err
 		}
-		if len(metadataJSON) > 0 {
-			if err := json.Unmarshal(metadataJSON, &n.Metadata); err != nil {
-				return nil, nil, fmt.Errorf("failed to unmarshal notification metadata: %w", err)
-			}
-		}
-		notifications = append(notifications, n)
+		notifications = append(notifications, notification)
 	}
 
 	var resultCursor *string
@@ -114,16 +101,15 @@ func (r *notificationRepository) List(ctx context.Context, tenantID, userID stri
 
 // MarkRead marks a notification as read.
 func (r *notificationRepository) MarkRead(ctx context.Context, tenantID, userID, notificationID string) error {
-	query := `
-		UPDATE notifications
-		SET status = 'read', read_at = NOW()
-		WHERE id = $1 AND tenant_id = $2 AND user_id = $3
-	`
-	result, err := r.db.Exec(ctx, query, notificationID, tenantID, userID)
+	rowsAffected, err := r.queries.MarkNotificationRead(ctx, sqldb.MarkNotificationReadParams{
+		ID:       notificationID,
+		TenantID: tenantID,
+		UserID:   userID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to mark notification read: %w", err)
 	}
-	if result.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		return ErrNotificationNotFound
 	}
 	return nil
@@ -131,14 +117,35 @@ func (r *notificationRepository) MarkRead(ctx context.Context, tenantID, userID,
 
 // GetUnreadCount returns the count of unread notifications for a user.
 func (r *notificationRepository) GetUnreadCount(ctx context.Context, tenantID, userID string) (int, error) {
-	query := `SELECT COUNT(*) FROM notifications WHERE tenant_id = $1 AND user_id = $2 AND status = 'unread'`
-	var count int
-	err := r.db.QueryRow(ctx, query, tenantID, userID).Scan(&count)
+	count, err := r.queries.GetUnreadNotificationCount(ctx, sqldb.GetUnreadNotificationCountParams{TenantID: tenantID, UserID: userID})
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return 0, nil
 		}
 		return 0, fmt.Errorf("failed to get unread count: %w", err)
 	}
-	return count, nil
+	return int(count), nil
+}
+
+func toModelNotification(notification sqldb.Notification) (model.Notification, error) {
+	modelNotification := model.Notification{
+		ID:        notification.ID,
+		TenantID:  notification.TenantID,
+		UserID:    notification.UserID,
+		Type:      model.NotificationType(notification.Type),
+		Title:     notification.Title,
+		Link:      notification.Link,
+		Status:    model.NotificationStatus(notification.Status),
+		CreatedAt: notification.CreatedAt.Time,
+		ReadAt:    timePtrFromTimestamptz(notification.ReadAt),
+	}
+	if notification.Body != nil {
+		modelNotification.Body = *notification.Body
+	}
+	if len(notification.Metadata) > 0 {
+		if err := json.Unmarshal(notification.Metadata, &modelNotification.Metadata); err != nil {
+			return model.Notification{}, fmt.Errorf("failed to unmarshal notification metadata: %w", err)
+		}
+	}
+	return modelNotification, nil
 }

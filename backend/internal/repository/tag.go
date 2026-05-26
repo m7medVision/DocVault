@@ -4,29 +4,29 @@ import (
 	"context"
 	"fmt"
 
+	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type tagRepository struct {
-	db *pgxpool.Pool
+	queries sqldb.Querier
 }
 
 func NewTagRepository(db *pgxpool.Pool) TagRepository {
-	return &tagRepository{db: db}
+	return &tagRepository{queries: sqldb.New(db)}
 }
 
 func (r *tagRepository) Create(ctx context.Context, tag *model.Tag) error {
 	if tag == nil {
 		return fmt.Errorf("tag is nil")
 	}
-	query := `
-		INSERT INTO tags (id, tenant_id, name, created_at)
-		VALUES ($1, $2, $3, NOW())
-		ON CONFLICT (tenant_id, name) DO NOTHING
-	`
-	_, err := r.db.Exec(ctx, query, tag.ID, tag.TenantID, tag.Name)
+	err := r.queries.CreateTag(ctx, sqldb.CreateTagParams{
+		ID:       tag.ID,
+		TenantID: tag.TenantID,
+		Name:     tag.Name,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create tag: %w", err)
 	}
@@ -34,29 +34,33 @@ func (r *tagRepository) Create(ctx context.Context, tag *model.Tag) error {
 }
 
 func (r *tagRepository) GetByID(ctx context.Context, tenantID, id string) (*model.Tag, error) {
-	query := `SELECT id, tenant_id, name, created_at FROM tags WHERE id = $1 AND tenant_id = $2`
-	var tag model.Tag
-	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(&tag.ID, &tag.TenantID, &tag.Name, &tag.CreatedAt)
+	tag, err := r.queries.GetTagByID(ctx, sqldb.GetTagByIDParams{
+		ID:       id,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("tag not found")
 		}
 		return nil, fmt.Errorf("failed to get tag: %w", err)
 	}
-	return &tag, nil
+	modelTag := toModelTag(tag)
+	return &modelTag, nil
 }
 
 func (r *tagRepository) GetByName(ctx context.Context, tenantID, name string) (*model.Tag, error) {
-	query := `SELECT id, tenant_id, name, created_at FROM tags WHERE tenant_id = $1 AND name = $2`
-	var tag model.Tag
-	err := r.db.QueryRow(ctx, query, tenantID, name).Scan(&tag.ID, &tag.TenantID, &tag.Name, &tag.CreatedAt)
+	tag, err := r.queries.GetTagByName(ctx, sqldb.GetTagByNameParams{
+		TenantID: tenantID,
+		Name:     name,
+	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get tag by name: %w", err)
 	}
-	return &tag, nil
+	modelTag := toModelTag(tag)
+	return &modelTag, nil
 }
 
 func (r *tagRepository) List(ctx context.Context, tenantID string, query string, limit int) ([]model.Tag, error) {
@@ -64,54 +68,47 @@ func (r *tagRepository) List(ctx context.Context, tenantID string, query string,
 		limit = 50
 	}
 
-	sql := `SELECT id, tenant_id, name, created_at FROM tags WHERE tenant_id = $1`
-	args := []interface{}{tenantID}
-	argCount := 1
-
+	var (
+		tags []sqldb.Tag
+		err  error
+	)
 	if query != "" {
-		argCount++
-		sql += fmt.Sprintf(" AND name ILIKE $%d", argCount)
-		args = append(args, "%"+query+"%")
+		tags, err = r.queries.SearchTags(ctx, sqldb.SearchTagsParams{
+			TenantID: tenantID,
+			Name:     "%" + query + "%",
+			Limit:    int32(limit),
+		})
+	} else {
+		tags, err = r.queries.ListTags(ctx, sqldb.ListTagsParams{
+			TenantID: tenantID,
+			Limit:    int32(limit),
+		})
 	}
-
-	sql += fmt.Sprintf(" ORDER BY name ASC LIMIT %d", limit)
-
-	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tags: %w", err)
 	}
-	defer rows.Close()
-
-	var tags []model.Tag
-	for rows.Next() {
-		var t model.Tag
-		if err := rows.Scan(&t.ID, &t.TenantID, &t.Name, &t.CreatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan tag: %w", err)
-		}
-		tags = append(tags, t)
-	}
-	return tags, nil
+	return toModelTags(tags), nil
 }
 
 func (r *tagRepository) Delete(ctx context.Context, tenantID, id string) error {
-	query := `DELETE FROM tags WHERE id = $1 AND tenant_id = $2`
-	result, err := r.db.Exec(ctx, query, id, tenantID)
+	rowsAffected, err := r.queries.DeleteTag(ctx, sqldb.DeleteTagParams{
+		ID:       id,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to delete tag: %w", err)
 	}
-	if result.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		return fmt.Errorf("tag not found")
 	}
 	return nil
 }
 
 func (r *tagRepository) AddToDocument(ctx context.Context, tenantID, tagID, documentID string) error {
-	query := `
-		INSERT INTO document_tags (document_id, tag_id, created_at)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT DO NOTHING
-	`
-	_, err := r.db.Exec(ctx, query, documentID, tagID)
+	err := r.queries.AddTagToDocument(ctx, sqldb.AddTagToDocumentParams{
+		DocumentID: documentID,
+		TagID:      tagID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to add tag to document: %w", err)
 	}
@@ -119,8 +116,10 @@ func (r *tagRepository) AddToDocument(ctx context.Context, tenantID, tagID, docu
 }
 
 func (r *tagRepository) RemoveFromDocument(ctx context.Context, tenantID, tagID, documentID string) error {
-	query := `DELETE FROM document_tags WHERE document_id = $1 AND tag_id = $2`
-	_, err := r.db.Exec(ctx, query, documentID, tagID)
+	err := r.queries.RemoveTagFromDocument(ctx, sqldb.RemoveTagFromDocumentParams{
+		DocumentID: documentID,
+		TagID:      tagID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to remove tag from document: %w", err)
 	}
@@ -128,26 +127,29 @@ func (r *tagRepository) RemoveFromDocument(ctx context.Context, tenantID, tagID,
 }
 
 func (r *tagRepository) GetDocumentTags(ctx context.Context, tenantID, documentID string) ([]model.Tag, error) {
-	query := `
-		SELECT t.id, t.tenant_id, t.name, t.created_at
-		FROM tags t
-		JOIN document_tags dt ON t.id = dt.tag_id
-		WHERE dt.document_id = $1 AND t.tenant_id = $2
-		ORDER BY t.name ASC
-	`
-	rows, err := r.db.Query(ctx, query, documentID, tenantID)
+	tags, err := r.queries.GetDocumentTags(ctx, sqldb.GetDocumentTagsParams{
+		DocumentID: documentID,
+		TenantID:   tenantID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get document tags: %w", err)
 	}
-	defer rows.Close()
+	return toModelTags(tags), nil
+}
 
-	var tags []model.Tag
-	for rows.Next() {
-		var t model.Tag
-		if err := rows.Scan(&t.ID, &t.TenantID, &t.Name, &t.CreatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan tag: %w", err)
-		}
-		tags = append(tags, t)
+func toModelTags(tags []sqldb.Tag) []model.Tag {
+	models := make([]model.Tag, 0, len(tags))
+	for _, tag := range tags {
+		models = append(models, toModelTag(tag))
 	}
-	return tags, nil
+	return models
+}
+
+func toModelTag(tag sqldb.Tag) model.Tag {
+	return model.Tag{
+		ID:        tag.ID,
+		TenantID:  tag.TenantID,
+		Name:      tag.Name,
+		CreatedAt: tag.CreatedAt.Time,
+	}
 }

@@ -4,32 +4,12 @@ import (
 	"context"
 	"time"
 
+	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/model"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type memberRecord struct {
-	MembershipID string
-	UserID       string
-	OrgID        string
-	Email        string
-	DisplayName  string
-	Role         string
-	CreatedAt    time.Time
-}
-
-func (r *memberRecord) toModel() MemberRecord {
-	return MemberRecord{
-		MembershipID: r.MembershipID,
-		UserID:       r.UserID,
-		OrgID:        r.OrgID,
-		Email:        r.Email,
-		DisplayName:  r.DisplayName,
-		Role:         r.Role,
-		CreatedAt:    r.CreatedAt,
-	}
-}
 
 type MemberRecord struct {
 	MembershipID string    `json:"membership_id"`
@@ -48,95 +28,96 @@ type MembershipRepository interface {
 }
 
 type membershipRepository struct {
-	db *pgxpool.Pool
+	queries sqldb.Querier
 }
 
 func NewMembershipRepository(db *pgxpool.Pool) MembershipRepository {
-	return &membershipRepository{db: db}
+	return &membershipRepository{queries: sqldb.New(db)}
 }
 
 func (r *membershipRepository) ListByOrg(ctx context.Context, tenantID, orgID string) ([]MemberRecord, error) {
-	query := `
-		SELECT m.id, m.user_id, m.org_id, u.email, u.display_name, m.role, m.created_at
-		FROM memberships m
-		JOIN users u ON u.id = m.user_id
-		JOIN organizations o ON o.id = m.org_id
-		WHERE o.tenant_id = $1`
-	args := []interface{}{tenantID}
-
+	var records []MemberRecord
 	if orgID != "" {
-		query += ` AND m.org_id = $2`
-		args = append(args, orgID)
+		rows, err := r.queries.ListMembershipsByOrg(ctx, sqldb.ListMembershipsByOrgParams{
+			TenantID: tenantID,
+			OrgID:    orgID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			records = append(records, MemberRecord{
+				MembershipID: row.MembershipID,
+				UserID:       row.UserID,
+				OrgID:        row.OrgID,
+				Email:        row.Email,
+				DisplayName:  row.DisplayName,
+				Role:         string(row.Role),
+				CreatedAt:    row.CreatedAt.Time,
+			})
+		}
+		return records, nil
 	}
 
-	query += ` ORDER BY m.created_at ASC`
-
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.queries.ListMembershipsByTenant(ctx, sqldb.ListMembershipsByTenantParams{TenantID: tenantID})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var records []MemberRecord
-	for rows.Next() {
-		var mr memberRecord
-		if err := rows.Scan(
-			&mr.MembershipID,
-			&mr.UserID,
-			&mr.OrgID,
-			&mr.Email,
-			&mr.DisplayName,
-			&mr.Role,
-			&mr.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		records = append(records, mr.toModel())
+	for _, row := range rows {
+		records = append(records, MemberRecord{
+			MembershipID: row.MembershipID,
+			UserID:       row.UserID,
+			OrgID:        row.OrgID,
+			Email:        row.Email,
+			DisplayName:  row.DisplayName,
+			Role:         string(row.Role),
+			CreatedAt:    row.CreatedAt.Time,
+		})
 	}
-
-	return records, rows.Err()
+	return records, nil
 }
 
 func (r *membershipRepository) GetByID(ctx context.Context, tenantID, membershipID string) (*MemberRecord, error) {
-	var mr memberRecord
-	err := r.db.QueryRow(ctx, `
-		SELECT m.id, m.user_id, m.org_id, u.email, u.display_name, m.role, m.created_at
-		FROM memberships m
-		JOIN users u ON u.id = m.user_id
-		JOIN organizations o ON o.id = m.org_id
-		WHERE o.tenant_id = $1 AND m.id = $2`, tenantID, membershipID,
-	).Scan(
-		&mr.MembershipID,
-		&mr.UserID,
-		&mr.OrgID,
-		&mr.Email,
-		&mr.DisplayName,
-		&mr.Role,
-		&mr.CreatedAt,
-	)
+	row, err := r.queries.GetMembershipByID(ctx, sqldb.GetMembershipByIDParams{
+		TenantID: tenantID,
+		ID:       membershipID,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	record := mr.toModel()
+	record := MemberRecord{
+		MembershipID: row.MembershipID,
+		UserID:       row.UserID,
+		OrgID:        row.OrgID,
+		Email:        row.Email,
+		DisplayName:  row.DisplayName,
+		Role:         string(row.Role),
+		CreatedAt:    row.CreatedAt.Time,
+	}
 	return &record, nil
 }
 
 func (r *membershipRepository) UpdateRole(ctx context.Context, membershipID, role string) error {
-	commandTag, err := r.db.Exec(ctx, `UPDATE memberships SET role = $1 WHERE id = $2`, role, membershipID)
+	rowsAffected, err := r.queries.UpdateMembershipRole(ctx, sqldb.UpdateMembershipRoleParams{
+		Role: sqldb.MembershipRole(role),
+		ID:   membershipID,
+	})
 	if err != nil {
 		return err
 	}
-	if commandTag.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		return pgx.ErrNoRows
 	}
 	return nil
 }
 
 func (r *membershipRepository) Create(ctx context.Context, m *model.Membership) error {
-	_, err := r.db.Exec(ctx,
-		"INSERT INTO memberships (id, user_id, org_id, role, created_at) VALUES ($1, $2, $3, $4, $5)",
-		m.ID, m.UserID, m.OrgID, m.Role, m.CreatedAt,
-	)
-	return err
+	return r.queries.CreateMembership(ctx, sqldb.CreateMembershipParams{
+		ID:        m.ID,
+		UserID:    m.UserID,
+		OrgID:     m.OrgID,
+		Role:      sqldb.MembershipRole(m.Role),
+		CreatedAt: pgtype.Timestamptz{Time: m.CreatedAt, Valid: true},
+	})
 }

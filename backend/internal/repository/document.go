@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,12 +13,12 @@ import (
 
 // documentRepository handles document data access.
 type documentRepository struct {
-	db *pgxpool.Pool
+	queries sqldb.Querier
 }
 
 // NewDocumentRepository creates a new DocumentRepository.
 func NewDocumentRepository(db *pgxpool.Pool) DocumentRepository {
-	return &documentRepository{db: db}
+	return &documentRepository{queries: sqldb.New(db)}
 }
 
 // Create creates a new document.
@@ -25,14 +26,18 @@ func (r *documentRepository) Create(ctx context.Context, doc *model.Document) er
 	if doc == nil {
 		return fmt.Errorf("document is nil")
 	}
-	query := `
-		INSERT INTO documents (id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, processing_stage, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-	`
-	_, err := r.db.Exec(ctx, query,
-		doc.ID, doc.TenantID, doc.OrgID, doc.FolderID, doc.OwnerID,
-		doc.Title, doc.DocType, doc.Status, doc.Language, doc.ProcessingStage,
-	)
+	err := r.queries.CreateDocument(ctx, sqldb.CreateDocumentParams{
+		ID:              doc.ID,
+		TenantID:        doc.TenantID,
+		OrgID:           doc.OrgID,
+		FolderID:        doc.FolderID,
+		OwnerID:         doc.OwnerID,
+		Title:           doc.Title,
+		DocType:         sqldb.DocumentType(doc.DocType),
+		Status:          sqldb.DocumentStatus(doc.Status),
+		Language:        doc.Language,
+		ProcessingStage: doc.ProcessingStage,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create document: %w", err)
 	}
@@ -41,27 +46,32 @@ func (r *documentRepository) Create(ctx context.Context, doc *model.Document) er
 
 // GetByID retrieves a document by ID.
 func (r *documentRepository) GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Document, error) {
-	query := `
-		SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
-		       processing_stage, processing_error,
-		       created_at
-		FROM documents
-		WHERE id = $1 AND tenant_id = $2 AND org_id = $3
-	`
-	var doc model.Document
-	err := r.db.QueryRow(ctx, query, id, tenantID, orgID).Scan(
-		&doc.ID, &doc.TenantID, &doc.OrgID, &doc.FolderID, &doc.OwnerID,
-		&doc.Title, &doc.DocType, &doc.Status, &doc.Language,
-		&doc.ProcessingStage, &doc.ProcessingError,
-		&doc.CreatedAt,
-	)
+	doc, err := r.queries.GetDocumentByID(ctx, sqldb.GetDocumentByIDParams{
+		ID:       id,
+		TenantID: tenantID,
+		OrgID:    orgID,
+	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("document not found")
 		}
 		return nil, fmt.Errorf("failed to get document: %w", err)
 	}
-	return &doc, nil
+	modelDoc := model.Document{
+		ID:              doc.ID,
+		TenantID:        doc.TenantID,
+		OrgID:           doc.OrgID,
+		FolderID:        doc.FolderID,
+		OwnerID:         doc.OwnerID,
+		Title:           doc.Title,
+		DocType:         string(doc.DocType),
+		Status:          model.DocumentStatus(doc.Status),
+		Language:        doc.Language,
+		ProcessingStage: doc.ProcessingStage,
+		ProcessingError: doc.ProcessingError,
+		CreatedAt:       doc.CreatedAt.Time,
+	}
+	return &modelDoc, nil
 }
 
 // ListDocumentsQuery contains filters for listing documents.
@@ -82,58 +92,56 @@ func (r *documentRepository) List(ctx context.Context, q *ListDocumentsQuery) ([
 		q.Limit = 20
 	}
 
-	query := `
-		SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, created_at
-		FROM documents
-		WHERE tenant_id = $1 AND org_id = $2
-	`
-	args := []interface{}{q.TenantID, q.OrgID}
-	argCount := 2
-
+	var docType *string
 	if q.DocType != "" {
-		argCount++
-		query += fmt.Sprintf(" AND doc_type = $%d", argCount)
-		args = append(args, q.DocType)
+		docType = &q.DocType
 	}
+	var folderID *string
 	if q.FolderID != "" {
-		argCount++
-		query += fmt.Sprintf(" AND folder_id = $%d", argCount)
-		args = append(args, q.FolderID)
+		folderID = &q.FolderID
 	}
+	var status *string
 	if q.Status != "" {
-		argCount++
-		query += fmt.Sprintf(" AND status = $%d", argCount)
-		args = append(args, string(q.Status))
+		value := string(q.Status)
+		status = &value
 	}
+	var language *string
 	if q.Language != "" {
-		argCount++
-		query += fmt.Sprintf(" AND language = $%d", argCount)
-		args = append(args, q.Language)
+		language = &q.Language
 	}
+	var cursorID *string
 	if q.Cursor != "" {
-		argCount++
-		query += fmt.Sprintf(" AND created_at < (SELECT created_at FROM documents WHERE id = $%d)", argCount)
-		args = append(args, q.Cursor)
+		cursorID = &q.Cursor
 	}
 
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d", q.Limit+1)
-
-	rows, err := r.db.Query(ctx, query, args...)
+	documentRows, err := r.queries.ListDocuments(ctx, sqldb.ListDocumentsParams{
+		TenantIDArg: q.TenantID,
+		OrgIDArg:    q.OrgID,
+		DocType:     docType,
+		FolderID:    folderID,
+		Status:      status,
+		Language:    language,
+		CursorID:    cursorID,
+		LimitCount:  int32(q.Limit + 1),
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list documents: %w", err)
 	}
-	defer rows.Close()
 
-	docs := make([]model.Document, 0)
-	for rows.Next() {
-		var doc model.Document
-		if err := rows.Scan(
-			&doc.ID, &doc.TenantID, &doc.OrgID, &doc.FolderID, &doc.OwnerID,
-			&doc.Title, &doc.DocType, &doc.Status, &doc.Language, &doc.CreatedAt,
-		); err != nil {
-			return nil, nil, fmt.Errorf("failed to scan document: %w", err)
-		}
-		docs = append(docs, doc)
+	docs := make([]model.Document, 0, len(documentRows))
+	for _, doc := range documentRows {
+		docs = append(docs, model.Document{
+			ID:        doc.ID,
+			TenantID:  doc.TenantID,
+			OrgID:     doc.OrgID,
+			FolderID:  doc.FolderID,
+			OwnerID:   doc.OwnerID,
+			Title:     doc.Title,
+			DocType:   string(doc.DocType),
+			Status:    model.DocumentStatus(doc.Status),
+			Language:  doc.Language,
+			CreatedAt: doc.CreatedAt.Time,
+		})
 	}
 
 	var cursor *string
@@ -151,15 +159,16 @@ func (r *documentRepository) Update(ctx context.Context, doc *model.Document) er
 	if doc == nil {
 		return fmt.Errorf("document is nil")
 	}
-	query := `
-		UPDATE documents
-		SET title = $1, doc_type = $2, status = $3, language = $4, folder_id = $5
-		WHERE id = $6 AND tenant_id = $7 AND org_id = $8
-	`
-	_, err := r.db.Exec(ctx, query,
-		doc.Title, doc.DocType, doc.Status, doc.Language, doc.FolderID,
-		doc.ID, doc.TenantID, doc.OrgID,
-	)
+	err := r.queries.UpdateDocument(ctx, sqldb.UpdateDocumentParams{
+		Title:    doc.Title,
+		DocType:  sqldb.DocumentType(doc.DocType),
+		Status:   sqldb.DocumentStatus(doc.Status),
+		Language: doc.Language,
+		FolderID: doc.FolderID,
+		ID:       doc.ID,
+		TenantID: doc.TenantID,
+		OrgID:    doc.OrgID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update document: %w", err)
 	}
@@ -168,12 +177,11 @@ func (r *documentRepository) Update(ctx context.Context, doc *model.Document) er
 
 // Delete removes a document record.
 func (r *documentRepository) Delete(ctx context.Context, tenantID, orgID, id, actorID string) error {
-	query := `DELETE FROM documents WHERE id = $1 AND tenant_id = $2 AND org_id = $3`
-	result, err := r.db.Exec(ctx, query, id, tenantID, orgID)
+	rowsAffected, err := r.queries.DeleteDocument(ctx, sqldb.DeleteDocumentParams{ID: id, TenantID: tenantID, OrgID: orgID})
 	if err != nil {
 		return fmt.Errorf("failed to delete document: %w", err)
 	}
-	if result.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		return fmt.Errorf("document not found")
 	}
 	return nil
@@ -184,14 +192,15 @@ func (r *documentRepository) CreateVersion(ctx context.Context, version *model.D
 	if version == nil {
 		return fmt.Errorf("version is nil")
 	}
-	query := `
-		INSERT INTO document_versions (id, document_id, version_number, storage_key, mime_type, file_size, uploaded_by, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-	`
-	_, err := r.db.Exec(ctx, query,
-		version.ID, version.DocumentID, version.VersionNumber,
-		version.StorageKey, version.MimeType, version.FileSize, version.UploadedBy,
-	)
+	err := r.queries.CreateDocumentVersion(ctx, sqldb.CreateDocumentVersionParams{
+		ID:            version.ID,
+		DocumentID:    version.DocumentID,
+		VersionNumber: int32(version.VersionNumber),
+		StorageKey:    version.StorageKey,
+		MimeType:      version.MimeType,
+		FileSize:      version.FileSize,
+		UploadedBy:    version.UploadedBy,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create document version: %w", err)
 	}
@@ -200,31 +209,27 @@ func (r *documentRepository) CreateVersion(ctx context.Context, version *model.D
 
 // GetVersions retrieves all versions of a document.
 func (r *documentRepository) GetVersions(ctx context.Context, tenantID, documentID string) ([]model.DocumentVersion, error) {
-	query := `
-		SELECT dv.id, dv.document_id, dv.version_number, dv.storage_key, dv.mime_type, dv.file_size, dv.uploaded_by, dv.created_at
-		FROM document_versions dv
-		JOIN documents d ON dv.document_id = d.id
-		WHERE dv.document_id = $1 AND d.tenant_id = $2
-		ORDER BY dv.version_number DESC
-	`
-	rows, err := r.db.Query(ctx, query, documentID, tenantID)
+	versions, err := r.queries.GetDocumentVersions(ctx, sqldb.GetDocumentVersionsParams{
+		DocumentID: documentID,
+		TenantID:   tenantID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get versions: %w", err)
 	}
-	defer rows.Close()
-
-	var versions []model.DocumentVersion
-	for rows.Next() {
-		var v model.DocumentVersion
-		if err := rows.Scan(
-			&v.ID, &v.DocumentID, &v.VersionNumber, &v.StorageKey,
-			&v.MimeType, &v.FileSize, &v.UploadedBy, &v.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan version: %w", err)
-		}
-		versions = append(versions, v)
+	modelVersions := make([]model.DocumentVersion, 0, len(versions))
+	for _, version := range versions {
+		modelVersions = append(modelVersions, model.DocumentVersion{
+			ID:            version.ID,
+			DocumentID:    version.DocumentID,
+			VersionNumber: int(version.VersionNumber),
+			StorageKey:    version.StorageKey,
+			MimeType:      version.MimeType,
+			FileSize:      version.FileSize,
+			UploadedBy:    version.UploadedBy,
+			CreatedAt:     version.CreatedAt.Time,
+		})
 	}
-	return versions, nil
+	return modelVersions, nil
 }
 
 // CreatePage creates a new document page.
@@ -232,14 +237,16 @@ func (r *documentRepository) CreatePage(ctx context.Context, page *model.Documen
 	if page == nil {
 		return fmt.Errorf("page is nil")
 	}
-	query := `
-		INSERT INTO document_pages (id, document_id, version_id, page_number, ocr_text, translated_text, confidence, ocr_model, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-	`
-	_, err := r.db.Exec(ctx, query,
-		page.ID, page.DocumentID, page.VersionID, page.PageNumber,
-		page.OCRText, page.TranslatedText, page.Confidence, page.OCRModel,
-	)
+	err := r.queries.CreateDocumentPage(ctx, sqldb.CreateDocumentPageParams{
+		ID:             page.ID,
+		DocumentID:     page.DocumentID,
+		VersionID:      page.VersionID,
+		PageNumber:     int32(page.PageNumber),
+		OcrText:        page.OCRText,
+		TranslatedText: page.TranslatedText,
+		Confidence:     page.Confidence,
+		OcrModel:       page.OCRModel,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create document page: %w", err)
 	}
@@ -248,31 +255,28 @@ func (r *documentRepository) CreatePage(ctx context.Context, page *model.Documen
 
 // GetPages retrieves all pages of a document.
 func (r *documentRepository) GetPages(ctx context.Context, tenantID, documentID string) ([]model.DocumentPage, error) {
-	query := `
-		SELECT p.id, p.document_id, p.version_id, p.page_number, p.ocr_text, p.translated_text, p.confidence, p.ocr_model, p.created_at
-		FROM document_pages p
-		JOIN documents d ON d.id = p.document_id
-		WHERE p.document_id = $1 AND d.tenant_id = $2
-		ORDER BY page_number ASC
-	`
-	rows, err := r.db.Query(ctx, query, documentID, tenantID)
+	pages, err := r.queries.GetDocumentPages(ctx, sqldb.GetDocumentPagesParams{
+		DocumentID: documentID,
+		TenantID:   tenantID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pages: %w", err)
 	}
-	defer rows.Close()
-
-	var pages []model.DocumentPage
-	for rows.Next() {
-		var p model.DocumentPage
-		if err := rows.Scan(
-			&p.ID, &p.DocumentID, &p.VersionID, &p.PageNumber,
-			&p.OCRText, &p.TranslatedText, &p.Confidence, &p.OCRModel, &p.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan page: %w", err)
-		}
-		pages = append(pages, p)
+	modelPages := make([]model.DocumentPage, 0, len(pages))
+	for _, page := range pages {
+		modelPages = append(modelPages, model.DocumentPage{
+			ID:             page.ID,
+			DocumentID:     page.DocumentID,
+			VersionID:      page.VersionID,
+			PageNumber:     int(page.PageNumber),
+			OCRText:        page.OcrText,
+			TranslatedText: page.TranslatedText,
+			Confidence:     page.Confidence,
+			OCRModel:       page.OcrModel,
+			CreatedAt:      page.CreatedAt.Time,
+		})
 	}
-	return pages, nil
+	return modelPages, nil
 }
 
 // SetMetadata sets document metadata.
@@ -280,20 +284,15 @@ func (r *documentRepository) SetMetadata(ctx context.Context, tenantID string, m
 	if metadata == nil {
 		return fmt.Errorf("metadata is nil")
 	}
-	query := `
-		INSERT INTO document_metadata (id, document_id, key, extracted_value, corrected_value, corrected_by, corrected_at, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-		ON CONFLICT (document_id, key) DO UPDATE SET
-			extracted_value = EXCLUDED.extracted_value,
-			corrected_value = EXCLUDED.corrected_value,
-			corrected_by = EXCLUDED.corrected_by,
-			corrected_at = EXCLUDED.corrected_at
-	`
-	_, err := r.db.Exec(ctx, query,
-		metadata.ID, metadata.DocumentID, metadata.Key,
-		metadata.ExtractedValue, metadata.CorrectedValue,
-		metadata.CorrectedBy, metadata.CorrectedAt,
-	)
+	err := r.queries.SetDocumentMetadata(ctx, sqldb.SetDocumentMetadataParams{
+		ID:             metadata.ID,
+		DocumentID:     metadata.DocumentID,
+		Key:            metadata.Key,
+		ExtractedValue: metadata.ExtractedValue,
+		CorrectedValue: metadata.CorrectedValue,
+		CorrectedBy:    metadata.CorrectedBy,
+		CorrectedAt:    timestamptzFromTimePtr(metadata.CorrectedAt),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to set metadata: %w", err)
 	}
@@ -302,47 +301,42 @@ func (r *documentRepository) SetMetadata(ctx context.Context, tenantID string, m
 
 // GetMetadata retrieves document metadata.
 func (r *documentRepository) GetMetadata(ctx context.Context, tenantID, documentID string) ([]model.DocumentMetadata, error) {
-	query := `
-		SELECT m.id, m.document_id, m.key, m.extracted_value, m.corrected_value, m.corrected_by, m.corrected_at, m.created_at
-		FROM document_metadata m
-		JOIN documents d ON d.id = m.document_id
-		WHERE m.document_id = $1 AND d.tenant_id = $2
-		ORDER BY key ASC
-	`
-	rows, err := r.db.Query(ctx, query, documentID, tenantID)
+	metadata, err := r.queries.GetDocumentMetadata(ctx, sqldb.GetDocumentMetadataParams{
+		DocumentID: documentID,
+		TenantID:   tenantID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get metadata: %w", err)
 	}
-	defer rows.Close()
-
-	var metadata []model.DocumentMetadata
-	for rows.Next() {
-		var m model.DocumentMetadata
-		if err := rows.Scan(
-			&m.ID, &m.DocumentID, &m.Key,
-			&m.ExtractedValue, &m.CorrectedValue,
-			&m.CorrectedBy, &m.CorrectedAt, &m.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan metadata: %w", err)
-		}
-		metadata = append(metadata, m)
+	modelMetadata := make([]model.DocumentMetadata, 0, len(metadata))
+	for _, item := range metadata {
+		modelMetadata = append(modelMetadata, model.DocumentMetadata{
+			ID:             item.ID,
+			DocumentID:     item.DocumentID,
+			Key:            item.Key,
+			ExtractedValue: item.ExtractedValue,
+			CorrectedValue: item.CorrectedValue,
+			CorrectedBy:    item.CorrectedBy,
+			CorrectedAt:    timePtrFromTimestamptz(item.CorrectedAt),
+			CreatedAt:      item.CreatedAt.Time,
+		})
 	}
-	return metadata, nil
+	return modelMetadata, nil
 }
 
 // UpdateMetadataField updates a single metadata field with corrected value.
 func (r *documentRepository) UpdateMetadataField(ctx context.Context, tenantID, documentID, key, correctedValue, correctedBy string) error {
-	query := `
-		UPDATE document_metadata m
-		SET corrected_value = $1, corrected_by = $2, corrected_at = NOW()
-		FROM documents d
-		WHERE m.document_id = d.id AND m.document_id = $3 AND m.key = $4 AND d.tenant_id = $5
-	`
-	result, err := r.db.Exec(ctx, query, correctedValue, correctedBy, documentID, key, tenantID)
+	rowsAffected, err := r.queries.UpdateDocumentMetadataField(ctx, sqldb.UpdateDocumentMetadataFieldParams{
+		CorrectedValue: &correctedValue,
+		CorrectedBy:    &correctedBy,
+		DocumentID:     documentID,
+		Key:            key,
+		TenantID:       tenantID,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update metadata field: %w", err)
 	}
-	if result.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		return fmt.Errorf("metadata key not found: %s", key)
 	}
 	return nil
@@ -369,13 +363,12 @@ func (r *documentRepository) GetFullDocument(ctx context.Context, tenantID, orgI
 }
 
 func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error {
-	query := `
-		UPDATE documents
-		SET processing_stage = COALESCE($1, processing_stage),
-		    processing_error = COALESCE($2, processing_error)
-		WHERE id = $3 AND tenant_id = $4
-	`
-	_, execErr := r.db.Exec(ctx, query, stage, errMsg, documentID, tenantID)
+	execErr := r.queries.UpdateDocumentProcessingFields(ctx, sqldb.UpdateDocumentProcessingFieldsParams{
+		ProcessingStage: stage,
+		ProcessingError: errMsg,
+		ID:              documentID,
+		TenantID:        tenantID,
+	})
 	if execErr != nil {
 		return fmt.Errorf("failed to update processing fields: %w", execErr)
 	}
@@ -383,39 +376,15 @@ func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantI
 }
 
 func (r *documentRepository) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
-	query := `
-		WITH doc_stats AS (
-			SELECT
-				COUNT(*) as total_documents,
-				COUNT(*) FILTER (WHERE status = 'pending' OR status = 'processing') as pending_documents,
-				COUNT(*) FILTER (WHERE status = 'processed' AND created_at >= NOW() - INTERVAL '7 days') as completed_this_week
-			FROM documents
-			WHERE tenant_id = $1
-		),
-		storage_stats AS (
-			SELECT COALESCE(SUM(v.file_size), 0) as storage_used_bytes
-			FROM documents d
-			JOIN document_versions v ON d.id = v.document_id
-			WHERE d.tenant_id = $1
-		)
-		SELECT
-			d.total_documents,
-			d.pending_documents,
-			d.completed_this_week,
-			s.storage_used_bytes
-		FROM doc_stats d, storage_stats s
-	`
-
-	var stats model.DocumentStats
-	err := r.db.QueryRow(ctx, query, tenantID).Scan(
-		&stats.TotalDocuments,
-		&stats.PendingDocuments,
-		&stats.CompletedThisWeek,
-		&stats.StorageUsedBytes,
-	)
+	stats, err := r.queries.GetDocumentStats(ctx, sqldb.GetDocumentStatsParams{TenantIDArg: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("getting document stats: %w", err)
 	}
 
-	return &stats, nil
+	return &model.DocumentStats{
+		TotalDocuments:    stats.TotalDocuments,
+		PendingDocuments:  stats.PendingDocuments,
+		CompletedThisWeek: stats.CompletedThisWeek,
+		StorageUsedBytes:  stats.StorageUsedBytes,
+	}, nil
 }

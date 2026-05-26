@@ -2,8 +2,12 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/model"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,108 +23,115 @@ type UserRepository interface {
 }
 
 type userRepository struct {
-	db *pgxpool.Pool
+	queries sqldb.Querier
 }
 
 func NewUserRepository(db *pgxpool.Pool) UserRepository {
-	return &userRepository{db: db}
+	return &userRepository{queries: sqldb.New(db)}
 }
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
-	var user model.User
-	err := r.db.QueryRow(ctx,
-		`SELECT id, tenant_id, email, COALESCE(password_hash, ''), display_name, locale, email_verified,
-		 failed_login_attempts, locked_until, last_login_at, created_at
-		 FROM users WHERE email = $1`,
-		email,
-	).Scan(
-		&user.ID,
-		&user.TenantID,
-		&user.Email,
-		&user.PasswordHash,
-		&user.DisplayName,
-		&user.Locale,
-		&user.EmailVerified,
-		&user.FailedLoginAttempts,
-		&user.LockedUntil,
-		&user.LastLoginAt,
-		&user.CreatedAt,
-	)
+	row, err := r.queries.FindUserByEmail(ctx, sqldb.FindUserByEmailParams{Email: email})
 	if err != nil {
 		return nil, err
+	}
+	user := model.User{
+		ID:                  row.ID,
+		TenantID:            row.TenantID,
+		Email:               row.Email,
+		PasswordHash:        row.PasswordHash,
+		DisplayName:         row.DisplayName,
+		Locale:              row.Locale,
+		EmailVerified:       row.EmailVerified,
+		FailedLoginAttempts: int(row.FailedLoginAttempts),
+		LockedUntil:         row.LockedUntil,
+		LastLoginAt:         row.LastLoginAt,
+		CreatedAt:           row.CreatedAt.Time,
 	}
 	return &user, nil
 }
 
 func (r *userRepository) FindByID(ctx context.Context, userID string) (*model.User, error) {
-	var user model.User
-	err := r.db.QueryRow(ctx,
-		`SELECT id, tenant_id, email, COALESCE(password_hash, ''), display_name, locale, email_verified, last_login_at, created_at
-		 FROM users WHERE id = $1`,
-		userID,
-	).Scan(
-		&user.ID,
-		&user.TenantID,
-		&user.Email,
-		&user.PasswordHash,
-		&user.DisplayName,
-		&user.Locale,
-		&user.EmailVerified,
-		&user.LastLoginAt,
-		&user.CreatedAt,
-	)
+	row, err := r.queries.FindUserByID(ctx, sqldb.FindUserByIDParams{ID: userID})
 	if err != nil {
 		return nil, err
+	}
+	user := model.User{
+		ID:            row.ID,
+		TenantID:      row.TenantID,
+		Email:         row.Email,
+		PasswordHash:  row.PasswordHash,
+		DisplayName:   row.DisplayName,
+		Locale:        row.Locale,
+		EmailVerified: row.EmailVerified,
+		LastLoginAt:   row.LastLoginAt,
+		CreatedAt:     row.CreatedAt.Time,
 	}
 	return &user, nil
 }
 
 func (r *userRepository) Create(ctx context.Context, u *model.User) error {
-	_, err := r.db.Exec(ctx,
-		`INSERT INTO users (id, tenant_id, email, password_hash, display_name, locale, email_verified, failed_login_attempts, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		u.ID, u.TenantID, u.Email, u.PasswordHash, u.DisplayName, u.Locale, u.EmailVerified, u.FailedLoginAttempts, u.CreatedAt,
-	)
-	return err
+	return r.queries.CreateUser(ctx, sqldb.CreateUserParams{
+		ID:                  u.ID,
+		TenantID:            u.TenantID,
+		Email:               u.Email,
+		PasswordHash:        &u.PasswordHash,
+		DisplayName:         u.DisplayName,
+		Locale:              u.Locale,
+		EmailVerified:       u.EmailVerified,
+		FailedLoginAttempts: int32(u.FailedLoginAttempts),
+		CreatedAt:           pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
+	})
 }
 
 func (r *userRepository) UpdateProfile(ctx context.Context, userID, displayName, locale string) error {
-	_, err := r.db.Exec(ctx,
-		"UPDATE users SET display_name = $1, locale = $2 WHERE id = $3",
-		displayName, locale, userID,
-	)
-	return err
+	return r.queries.UpdateUserProfile(ctx, sqldb.UpdateUserProfileParams{
+		DisplayName: displayName,
+		Locale:      locale,
+		ID:          userID,
+	})
 }
 
 func (r *userRepository) UpdateEmail(ctx context.Context, userID, email string) error {
-	_, err := r.db.Exec(ctx,
-		"UPDATE users SET email = $1, email_verified = FALSE WHERE id = $2",
-		email, userID,
-	)
-	return err
+	return r.queries.UpdateUserEmail(ctx, sqldb.UpdateUserEmailParams{
+		Email: email,
+		ID:    userID,
+	})
 }
 
 func (r *userRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
-	_, err := r.db.Exec(ctx,
-		"UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL WHERE id = $2",
-		passwordHash, userID,
-	)
-	return err
+	return r.queries.UpdateUserPassword(ctx, sqldb.UpdateUserPasswordParams{
+		PasswordHash: &passwordHash,
+		ID:           userID,
+	})
 }
 
 func (r *userRepository) UpdateFailedLogin(ctx context.Context, userID string, attempts int, lockedUntil *string) error {
-	_, err := r.db.Exec(ctx,
-		"UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3",
-		attempts, lockedUntil, userID,
-	)
-	return err
+	parsedLockedUntil, err := parseOptionalTime(lockedUntil)
+	if err != nil {
+		return err
+	}
+	return r.queries.UpdateUserFailedLogin(ctx, sqldb.UpdateUserFailedLoginParams{
+		FailedLoginAttempts: int32(attempts),
+		LockedUntil:         parsedLockedUntil,
+		ID:                  userID,
+	})
 }
 
 func (r *userRepository) IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error) {
-	var exists bool
-	err := r.db.QueryRow(ctx,
-		"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND id <> $2)",
-		email, excludeUserID,
-	).Scan(&exists)
-	return exists, err
+	return r.queries.IsEmailTakenByOther(ctx, sqldb.IsEmailTakenByOtherParams{
+		Email: email,
+		ID:    excludeUserID,
+	})
+}
+
+func parseOptionalTime(value *string) (*time.Time, error) {
+	if value == nil {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, *value)
+	if err != nil {
+		return nil, fmt.Errorf("parse locked_until: %w", err)
+	}
+	return &parsed, nil
 }
