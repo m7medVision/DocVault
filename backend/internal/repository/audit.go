@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	sqldb "github.com/docvault/backend/internal/db"
-	"github.com/docvault/backend/internal/model"
+	model "github.com/docvault/backend/internal/domain/audit"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

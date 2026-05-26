@@ -6,21 +6,10 @@ import (
 	"time"
 
 	sqldb "github.com/docvault/backend/internal/db"
-	"github.com/docvault/backend/internal/model"
+	model "github.com/docvault/backend/internal/domain/identity"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type UserRepository interface {
-	FindByEmail(ctx context.Context, email string) (*model.User, error)
-	FindByID(ctx context.Context, id string) (*model.User, error)
-	Create(ctx context.Context, u *model.User) error
-	UpdateProfile(ctx context.Context, userID, displayName, locale string) error
-	UpdateEmail(ctx context.Context, userID, email string) error
-	UpdatePassword(ctx context.Context, userID, passwordHash string) error
-	UpdateFailedLogin(ctx context.Context, userID string, attempts int, lockedUntil *string) error
-	IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error)
-}
 
 type userRepository struct {
 	queries sqldb.Querier

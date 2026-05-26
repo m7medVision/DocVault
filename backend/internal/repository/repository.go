@@ -7,78 +7,93 @@ import (
 	"time"
 
 	"github.com/casbin/casbin/v3"
-	"github.com/docvault/backend/internal/model"
+	"github.com/docvault/backend/internal/domain/audit"
+	"github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/domain/identity"
+	"github.com/docvault/backend/internal/domain/notification"
+	"github.com/docvault/backend/internal/domain/reminder"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DocumentRepository provides document data access.
 type DocumentRepository interface {
-	Create(ctx context.Context, doc *model.Document) error
-	GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Document, error)
-	List(ctx context.Context, q *ListDocumentsQuery) ([]model.Document, *string, error)
-	Update(ctx context.Context, doc *model.Document) error
+	Create(ctx context.Context, doc *document.Document) error
+	GetByID(ctx context.Context, tenantID, orgID, id string) (*document.Document, error)
+	List(ctx context.Context, q *ListDocumentsQuery) ([]document.Document, *string, error)
+	Update(ctx context.Context, doc *document.Document) error
 	Delete(ctx context.Context, tenantID, orgID, id, actorID string) error
-	CreateVersion(ctx context.Context, version *model.DocumentVersion) error
-	GetVersions(ctx context.Context, tenantID, documentID string) ([]model.DocumentVersion, error)
-	CreatePage(ctx context.Context, page *model.DocumentPage) error
-	GetPages(ctx context.Context, tenantID, documentID string) ([]model.DocumentPage, error)
-	SetMetadata(ctx context.Context, tenantID string, metadata *model.DocumentMetadata) error
-	GetMetadata(ctx context.Context, tenantID, documentID string) ([]model.DocumentMetadata, error)
+	CreateVersion(ctx context.Context, version *document.DocumentVersion) error
+	GetVersions(ctx context.Context, tenantID, documentID string) ([]document.DocumentVersion, error)
+	CreatePage(ctx context.Context, page *document.DocumentPage) error
+	GetPages(ctx context.Context, tenantID, documentID string) ([]document.DocumentPage, error)
+	SetMetadata(ctx context.Context, tenantID string, metadata *document.DocumentMetadata) error
+	GetMetadata(ctx context.Context, tenantID, documentID string) ([]document.DocumentMetadata, error)
 	UpdateMetadataField(ctx context.Context, tenantID, documentID, key, correctedValue, correctedBy string) error
-	GetFullDocument(ctx context.Context, tenantID, orgID, documentID string) (*model.Document, []model.DocumentVersion, []model.DocumentMetadata, error)
+	GetFullDocument(ctx context.Context, tenantID, orgID, documentID string) (*document.Document, []document.DocumentVersion, []document.DocumentMetadata, error)
 	UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error
-	GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error)
+	GetStats(ctx context.Context, tenantID string) (*document.DocumentStats, error)
 }
 
 // ReminderRepository provides reminder data access.
 type ReminderRepository interface {
-	Create(ctx context.Context, reminder *model.ReminderRule) error
-	GetByID(ctx context.Context, tenantID, id string) (*model.ReminderRule, error)
-	GetByDocument(ctx context.Context, tenantID, documentID string) ([]model.ReminderRule, error)
-	ListByTenant(ctx context.Context, tenantID string, activeOnly bool) ([]model.ReminderRule, error)
-	ListUpcoming(ctx context.Context, tenantID string, withinDays int) ([]model.ReminderRule, error)
-	Update(ctx context.Context, reminder *model.ReminderRule) error
+	Create(ctx context.Context, reminder *reminder.ReminderRule) error
+	GetByID(ctx context.Context, tenantID, id string) (*reminder.ReminderRule, error)
+	GetByDocument(ctx context.Context, tenantID, documentID string) ([]reminder.ReminderRule, error)
+	ListByTenant(ctx context.Context, tenantID string, activeOnly bool) ([]reminder.ReminderRule, error)
+	ListUpcoming(ctx context.Context, tenantID string, withinDays int) ([]reminder.ReminderRule, error)
+	Update(ctx context.Context, reminder *reminder.ReminderRule) error
 	Delete(ctx context.Context, tenantID, id string) error
-	CreateEvent(ctx context.Context, event *model.ReminderEvent) error
-	UpdateEvent(ctx context.Context, event *model.ReminderEvent) error
-	GetPendingEvents(ctx context.Context, before time.Time) ([]model.ReminderEvent, error)
+	CreateEvent(ctx context.Context, event *reminder.ReminderEvent) error
+	UpdateEvent(ctx context.Context, event *reminder.ReminderEvent) error
+	GetPendingEvents(ctx context.Context, before time.Time) ([]reminder.ReminderEvent, error)
 }
 
 // FolderRepository provides folder data access.
 type FolderRepository interface {
-	Create(ctx context.Context, folder *model.Folder) error
-	GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Folder, error)
-	ListByParent(ctx context.Context, tenantID, orgID, parentID string) ([]model.Folder, error)
-	ListRoot(ctx context.Context, tenantID, orgID string) ([]model.Folder, error)
-	ListAll(ctx context.Context, tenantID, orgID string) ([]model.Folder, error)
-	Update(ctx context.Context, folder *model.Folder) error
+	Create(ctx context.Context, folder *document.Folder) error
+	GetByID(ctx context.Context, tenantID, orgID, id string) (*document.Folder, error)
+	ListByParent(ctx context.Context, tenantID, orgID, parentID string) ([]document.Folder, error)
+	ListRoot(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
+	ListAll(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
+	Update(ctx context.Context, folder *document.Folder) error
 	Delete(ctx context.Context, tenantID, orgID, id string) error
 }
 
 // TagRepository provides tag data access.
 type TagRepository interface {
-	Create(ctx context.Context, tag *model.Tag) error
-	GetByID(ctx context.Context, tenantID, id string) (*model.Tag, error)
-	GetByName(ctx context.Context, tenantID, name string) (*model.Tag, error)
-	List(ctx context.Context, tenantID string, query string, limit int) ([]model.Tag, error)
+	Create(ctx context.Context, tag *document.Tag) error
+	GetByID(ctx context.Context, tenantID, id string) (*document.Tag, error)
+	GetByName(ctx context.Context, tenantID, name string) (*document.Tag, error)
+	List(ctx context.Context, tenantID string, query string, limit int) ([]document.Tag, error)
 	Delete(ctx context.Context, tenantID, id string) error
 	AddToDocument(ctx context.Context, tenantID, tagID, documentID string) error
 	RemoveFromDocument(ctx context.Context, tenantID, tagID, documentID string) error
-	GetDocumentTags(ctx context.Context, tenantID, documentID string) ([]model.Tag, error)
+	GetDocumentTags(ctx context.Context, tenantID, documentID string) ([]document.Tag, error)
 }
 
 // AuditRepository provides audit data access.
 type AuditRepository interface {
-	Create(ctx context.Context, event *model.AuditEvent) error
-	ListByTenant(ctx context.Context, tenantID string, entityType, actorID, action, cursor string, limit int) ([]model.AuditEvent, *string, error)
+	Create(ctx context.Context, event *audit.AuditEvent) error
+	ListByTenant(ctx context.Context, tenantID string, entityType, actorID, action, cursor string, limit int) ([]audit.AuditEvent, *string, error)
 }
 
 // NotificationRepository provides notification data access.
 type NotificationRepository interface {
-	Create(ctx context.Context, notification *model.Notification) error
-	List(ctx context.Context, tenantID, userID string, status model.NotificationStatus, cursor string, limit int) ([]model.Notification, *string, error)
+	Create(ctx context.Context, notification *notification.Notification) error
+	List(ctx context.Context, tenantID, userID string, status notification.NotificationStatus, cursor string, limit int) ([]notification.Notification, *string, error)
 	MarkRead(ctx context.Context, tenantID, userID, notificationID string) error
 	GetUnreadCount(ctx context.Context, tenantID, userID string) (int, error)
+}
+
+type UserRepository interface {
+	FindByEmail(ctx context.Context, email string) (*identity.User, error)
+	FindByID(ctx context.Context, id string) (*identity.User, error)
+	Create(ctx context.Context, u *identity.User) error
+	UpdateProfile(ctx context.Context, userID, displayName, locale string) error
+	UpdateEmail(ctx context.Context, userID, email string) error
+	UpdatePassword(ctx context.Context, userID, passwordHash string) error
+	UpdateFailedLogin(ctx context.Context, userID string, attempts int, lockedUntil *string) error
+	IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error)
 }
 
 // Repositories holds all repository instances.
