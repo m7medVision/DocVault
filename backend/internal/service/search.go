@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"time"
 
 	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/search"
@@ -86,101 +87,6 @@ type AppliedFilters struct {
 	EndDate   string   `json:"end_date,omitempty"`
 }
 
-type FilterSQL struct {
-	WhereClause string
-	Params      []interface{}
-	ParamCount  int
-}
-
-func NewFilterSQL() *FilterSQL {
-	return &FilterSQL{
-		WhereClause: "",
-		Params:      []interface{}{},
-		ParamCount:  0,
-	}
-}
-
-func (f *FilterSQL) AddCondition(condition string) {
-	if f.WhereClause == "" {
-		f.WhereClause = condition
-	} else {
-		f.WhereClause += " AND " + condition
-	}
-}
-
-func (f *FilterSQL) addParam(param interface{}) string {
-	f.ParamCount++
-	f.Params = append(f.Params, param)
-	return fmt.Sprintf("$%d", f.ParamCount+1)
-}
-
-func (f *FilterSQL) Build() (string, []interface{}) {
-	return f.WhereClause, f.Params
-}
-
-func GenerateFilterSQL(input *SearchInput) *FilterSQL {
-	f := NewFilterSQL()
-
-	if input.TenantID != "" {
-		f.AddCondition(fmt.Sprintf("d.tenant_id = %s", f.addParam(input.TenantID)))
-	}
-	if input.OrgID != "" {
-		f.AddCondition(fmt.Sprintf("d.org_id = %s", f.addParam(input.OrgID)))
-	}
-	if input.DocType != "" {
-		f.AddCondition(fmt.Sprintf("d.doc_type = %s", f.addParam(input.DocType)))
-	}
-	if input.Language != "" {
-		f.AddCondition(fmt.Sprintf("d.language = %s", f.addParam(input.Language)))
-	}
-	if input.Status != "" {
-		f.AddCondition(fmt.Sprintf("d.status = %s", f.addParam(input.Status)))
-	}
-	if input.FolderID != "" {
-		f.AddCondition(fmt.Sprintf("d.folder_id = %s", f.addParam(input.FolderID)))
-	}
-	if input.StartDate != "" {
-		f.AddCondition(fmt.Sprintf("d.created_at >= %s", f.addParam(input.StartDate)))
-	}
-	if input.EndDate != "" {
-		f.AddCondition(fmt.Sprintf("d.created_at <= %s", f.addParam(input.EndDate)))
-	}
-	if len(input.Tags) > 0 {
-		for _, tag := range input.Tags {
-			f.AddCondition(fmt.Sprintf(
-				"EXISTS (SELECT 1 FROM document_tags dt JOIN tags t ON t.id = dt.tag_id WHERE dt.document_id = d.id AND t.tenant_id = d.tenant_id AND t.name = %s)",
-				f.addParam(tag),
-			))
-		}
-	}
-
-	return f
-}
-
-func BuildVectorSearchQuery(filterSQL *FilterSQL, limit int) (string, []interface{}) {
-	baseQuery := `
-		SELECT 
-			c.document_id,
-			d.title,
-			d.doc_type,
-			c.id as chunk_id,
-			c.chunk_text,
-			COALESCE(p.page_number, 0) as page_number,
-			COALESCE(d.language, '') as language,
-			FALSE as is_translation,
-			(c.embedding <=> $1::vector) as distance
-		FROM extracted_text_chunks c
-		JOIN documents d ON c.document_id = d.id
-		LEFT JOIN document_pages p ON c.page_id = p.id
-	`
-
-	if filterSQL.WhereClause != "" {
-		return baseQuery + " WHERE " + filterSQL.WhereClause + fmt.Sprintf(" ORDER BY c.embedding <=> $1::vector LIMIT %d", limit), filterSQL.Params
-	}
-
-	return baseQuery + fmt.Sprintf(" ORDER BY c.embedding <=> $1::vector LIMIT %d", limit), []interface{}{}
-}
-
 func expandChunkCandidateLimit(limit int) int {
 	expanded := limit * chunkCandidateMultiplier
 	if expanded > maxChunkCandidates {
@@ -212,27 +118,38 @@ func (s *SearchService) Search(ctx context.Context, input *SearchInput) (*Search
 		return nil, fmt.Errorf("unexpected embedding size: got %d want %d", len(embedding), expectedEmbeddingDimensions)
 	}
 
-	filterSQL := GenerateFilterSQL(input)
+	startDate, err := parseSearchDate(input.StartDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start_date: %w", err)
+	}
+	endDate, err := parseSearchDate(input.EndDate)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end_date: %w", err)
+	}
 
 	slog.Info("search query built",
 		"query", input.Query,
 		"embedding_dim", len(embedding),
 		"tenant_id", input.TenantID,
-		"filter_sql", filterSQL.WhereClause,
+		"org_id", input.OrgID,
 	)
 
 	chunkLimit := expandChunkCandidateLimit(limit)
 
 	repoReq := repository.SearchRequest{
-		Query:             input.Query,
-		TenantID:          input.TenantID,
-		OrgID:             input.OrgID,
-		Limit:             chunkLimit,
-		FilterMeta:        map[string]interface{}{},
-		QueryVector:       search.FormatVectorLiteral(embedding),
-		FilterWhereClause: filterSQL.WhereClause,
-		FilterParams:      filterSQL.Params,
-		MinScore:          minimumSearchScore,
+		Query:       input.Query,
+		TenantID:    input.TenantID,
+		OrgID:       input.OrgID,
+		DocType:     input.DocType,
+		Language:    input.Language,
+		Status:      input.Status,
+		FolderID:    input.FolderID,
+		Tags:        input.Tags,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		Limit:       chunkLimit,
+		QueryVector: search.FormatVectorLiteral(embedding),
+		MinScore:    minimumSearchScore,
 	}
 
 	repoResult, err := s.searchRepo.Search(ctx, repoReq)
@@ -325,6 +242,20 @@ func (s *SearchService) Search(ctx context.Context, input *SearchInput) (*Search
 		HasMore:    hasMore,
 		NextCursor: nextCursor,
 	}, nil
+}
+
+func parseSearchDate(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return &parsed, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func (s *SearchService) SearchWithFilters(ctx context.Context, input *SearchInput) (*SearchOutput, error) {

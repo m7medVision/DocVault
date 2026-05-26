@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	sqldb "github.com/docvault/backend/internal/db"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-const semanticScoreFloor = 0.4
 
 type DocumentChunk struct {
 	ID         string
@@ -32,17 +33,21 @@ type ChunkMatch struct {
 }
 
 type SearchRequest struct {
-	Query             string
-	TenantID          string
-	UserID            string
-	OrgID             string
-	FilterMeta        map[string]interface{}
-	Limit             int
-	Cursor            string
-	QueryVector       string
-	FilterWhereClause string
-	FilterParams      []interface{}
-	MinScore          float64
+	Query       string
+	TenantID    string
+	UserID      string
+	OrgID       string
+	DocType     string
+	Language    string
+	Status      string
+	FolderID    string
+	Tags        []string
+	StartDate   *time.Time
+	EndDate     *time.Time
+	Limit       int
+	Cursor      string
+	QueryVector string
+	MinScore    float64
 }
 
 type SearchResult struct {
@@ -58,19 +63,19 @@ type SearchRepository interface {
 }
 
 type searchRepository struct {
-	db *pgxpool.Pool
+	queries sqldb.Querier
 }
 
 func NewSearchRepository(db *pgxpool.Pool) SearchRepository {
-	return &searchRepository{db: db}
+	return &searchRepository{queries: sqldb.New(db)}
 }
 
-func buildSearchQuery(req SearchRequest) (string, []interface{}, error) {
+func searchDocumentChunksParams(req SearchRequest) (sqldb.SearchDocumentChunksParams, error) {
 	if req.QueryVector == "" {
-		return "", nil, fmt.Errorf("query vector is required")
+		return sqldb.SearchDocumentChunksParams{}, fmt.Errorf("query vector is required")
 	}
 	if strings.TrimSpace(req.Query) == "" {
-		return "", nil, fmt.Errorf("query text is required")
+		return sqldb.SearchDocumentChunksParams{}, fmt.Errorf("query text is required")
 	}
 
 	limit := req.Limit
@@ -78,131 +83,54 @@ func buildSearchQuery(req SearchRequest) (string, []interface{}, error) {
 		limit = 20
 	}
 
-	queryTextPlaceholder := fmt.Sprintf("$%d", len(req.FilterParams)+2)
-	chunkContainsExpr := fmt.Sprintf("POSITION(LOWER(%s) IN LOWER(c.chunk_text)) > 0", queryTextPlaceholder)
-	titleContainsExpr := fmt.Sprintf("POSITION(LOWER(%s) IN LOWER(d.title)) > 0", queryTextPlaceholder)
-	rawSemanticScoreExpr := "GREATEST(0.0, 1 - (c.embedding <=> $1::vector))"
-	semanticScoreExpr := fmt.Sprintf(
-		"LEAST(1.0, GREATEST(0.0, ((%s) - %.2f) / %.2f))",
-		rawSemanticScoreExpr,
-		semanticScoreFloor,
-		1.0-semanticScoreFloor,
-	)
-	lexicalScoreExpr := fmt.Sprintf(`CASE
-			WHEN LOWER(BTRIM(d.title)) = LOWER(BTRIM(%s)) THEN 1.0
-			WHEN LOWER(BTRIM(c.chunk_text)) = LOWER(BTRIM(%s)) THEN 0.99
-			WHEN %s THEN 0.97
-			WHEN %s THEN 0.95
-			ELSE 0.0
-		END`, queryTextPlaceholder, queryTextPlaceholder, chunkContainsExpr, titleContainsExpr)
-	hybridScoreExpr := fmt.Sprintf("GREATEST(%s, %s)", semanticScoreExpr, lexicalScoreExpr)
-
-	baseQuery := fmt.Sprintf(`
-		SELECT 
-			c.document_id,
-			d.title,
-			d.doc_type,
-			c.id as chunk_id,
-			c.chunk_text,
-			COALESCE(p.page_number, 0) as page_number,
-			COALESCE(d.language, '') as language,
-			FALSE as is_translation,
-			%s as score,
-			c.embedding <=> $1::vector as distance
-		FROM extracted_text_chunks c
-		JOIN documents d ON c.document_id = d.id
-		LEFT JOIN document_pages p ON c.page_id = p.id
-		WHERE c.embedding IS NOT NULL`, hybridScoreExpr)
-
-	if req.FilterWhereClause != "" {
-		baseQuery += " AND " + req.FilterWhereClause
+	tags := req.Tags
+	if tags == nil {
+		tags = []string{}
 	}
 
-	lexicalFilter := fmt.Sprintf("(%s OR %s)", chunkContainsExpr, titleContainsExpr)
-
-	query := fmt.Sprintf(`
-		WITH vector_matches AS (
-			%s
-			ORDER BY c.embedding <=> $1::vector
-			LIMIT %d
-		),
-		lexical_matches AS (
-			%s
-			AND %s
-			ORDER BY score DESC, c.embedding <=> $1::vector
-			LIMIT %d
-		),
-		candidate_matches AS (
-			SELECT * FROM vector_matches
-			UNION ALL
-			SELECT * FROM lexical_matches
-		),
-		deduped_matches AS (
-			SELECT DISTINCT ON (chunk_id)
-				document_id,
-				title,
-				doc_type,
-				chunk_id,
-				chunk_text,
-				page_number,
-				language,
-				is_translation,
-				score,
-				distance
-			FROM candidate_matches
-			ORDER BY chunk_id, score DESC, distance ASC
-		)
-		SELECT 
-			document_id,
-			title,
-			doc_type,
-			chunk_id,
-			chunk_text,
-			page_number,
-			language,
-			is_translation,
-			score
-		FROM deduped_matches`, baseQuery, limit, baseQuery, lexicalFilter, limit)
-
-	args := make([]interface{}, 0, len(req.FilterParams)+3)
-	args = append(args, req.QueryVector)
-	args = append(args, req.FilterParams...)
-	args = append(args, strings.TrimSpace(req.Query))
-
-	if req.MinScore > 0 {
-		thresholdPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		query += " WHERE score > " + thresholdPlaceholder
-		args = append(args, req.MinScore)
-	}
-
-	query += fmt.Sprintf(" ORDER BY score DESC LIMIT %d", limit)
-
-	return query, args, nil
+	return sqldb.SearchDocumentChunksParams{
+		LimitCount:  int32(limit),
+		QueryVector: req.QueryVector,
+		QueryText:   strings.TrimSpace(req.Query),
+		TenantID:    req.TenantID,
+		OrgID:       req.OrgID,
+		DocType:     optionalString(req.DocType),
+		Language:    optionalString(req.Language),
+		Status:      optionalString(req.Status),
+		FolderID:    optionalString(req.FolderID),
+		StartDate:   optionalTimestamptz(req.StartDate),
+		EndDate:     optionalTimestamptz(req.EndDate),
+		Tags:        tags,
+	}, nil
 }
 
 func (r *searchRepository) Search(ctx context.Context, req SearchRequest) (*SearchResult, error) {
-	query, args, err := buildSearchQuery(req)
+	params, err := searchDocumentChunksParams(req)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.queries.SearchDocumentChunks(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
-	defer rows.Close()
 
-	var chunks []ChunkMatch
-	for rows.Next() {
-		var c ChunkMatch
-		if err := rows.Scan(
-			&c.DocumentID, &c.DocumentTitle, &c.DocType,
-			&c.ChunkID, &c.ChunkText, &c.PageNumber,
-			&c.Language, &c.IsTranslation, &c.Score,
-		); err != nil {
-			return nil, fmt.Errorf("scan failed: %w", err)
+	chunks := make([]ChunkMatch, 0, len(rows))
+	for _, row := range rows {
+		if req.MinScore > 0 && row.Score <= req.MinScore {
+			continue
 		}
-		chunks = append(chunks, c)
+		chunks = append(chunks, ChunkMatch{
+			DocumentID:    row.DocumentID,
+			DocumentTitle: row.Title,
+			DocType:       string(row.DocType),
+			ChunkID:       row.ChunkID,
+			ChunkText:     row.ChunkText,
+			PageNumber:    int(row.PageNumber),
+			Language:      row.Language,
+			IsTranslation: row.IsTranslation,
+			Score:         row.Score,
+		})
 	}
 
 	return &SearchResult{
@@ -217,4 +145,18 @@ func (r *searchRepository) IndexChunk(ctx context.Context, chunk DocumentChunk) 
 
 func (r *searchRepository) DeleteChunksByDocument(ctx context.Context, docID string) error {
 	return nil
+}
+
+func optionalString(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return &value
+}
+
+func optionalTimestamptz(value *time.Time) pgtype.Timestamptz {
+	if value == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *value, Valid: true}
 }
