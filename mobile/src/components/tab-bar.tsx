@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { HomeIcon, DocsIcon, ScanIcon, SearchIcon } from './icons';
+import { HomeIcon, DocsIcon, ScanIcon, SearchIcon, SettingsIcon } from './icons';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -20,6 +20,7 @@ const TABS: TabConfig[] = [
   { label: 'Docs', name: 'documents', href: '/documents', Icon: DocsIcon },
   { label: 'Scan', name: 'scan', href: '/scan', Icon: ScanIcon, center: true },
   { label: 'Search', name: 'search', href: '/search', Icon: SearchIcon },
+  { label: 'Settings', name: 'settings', href: '/settings', Icon: SettingsIcon },
 ];
 
 type TabBarProps = BottomTabBarProps;

@@ -14,6 +14,7 @@ export default function TabLayout() {
       <Tabs.Screen name="scan" />
       <Tabs.Screen name="search" />
       <Tabs.Screen name="reminders" />
+      <Tabs.Screen name="settings" />
     </Tabs>
   );
 }
