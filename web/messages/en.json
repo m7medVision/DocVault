@@ -181,7 +181,19 @@
     "acceptSuggestion": "Accept",
     "chatWithDoc": "Chat",
     "confidence": "Confidence",
-    "fileBrowser": "File Browser"
+    "recent": "Recent",
+    "allDocuments": "All Documents",
+    "searchPlaceholder": "Filter by title...",
+    "allTypes": "All Types",
+    "allFolders": "All Folders",
+    "folder": "Folder",
+    "unfiled": "Unfiled",
+    "unknown": "Unknown",
+    "noMatchingDocuments": "No documents match your filters",
+    "dateColumn": "Date",
+    "titleColumn": "Title",
+    "typeColumn": "Type",
+    "statusColumn": "Status"
   },
   "chat": {
     "title": "Chat with Document",

@@ -181,7 +181,19 @@
     "acceptSuggestion": "قبول",
     "chatWithDoc": "محادثة",
     "confidence": "الثقة",
-    "fileBrowser": "متصفح الملفات"
+    "recent": "الأحدث",
+    "allDocuments": "جميع المستندات",
+    "searchPlaceholder": "تصفية حسب العنوان...",
+    "allTypes": "جميع الأنواع",
+    "allFolders": "جميع المجلدات",
+    "folder": "المجلد",
+    "unfiled": "بدون مجلد",
+    "unknown": "غير معروف",
+    "noMatchingDocuments": "لا توجد مستندات تطابق التصفية",
+    "dateColumn": "التاريخ",
+    "titleColumn": "العنوان",
+    "typeColumn": "النوع",
+    "statusColumn": "الحالة"
   },
   "chat": {
     "title": "محادثة مع المستند",
