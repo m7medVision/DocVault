@@ -4,6 +4,7 @@ set dotenv-load := true
 
 ENV_FILE := ".env"
 DATABASE_URL := env("DATABASE_URL", "postgresql://docvault:docvault_dev@localhost:5432/docvault")
+SQLC_VERSION := "v1.31.1"
 
 help:
     @echo ""
@@ -28,6 +29,9 @@ help:
     @echo "  just db-migrate      Run database migrations (goose)"
     @echo "  just db-rollback     Rollback last migration"
     @echo "  just db-status       Show migration status"
+    @echo "  just sqlc-install    Install pinned sqlc"
+    @echo "  just sqlc-generate   Generate SQLC code"
+    @echo "  just sqlc-check      Verify SQLC code is fresh"
     @echo "  just dev-clean        Clean up containers + data"
     @echo "  just dev-prune        Remove unused Docker resources"
     @echo ""
@@ -112,3 +116,16 @@ db-status:
 
 db-reset:
     docker compose --env-file {{ENV_FILE}} down -v
+
+sqlc-install:
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@{{SQLC_VERSION}}
+
+sqlc-schema:
+	mkdir -p backend/internal/db
+	cd backend && sh scripts/sqlc-schema.sh > internal/db/schema.sql
+
+sqlc-generate: sqlc-schema
+	cd backend && sqlc generate
+
+sqlc-check: sqlc-generate
+	git diff --exit-code -- backend/sqlc.yaml backend/internal/query backend/internal/db
