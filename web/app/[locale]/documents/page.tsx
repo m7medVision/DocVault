@@ -90,7 +90,7 @@ function RecentCard({
 
 function PageSkeleton() {
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <Skeleton className="h-9 w-40" />
         <Skeleton className="h-9 w-36" />
@@ -207,11 +207,9 @@ export default function DocumentsPage() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-6xl">
-        <div className="rounded-lg bg-destructive/10 p-4 text-center text-destructive">
+      <div className="rounded-lg bg-destructive/10 p-4 text-center text-destructive">
           {error}
         </div>
-      </div>
     );
   }
 
@@ -222,8 +220,8 @@ export default function DocumentsPage() {
       : null;
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{t("title")}</h1>
         <Button asChild>
           <Link href="/documents/upload">{t("upload")}</Link>
@@ -268,8 +266,8 @@ export default function DocumentsPage() {
 
         <div className="min-w-0 flex-1">
           {isAllDocs && recentDocs.length > 0 && (
-            <div className="mb-6">
-              <div className="mb-3 flex items-center gap-2">
+            <div className="mb-4">
+              <div className="mb-2 flex items-center gap-2">
                 <Clock className="size-4 text-muted-foreground" />
                 <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                   {t("recent")}
@@ -288,7 +286,7 @@ export default function DocumentsPage() {
           )}
 
           {selectedFolderName && (
-            <h2 className="mb-3 text-lg font-semibold">{selectedFolderName}</h2>
+            <h2 className="mb-2 text-lg font-semibold">{selectedFolderName}</h2>
           )}
 
           {filteredDocs.length === 0 ? (
