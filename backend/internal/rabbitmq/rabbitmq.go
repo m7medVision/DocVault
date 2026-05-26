@@ -3,11 +3,13 @@ package rabbitmq
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/docvault/backend/internal/usecase"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -18,6 +20,10 @@ type Publisher struct {
 	url   string
 	queue string
 	mu    sync.Mutex
+}
+
+type OCRDispatcher struct {
+	publisher *Publisher
 }
 
 // NewConnection creates a new RabbitMQ connection.
@@ -59,6 +65,19 @@ func NewChannel(conn *amqp.Connection) (*amqp.Channel, error) {
 
 func NewPublisher(conn *amqp.Connection, url string, queue string) *Publisher {
 	return &Publisher{conn: conn, url: url, queue: queue}
+}
+
+func NewOCRDispatcher(conn *amqp.Connection, url string, queue string) *OCRDispatcher {
+	return &OCRDispatcher{publisher: NewPublisher(conn, url, queue)}
+}
+
+func (d *OCRDispatcher) DispatchOCR(ctx context.Context, job usecase.OCRJob) error {
+	body, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("marshal OCR job: %w", err)
+	}
+
+	return d.publisher.Publish(ctx, body)
 }
 
 func (p *Publisher) Publish(ctx context.Context, body []byte) error {
