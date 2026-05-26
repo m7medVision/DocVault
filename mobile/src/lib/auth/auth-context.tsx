@@ -22,6 +22,7 @@ interface AuthState {
   register: (params: authApi.RegisterParams) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<string | null>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -135,6 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSession();
   }, [clearSession]);
 
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : null));
+  }, []);
+
   const value = useMemo<AuthState>(() => ({
     user,
     accessToken,
@@ -144,7 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: registerFn,
     logout: logoutFn,
     refreshSession,
-  }), [user, accessToken, isLoading, loginFn, registerFn, logoutFn, refreshSession]);
+    updateUser,
+  }), [user, accessToken, isLoading, loginFn, registerFn, logoutFn, refreshSession, updateUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -8,9 +8,11 @@ import (
 
 	"github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/authz"
+	sqldb "github.com/docvault/backend/internal/db"
 	appredis "github.com/docvault/backend/internal/redis"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type RegisterRequest struct {
@@ -102,43 +104,58 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(ctx)
 
 	now := time.Now().UTC()
+	createdAt := pgtype.Timestamptz{Time: now, Valid: true}
 	tenantID := uuid.NewString()
 	orgID := uuid.NewString()
 	userID := uuid.NewString()
 	membershipID := uuid.NewString()
+	txQueries := h.queries.WithTx(tx)
 
-	if _, err := tx.Exec(ctx,
-		"INSERT INTO tenants (id, name, plan, created_at) VALUES ($1, $2, $3, $4)",
-		tenantID, req.TenantName, "free", now,
-	); err != nil {
+	if err := txQueries.CreateTenant(ctx, sqldb.CreateTenantParams{
+		ID:        tenantID,
+		Name:      req.TenantName,
+		Plan:      "free",
+		CreatedAt: createdAt,
+	}); err != nil {
 		h.logger.Error("failed to create tenant", "error", err)
 		respondError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	if _, err := tx.Exec(ctx,
-		"INSERT INTO organizations (id, tenant_id, name, created_at) VALUES ($1, $2, $3, $4)",
-		orgID, tenantID, req.OrgName, now,
-	); err != nil {
+	if err := txQueries.CreateOrganization(ctx, sqldb.CreateOrganizationParams{
+		ID:        orgID,
+		TenantID:  tenantID,
+		Name:      req.OrgName,
+		CreatedAt: createdAt,
+	}); err != nil {
 		h.logger.Error("failed to create organization", "error", err)
 		respondError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO users (id, tenant_id, email, password_hash, display_name, locale, email_verified, failed_login_attempts, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		userID, tenantID, req.Email, passwordHash, req.DisplayName, req.Locale, false, 0, now,
-	); err != nil {
+	if err := txQueries.CreateUser(ctx, sqldb.CreateUserParams{
+		ID:                  userID,
+		TenantID:            tenantID,
+		Email:               req.Email,
+		PasswordHash:        &passwordHash,
+		DisplayName:         req.DisplayName,
+		Locale:              req.Locale,
+		EmailVerified:       false,
+		FailedLoginAttempts: 0,
+		CreatedAt:           createdAt,
+	}); err != nil {
 		h.logger.Error("failed to create user", "error", err)
 		respondError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	if _, err := tx.Exec(ctx,
-		"INSERT INTO memberships (id, user_id, org_id, role, created_at) VALUES ($1, $2, $3, $4, $5)",
-		membershipID, userID, orgID, "owner", now,
-	); err != nil {
+	if err := txQueries.CreateMembership(ctx, sqldb.CreateMembershipParams{
+		ID:        membershipID,
+		UserID:    userID,
+		OrgID:     orgID,
+		Role:      sqldb.MembershipRoleOwner,
+		CreatedAt: createdAt,
+	}); err != nil {
 		h.logger.Error("failed to create membership", "error", err)
 		respondError(w, http.StatusInternalServerError, "internal server error")
 		return

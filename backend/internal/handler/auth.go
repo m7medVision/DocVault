@@ -5,6 +5,7 @@ import (
 
 	"github.com/casbin/casbin/v3"
 	"github.com/docvault/backend/internal/auth"
+	sqldb "github.com/docvault/backend/internal/db"
 	appredis "github.com/docvault/backend/internal/redis"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,6 +19,7 @@ type AuthHandler struct {
 	authzEnforcer  *casbin.Enforcer
 	logger         *slog.Logger
 	userRepo       repository.UserRepository
+	queries        *sqldb.Queries
 }
 
 func NewAuthHandler(
@@ -37,5 +39,6 @@ func NewAuthHandler(
 		authzEnforcer:  authzEnforcer,
 		logger:         logger,
 		userRepo:       userRepo,
+		queries:        sqldb.New(db),
 	}
 }

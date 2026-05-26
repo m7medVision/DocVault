@@ -10,6 +10,7 @@ import (
 
 	"github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/authz"
+	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/model"
 	appredis "github.com/docvault/backend/internal/redis"
@@ -108,10 +109,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UTC()
-	if _, err := h.db.Exec(ctx,
-		"UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = $1 WHERE id = $2",
-		now, user.ID,
-	); err != nil {
+	if err := h.queries.UpdateSuccessfulLoginMetadata(ctx, sqldb.UpdateSuccessfulLoginMetadataParams{
+		LastLoginAt: &now,
+		ID:          user.ID,
+	}); err != nil {
 		h.logger.Warn("failed to update successful login metadata", "error", err, "user_id", user.ID)
 	}
 
@@ -259,13 +260,8 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) lookupPrimaryMembership(ctx context.Context, userID string) (string, string, error) {
-	var orgID string
-	var role string
-	err := h.db.QueryRow(ctx,
-		"SELECT org_id, role FROM memberships WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
-		userID,
-	).Scan(&orgID, &role)
-	return orgID, role, err
+	membership, err := h.queries.GetPrimaryMembershipByUserID(ctx, sqldb.GetPrimaryMembershipByUserIDParams{UserID: userID})
+	return membership.OrgID, string(membership.Role), err
 }
 
 func (h *AuthHandler) recordFailedLogin(ctx context.Context, user *model.User) error {
