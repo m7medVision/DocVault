@@ -22,9 +22,9 @@ type RateLimit struct {
 // Predefined rate limits for different endpoints.
 var (
 	// Auth endpoints
-	LoginRateLimit    = RateLimit{Requests: 5, Window: 15 * time.Minute}  // 5 attempts per 15 min
-	RegisterRateLimit = RateLimit{Requests: 3, Window: 1 * time.Hour}     // 3 attempts per hour
-	RefreshRateLimit  = RateLimit{Requests: 10, Window: 1 * time.Minute}  // 10 per minute
+	LoginRateLimit    = RateLimit{Requests: 5, Window: 15 * time.Minute} // 5 attempts per 15 min
+	RegisterRateLimit = RateLimit{Requests: 3, Window: 1 * time.Hour}    // 3 attempts per hour
+	RefreshRateLimit  = RateLimit{Requests: 10, Window: 1 * time.Minute} // 10 per minute
 
 	// General API rate limit
 	GeneralAPIRateLimit = RateLimit{Requests: 100, Window: 1 * time.Minute} // 100 per minute
@@ -33,7 +33,7 @@ var (
 // NewRateLimiter creates a new rate limiter using Redis.
 func NewRateLimiter(client *Client) *RateLimiter {
 	limiter := redis_rate.NewLimiter(client.Client)
-	
+
 	return &RateLimiter{
 		limiter: limiter,
 	}

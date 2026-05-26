@@ -12,11 +12,11 @@ import (
 
 // TokenClaims represents the JWT claims structure for DocVault.
 type TokenClaims struct {
-	UserID   string `json:"sub"`          // Subject (user ID)
-	Email    string `json:"email"`        // User email
-	TenantID string `json:"tenant_id"`    // Tenant ID for isolation
-	OrgID    string `json:"org_id"`       // Organization ID (primary org)
-	Role     string `json:"role"`         // User role (owner|admin|member|viewer)
+	UserID   string `json:"sub"`       // Subject (user ID)
+	Email    string `json:"email"`     // User email
+	TenantID string `json:"tenant_id"` // Tenant ID for isolation
+	OrgID    string `json:"org_id"`    // Organization ID (primary org)
+	Role     string `json:"role"`      // User role (owner|admin|member|viewer)
 	jwt.RegisteredClaims
 }
 
@@ -30,10 +30,10 @@ type TokenPair struct {
 
 // JWTService handles JWT token operations.
 type JWTService struct {
-	secret         []byte
-	issuer         string
-	audience       string
-	accessTokenTTL time.Duration
+	secret          []byte
+	issuer          string
+	audience        string
+	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 }
 

@@ -35,7 +35,7 @@ func TestClientConnection(t *testing.T) {
 	// Test SET/GET
 	key := "test:key"
 	value := "test_value"
-	
+
 	err = client.Set(ctx, key, value, 10*time.Second).Err()
 	if err != nil {
 		t.Fatalf("SET failed: %v", err)

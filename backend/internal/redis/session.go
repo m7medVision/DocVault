@@ -60,7 +60,7 @@ func (ss *SessionStore) SaveSession(ctx context.Context, sessionID string, data 
 	if err != nil {
 		return fmt.Errorf("failed to track user session: %w", err)
 	}
-	
+
 	// Set expiry on user sessions set
 	ss.client.Expire(ctx, userSessionsKey, ttl)
 
@@ -105,7 +105,7 @@ func (ss *SessionStore) DeleteSession(ctx context.Context, sessionID string) err
 	}
 
 	key := fmt.Sprintf("session:%s", sessionID)
-	
+
 	// Delete session data
 	err = ss.client.Del(ctx, key).Err()
 	if err != nil {
@@ -126,7 +126,7 @@ func (ss *SessionStore) GetUserSessions(ctx context.Context, userID string) ([]s
 	}
 
 	key := fmt.Sprintf("user:sessions:%s", userID)
-	
+
 	sessionIDs, err := ss.client.SMembers(ctx, key).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user sessions: %w", err)

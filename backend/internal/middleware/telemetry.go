@@ -94,9 +94,9 @@ func Telemetry() Middleware {
 // telemetryResponseWriter wraps http.ResponseWriter to capture metrics.
 type telemetryResponseWriter struct {
 	http.ResponseWriter
-	statusCode    int
-	bytesWritten  int64
-	ctx           context.Context
+	statusCode   int
+	bytesWritten int64
+	ctx          context.Context
 }
 
 func (w *telemetryResponseWriter) WriteHeader(code int) {

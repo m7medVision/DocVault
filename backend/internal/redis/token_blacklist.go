@@ -53,7 +53,7 @@ func (tb *TokenBlacklist) IsBlacklisted(ctx context.Context, tokenID string) (bo
 // RemoveToken removes a token from the blacklist (for testing purposes).
 func (tb *TokenBlacklist) RemoveToken(ctx context.Context, tokenID string) error {
 	key := fmt.Sprintf("blacklist:token:%s", tokenID)
-	
+
 	err := tb.client.Del(ctx, key).Err()
 	if err != nil {
 		return fmt.Errorf("failed to remove token from blacklist: %w", err)

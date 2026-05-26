@@ -46,11 +46,11 @@ func NewClient(cfg *Config) (*Client, error) {
 		DialTimeout:  cfg.DialTimeout,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
-		
+
 		// Connection pool settings
 		MinIdleConns: 5,
 		MaxIdleConns: 10,
-		
+
 		// Retry configuration
 		MaxRetryBackoff: 512 * time.Millisecond,
 		MinRetryBackoff: 8 * time.Millisecond,

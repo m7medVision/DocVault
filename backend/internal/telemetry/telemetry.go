@@ -9,8 +9,8 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	otelpkg "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -136,14 +136,14 @@ func Init(ctx context.Context, cfg *appconfig.Config, serviceName string) (*Prov
 	}
 
 	globalProvider = &Provider{
-		TracerProvider: tp,
-		MeterProvider:  mp,
-		Tracer:         tracer,
-		Meter:          meter,
-		RequestCount:   requestCount,
+		TracerProvider:  tp,
+		MeterProvider:   mp,
+		Tracer:          tracer,
+		Meter:           meter,
+		RequestCount:    requestCount,
 		RequestDuration: requestDuration,
-		ErrorCount:     errorCount,
-		ActiveRequests: activeRequests,
+		ErrorCount:      errorCount,
+		ActiveRequests:  activeRequests,
 	}
 
 	slog.Info("OpenTelemetry initialized",

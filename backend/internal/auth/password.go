@@ -16,12 +16,12 @@ const (
 	BcryptCost = 12
 
 	// Password requirements
-	MinPasswordLength     = 8
-	MaxPasswordLength     = 128
-	RequireUppercase      = true
-	RequireLowercase      = true
-	RequireDigit          = true
-	RequireSpecialChar    = true
+	MinPasswordLength  = 8
+	MaxPasswordLength  = 128
+	RequireUppercase   = true
+	RequireLowercase   = true
+	RequireDigit       = true
+	RequireSpecialChar = true
 )
 
 // HashPassword generates a bcrypt hash of the password.
