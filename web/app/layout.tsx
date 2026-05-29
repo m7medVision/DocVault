@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import { Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+
+const notoSansArabic = Noto_Sans_Arabic({
+  subsets: ["arabic"],
+  display: "swap",
+  variable: "--font-arabic",
+});
 
 export const metadata: Metadata = {
   title: "DocVault",
@@ -13,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html dir="ltr" lang="en" suppressHydrationWarning>
+    <html className={notoSansArabic.variable} dir="ltr" lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider
           attribute="class"

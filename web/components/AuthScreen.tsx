@@ -148,9 +148,7 @@ export default function AuthScreen({ mode }: AuthScreenProps) {
           {mode === "login" ? t("welcomeTitle") : t("registerTitle")}
         </h1>
         <p className="mb-6 max-w-md text-white/85">
-          {mode === "login"
-            ? t("welcomeBody", { appName: tCommon("appName") })
-            : t("registerBody", { appName: tCommon("appName") })}
+          {mode === "login" ? t("welcomeBody") : t("registerBody")}
         </p>
         <ul className="grid gap-3">
           {spotlightItems.map((item) => (
