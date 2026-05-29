@@ -8,7 +8,7 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +28,7 @@
         [
           "expo-camera",
           {
-            "cameraPermission": "Allow DocVault to scan and upload your documents."
+            "cameraPermission": "Allow the app to scan and upload your documents."
           }
         ],
         [

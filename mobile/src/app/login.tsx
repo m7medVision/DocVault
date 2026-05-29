@@ -48,7 +48,7 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <ThemedText type="subtitle">Sign in</ThemedText>
           <ThemedText type="small" themeColor="muted">
-            Use your DocVault credentials to continue.
+            Use your credentials to continue.
           </ThemedText>
         </View>
 
