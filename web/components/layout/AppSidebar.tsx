@@ -50,10 +50,12 @@ export function AppSidebar() {
 
   return (
     <Sidebar side={isRtl ? 'right' : 'left'}>
-      <SidebarHeader className="h-16 flex items-center justify-center border-b">
-        <Link href={`${localePrefix}`} className="flex items-center gap-2 font-serif text-xl font-bold">
-          <Image src="/favicon.svg" alt="" aria-hidden="true" width={28} height={28} />
-          <span>{tCommon("appName")}</span>
+      <SidebarHeader className="h-16 flex items-center border-b px-5">
+        <Link href={`${localePrefix}`} className="flex items-center gap-3 leading-none">
+          <Image src="/logo.png" alt="" aria-hidden="true" width={34} height={34} />
+          <span className="inline-flex items-center text-lg font-bold leading-none tracking-tight text-sidebar-foreground">
+            {tCommon("appName")}
+          </span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
@@ -93,9 +95,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-4 text-xs text-center text-muted-foreground">
-        &copy; {new Date().getFullYear()} {tCommon("appName")}
-      </SidebarFooter>
+      <SidebarFooter className="border-t p-4" />
     </Sidebar>
   );
 }
