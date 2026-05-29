@@ -96,6 +96,14 @@ body {
   color: var(--foreground);
 }
 
+html[lang="ar"] body {
+  font-family: var(--font-arabic), system-ui, sans-serif;
+}
+
+html[lang="ar"] .font-serif {
+  font-family: var(--font-arabic), system-ui, sans-serif;
+}
+
 @theme inline {
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
