@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@kishannareshpal/expo-pdf": "^0.3.2",
+    "@nandorojo/galeria": "^3.0.3",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/elements": "^2.9.10",
     "@react-navigation/native": "^7.1.33",
