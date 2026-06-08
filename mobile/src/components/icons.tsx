@@ -175,3 +175,30 @@ export function SettingsIcon({ size = 24, color, strokeWidth = 1.5 }: IconProps)
     </Svg>
   );
 }
+
+export function FolderIcon({ size = 24, color, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <SvgPath d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+    </Svg>
+  );
+}
+
+export function FolderOpenIcon({ size = 24, color, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <SvgPath d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v1H3V7z" />
+      <SvgPath d="M3 9h18l-2 9a2 2 0 01-2 1.5H5.5A1.5 1.5 0 014 18.2L3 9z" />
+    </Svg>
+  );
+}
+
+export function MoreIcon({ size = 24, color, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="5" cy="12" r="1" fill={color} stroke="none" />
+      <Circle cx="12" cy="12" r="1" fill={color} stroke="none" />
+      <Circle cx="19" cy="12" r="1" fill={color} stroke="none" />
+    </Svg>
+  );
+}
