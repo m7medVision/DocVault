@@ -7,11 +7,13 @@ import { DocVaultScreen } from '@/components/docvault-screen';
 import { ThemedText } from '@/components/themed-text';
 import { FolderRow } from '@/components/folder-row';
 import { FolderCreateInput } from '@/components/folder-create-input';
+import { FolderActionsSheet } from '@/components/folder-actions-sheet';
 import { PlusIcon, FolderIcon } from '@/components/icons';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/lib/i18n';
 import { useFolders } from '@/features/folders/use-folders';
+import type { Folder } from '@/features/folders/types';
 
 function Skeleton({ theme }: { theme: ReturnType<typeof useTheme> }) {
   return (
@@ -33,6 +35,7 @@ export default function FoldersScreen() {
   const { t, isRTL } = useTranslation();
   const { folders, loading, error, reload, create, isMutating } = useFolders();
   const [creating, setCreating] = useState(false);
+  const [actionsTarget, setActionsTarget] = useState<Folder | null>(null);
 
   const rootFolders = folders.filter((f) => !f.parent_id);
 
@@ -43,6 +46,10 @@ export default function FoldersScreen() {
     } catch {
       setCreating(false);
     }
+  }
+
+  function handleRequestCreateSubfolder(_parent: Folder) {
+    setCreating(true);
   }
 
   return (
@@ -134,12 +141,22 @@ export default function FoldersScreen() {
                   key={folder.id}
                   folder={folder}
                   onPress={() => router.push({ pathname: '/folders/[id]' as never, params: { id: folder.id } })}
+                  onLongPress={() => setActionsTarget(folder)}
                 />
               ))}
             </View>
           )}
         </>
       )}
+
+      {actionsTarget ? (
+        <FolderActionsSheet
+          folder={actionsTarget}
+          visible={Boolean(actionsTarget)}
+          onClose={() => setActionsTarget(null)}
+          onRequestCreateSubfolder={handleRequestCreateSubfolder}
+        />
+      ) : null}
     </DocVaultScreen>
   );
 }

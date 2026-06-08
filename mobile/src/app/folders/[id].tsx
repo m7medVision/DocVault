@@ -8,12 +8,14 @@ import { ThemedText } from '@/components/themed-text';
 import { StatusBadge } from '@/components/status-badge';
 import { FolderRow } from '@/components/folder-row';
 import { FolderCreateInput } from '@/components/folder-create-input';
+import { FolderActionsSheet } from '@/components/folder-actions-sheet';
 import { PlusIcon, FolderIcon, ChevronRightIcon } from '@/components/icons';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/lib/i18n';
 import { useFolderDetail } from '@/features/folders/use-folder-detail';
 import { useFolders } from '@/features/folders/use-folders';
+import type { Folder } from '@/features/folders/types';
 
 export default function FolderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,6 +33,7 @@ export default function FolderDetailScreen() {
   } = useFolderDetail({ id });
   const { create, isMutating } = useFolders();
   const [creating, setCreating] = useState(false);
+  const [actionsTarget, setActionsTarget] = useState<Folder | null>(null);
 
   async function handleCreate(name: string) {
     if (!folder) return;
@@ -41,6 +44,11 @@ export default function FolderDetailScreen() {
     } catch {
       setCreating(false);
     }
+  }
+
+  function handleRequestCreateSubfolder(parent: Folder) {
+    setCreating(true);
+    void parent;
   }
 
   if (loading) {
@@ -141,6 +149,7 @@ export default function FolderDetailScreen() {
                 key={child.id}
                 folder={child}
                 onPress={() => router.push({ pathname: '/folders/[id]' as never, params: { id: child.id } })}
+                onLongPress={() => setActionsTarget(child)}
               />
             ))}
           </View>
@@ -176,6 +185,16 @@ export default function FolderDetailScreen() {
                       </ThemedText>
                     </View>
                     <StatusBadge status={doc.status} />
+                    <Pressable
+                      onPress={() => router.push({ pathname: '/documents/move/[id]' as never, params: { id: doc.id } })}
+                      hitSlop={12}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('folders.moveTitle')}
+                    >
+                      <View style={[styles.moveBtn, { borderColor: theme.border }]}>
+                        <ThemedText type="code" themeColor="textSecondary">{t('folders.moveTo')}</ThemedText>
+                      </View>
+                    </Pressable>
                   </View>
                 </Card>
               </Pressable>
@@ -183,6 +202,15 @@ export default function FolderDetailScreen() {
           </View>
         )}
       </View>
+
+      {actionsTarget ? (
+        <FolderActionsSheet
+          folder={actionsTarget}
+          visible={Boolean(actionsTarget)}
+          onClose={() => setActionsTarget(null)}
+          onRequestCreateSubfolder={handleRequestCreateSubfolder}
+        />
+      ) : null}
     </DocVaultScreen>
   );
 }
@@ -244,5 +272,11 @@ const styles = StyleSheet.create({
   emptyBody: {
     gap: Spacing.one,
     alignItems: 'center',
+  },
+  moveBtn: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half + 1,
   },
 });

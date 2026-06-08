@@ -202,3 +202,12 @@ export function MoreIcon({ size = 24, color, strokeWidth = 1.5 }: IconProps) {
     </Svg>
   );
 }
+
+export function PencilIcon({ size = 24, color, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <SvgPath d="M12 20h9" />
+      <SvgPath d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </Svg>
+  );
+}
