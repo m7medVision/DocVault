@@ -1,6 +1,5 @@
 import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Galeria } from '@nandorojo/galeria';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -14,9 +13,33 @@ export interface NativeImageViewerProps {
   extension?: string;
 }
 
-const GaleriaImage = (Galeria as unknown as {
-  Image: (props: { index?: number; children: React.ReactNode }) => React.ReactNode;
-}).Image;
+type GaleriaModuleShape = {
+  Galeria: React.ComponentType<{
+    urls: string[];
+    theme?: 'light' | 'dark';
+    children: React.ReactNode;
+  }> & {
+    Image: (props: { index?: number; children: React.ReactNode }) => React.ReactNode;
+  };
+};
+
+let cachedGaleria: GaleriaModuleShape['Galeria'] | null = null;
+let cachedGaleriaError: string | null = null;
+
+function loadGaleria(): GaleriaModuleShape['Galeria'] | null {
+  if (cachedGaleria) return cachedGaleria;
+  if (cachedGaleriaError) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('@nandorojo/galeria');
+    cachedGaleria = mod.Galeria as GaleriaModuleShape['Galeria'];
+    return cachedGaleria;
+  } catch (err) {
+    cachedGaleriaError =
+      err instanceof Error ? err.message : 'Image viewer native module not available';
+    return null;
+  }
+}
 
 export function NativeImageViewer({
   url,
@@ -30,6 +53,20 @@ export function NativeImageViewer({
     remoteUrl: url,
     extension,
   });
+  const Galeria = loadGaleria();
+
+  if (!Galeria) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.surface }]}>
+        <ThemedText type="small" themeColor="danger">
+          Image viewer not available
+        </ThemedText>
+        <ThemedText type="code" themeColor="textSecondary">
+          {cachedGaleriaError ?? 'Run `npx expo prebuild` and rebuild the dev client.'}
+        </ThemedText>
+      </View>
+    );
+  }
 
   if (!localUri) {
     return (
@@ -59,6 +96,10 @@ export function NativeImageViewer({
       </View>
     );
   }
+
+  const GaleriaImage = (Galeria as unknown as {
+    Image: (props: { index?: number; children: React.ReactNode }) => React.ReactNode;
+  }).Image;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

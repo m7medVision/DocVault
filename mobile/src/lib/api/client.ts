@@ -1,21 +1,5 @@
-import { getAccessToken } from '@/lib/auth/auth-context';
 import { API_BASE_URL } from '@/lib/config';
-
-type RefreshFn = () => Promise<string | null>;
-let refreshFn: RefreshFn | null = null;
-let inflightRefresh: Promise<string | null> | null = null;
-
-export function setRefreshFunction(fn: RefreshFn | null) {
-  refreshFn = fn;
-}
-
-async function refreshToken(): Promise<string | null> {
-  if (!refreshFn) return null;
-  if (!inflightRefresh) {
-    inflightRefresh = refreshFn().finally(() => { inflightRefresh = null; });
-  }
-  return inflightRefresh;
-}
+import { getAccessToken, refreshToken } from '@/lib/auth/token-bridge';
 
 export async function apiFetch<T>(
   path: string,

@@ -11,7 +11,7 @@ import {
   setStoredRefreshToken,
   setStoredUser,
 } from '@/lib/auth/token-storage';
-import { setRefreshFunction } from '@/lib/api/client';
+import { setAccessToken as setBridgeAccessToken, setRefreshFunction } from '@/lib/auth/token-bridge';
 
 interface AuthState {
   user: User | null;
@@ -27,12 +27,6 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-let inMemoryAccessToken: string | null = null;
-
-export function getAccessToken(): string | null {
-  return inMemoryAccessToken;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -41,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setSession = useCallback((newUser: User | null, newToken: string | null, newRefreshToken?: string | null) => {
     setUser(newUser);
     setAccessToken(newToken);
-    inMemoryAccessToken = newToken;
+    setBridgeAccessToken(newToken);
 
     const persistOps: Promise<void>[] = [];
     persistOps.push(setStoredAccessToken(newToken));
@@ -95,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             JSON.parse(storedUserJson);
             const normalized = JSON.parse(storedUserJson) as User;
-            inMemoryAccessToken = storedToken;
+            setBridgeAccessToken(storedToken);
             setUser(normalized);
             setAccessToken(storedToken);
           } catch {
