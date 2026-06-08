@@ -8,8 +8,14 @@ import { DocumentViewer } from '@/components/document-viewer';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useDocumentDetail } from '@/features/documents/use-document-detail';
+import { useTranslation } from '@/lib/i18n';
 
 type Tab = 'document' | 'ocr' | 'translated';
+
+interface PdfPageInfo {
+  pageIndex: number;
+  pageCount: number;
+}
 
 export default function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,6 +30,8 @@ export default function DocumentDetailScreen() {
     error,
   } = useDocumentDetail(id);
   const [activeTab, setActiveTab] = useState<Tab>('document');
+  const [pdfPage, setPdfPage] = useState<PdfPageInfo | null>(null);
+  const { t } = useTranslation();
 
   const hasTranslation = document?.language && document.language !== 'en' && pages.some((p) => p.translated_text);
   const tabs: { key: Tab; label: string }[] = [
@@ -67,6 +75,13 @@ export default function DocumentDetailScreen() {
           <ThemedText type="subtitle" style={styles.flexText} numberOfLines={2}>
             {document.title}
           </ThemedText>
+          {pdfPage ? (
+            <View style={styles.pagePill}>
+              <ThemedText type="code" themeColor="textSecondary">
+                {t('viewer.pageOf', { current: pdfPage.pageIndex + 1, total: pdfPage.pageCount })}
+              </ThemedText>
+            </View>
+          ) : null}
           {downloadUrl && (
             <Pressable
               style={styles.downloadBtn}
@@ -106,7 +121,13 @@ export default function DocumentDetailScreen() {
 
       <View style={styles.content}>
         {activeTab === 'document' && (
-          <FilePreview url={downloadUrl} mimeType={mimeType} fileSize={fileSize} documentId={id} />
+          <FilePreview
+            url={downloadUrl}
+            mimeType={mimeType}
+            fileSize={fileSize}
+            documentId={id}
+            onPdfPageChange={setPdfPage}
+          />
         )}
         {activeTab === 'ocr' && <DocumentViewer pages={pages} />}
         {activeTab === 'translated' && (
@@ -160,6 +181,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one + 2,
     borderRadius: Spacing.two,
+  },
+  pagePill: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: 999,
+    backgroundColor: '#F4F4F5',
   },
   metaRow: {
     flexDirection: 'row',

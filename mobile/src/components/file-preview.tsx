@@ -37,9 +37,10 @@ interface FilePreviewProps {
   mimeType: string;
   fileSize?: number;
   documentId: string;
+  onPdfPageChange?: (info: { pageIndex: number; pageCount: number }) => void;
 }
 
-export function FilePreview({ url, mimeType, fileSize, documentId }: FilePreviewProps) {
+export function FilePreview({ url, mimeType, fileSize, documentId, onPdfPageChange }: FilePreviewProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -57,7 +58,14 @@ export function FilePreview({ url, mimeType, fileSize, documentId }: FilePreview
   const extension = extensionFromMime(mimeType, 'bin');
 
   if (mode === 'pdf') {
-    return <NativePdfViewer url={url} documentId={documentId} extension={extension} />;
+    return (
+      <NativePdfViewer
+        url={url}
+        documentId={documentId}
+        extension={extension}
+        onPageChange={onPdfPageChange}
+      />
+    );
   }
 
   if (mode === 'image') {
