@@ -2,13 +2,9 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import { routing } from "@/routing";
 import { AuthProvider } from "@/lib/useAuth";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/AppSidebar";
-import { AppHeader } from "@/components/layout/AppHeader";
-import { Toaster } from "sonner";
 import { HtmlAttributes } from "@/components/HtmlAttributes";
-
 import { ReactQueryProvider } from "@/components/ReactQueryProvider";
+import { Toaster } from "sonner";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -32,16 +28,8 @@ export default async function LocaleLayout({
       <NextIntlClientProvider messages={messages}>
         <AuthProvider>
           <ReactQueryProvider>
-            <SidebarProvider>
-              <div className="flex min-h-screen w-full">
-                <AppSidebar />
-                <div className="flex flex-1 flex-col overflow-hidden">
-                  <AppHeader />
-                  <main className="flex-1 p-8">{children}</main>
-                  <Toaster position="bottom-right" />
-                </div>
-              </div>
-            </SidebarProvider>
+            {children}
+            <Toaster position="bottom-right" />
           </ReactQueryProvider>
         </AuthProvider>
       </NextIntlClientProvider>

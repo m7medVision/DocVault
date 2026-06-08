@@ -40,7 +40,7 @@ export function AppSidebar() {
   const localePrefix = getLocalePrefix();
 
   const navItems = [
-    { title: tNav("home"), url: `${localePrefix}`, icon: Home },
+    { title: tNav("home"), url: `${localePrefix}/dashboard`, icon: Home },
     { title: tNav("documents"), url: `${localePrefix}/documents`, icon: Files },
     { title: tNav("upload"), url: `${localePrefix}/documents/upload`, icon: Upload },
     { title: tNav("search"), url: `${localePrefix}/search`, icon: Search },
@@ -51,7 +51,7 @@ export function AppSidebar() {
   return (
     <Sidebar side={isRtl ? 'right' : 'left'}>
       <SidebarHeader className="h-16 flex items-center border-b px-5">
-        <Link href={`${localePrefix}`} className="flex items-center gap-3 leading-none">
+        <Link href={`${localePrefix}/dashboard`} className="flex items-center gap-3 leading-none">
           <Image src="/logo.png" alt="" aria-hidden="true" width={34} height={34} />
           <span className="inline-flex items-center text-lg font-bold leading-none tracking-tight text-sidebar-foreground">
             {tCommon("appName")}

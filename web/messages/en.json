@@ -296,5 +296,227 @@
     "updateProfile": "Update Profile",
     "updateEmail": "Update Email",
     "updatePassword": "Update Password"
+  },
+  "landing": {
+    "nav": {
+      "skipToContent": "Skip to content",
+      "features": "Features",
+      "howItWorks": "How it works",
+      "pricing": "Pricing",
+      "faq": "FAQ",
+      "signIn": "Sign in",
+      "getStarted": "Get started",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "languageLabel": "Language"
+    },
+    "hero": {
+      "eyebrow": "A workspace for documents that matter",
+      "title": "Every contract, invoice, and reminder, kept in one quiet place.",
+      "subtitle": "DocVault reads what you upload, surfaces what is expiring, and answers in plain language. Bilingual by default, tenant-scoped by design.",
+      "primaryCta": "Open your workspace",
+      "primaryCtaHint": "Free for the first 30 days",
+      "secondaryCta": "Sign in",
+      "trust": "Trusted by accounting, legal, and operations teams across the Gulf."
+    },
+    "features": {
+      "kicker": "What is inside",
+      "title": "Built for the documents you actually keep",
+      "subtitle": "Not a generic storage drive. DocVault is shaped by the way critical paperwork moves through a real office.",
+      "items": {
+        "ocr": {
+          "title": "Reads Arabic and English",
+          "body": "OCR handles both scripts, with side-by-side confidence markers so you know when to double-check."
+        },
+        "dates": {
+          "title": "Pulls dates from the page",
+          "body": "Expiry, renewal, and grace periods are extracted as the document is processed. No manual tagging."
+        },
+        "reminders": {
+          "title": "Reminds you before it is late",
+          "body": "Set thresholds per document type. DocVault nudges you 30, 7, and 1 day ahead."
+        },
+        "search": {
+          "title": "Searches across the archive",
+          "body": "Find a clause, a number, a name. Bilingual search treats Arabic and English as the same document."
+        },
+        "chat": {
+          "title": "Talks back, with citations",
+          "body": "Ask a question about a document. The answer points to the page and the line."
+        },
+        "tenancy": {
+          "title": "Keeps work in your workspace",
+          "body": "Tenant-scoped storage. Members see only what they have been invited to."
+        }
+      }
+    },
+    "howItWorks": {
+      "kicker": "How it works",
+      "title": "Three steps, then it runs itself",
+      "subtitle": "The first document takes two minutes. The rest happen quietly in the background.",
+      "steps": {
+        "upload": {
+          "label": "Step 01",
+          "title": "Upload or scan",
+          "body": "Drag in a PDF, a photo, or a DOCX. The pipeline accepts what your phone produces."
+        },
+        "process": {
+          "label": "Step 02",
+          "title": "Read and index",
+          "body": "OCR runs in Arabic and English. Dates, names, and amounts are extracted. The original is preserved."
+        },
+        "act": {
+          "label": "Step 03",
+          "title": "Search, ask, and never miss a date",
+          "body": "Find the document later by what it contains, not by what you named the file."
+        }
+      }
+    },
+    "pricing": {
+      "kicker": "Pricing",
+      "title": "Plans in Omani Rial, per workspace",
+      "subtitle": "Per workspace, not per seat. Bring the whole team. Plans start at 50 OMR per month.",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "saveBadge": "Save 20%",
+      "perMonth": "/ month",
+      "perYear": "/ year",
+      "custom": "Custom",
+      "cta": "Email us to get started",
+      "ctaHint": "We respond within one business day.",
+      "plans": {
+        "starter": {
+          "name": "Starter",
+          "tagline": "For a freelancer or a single owner.",
+          "price": "50",
+          "priceSuffix": "OMR",
+          "features": [
+            "20 GB of bilingual document storage",
+            "500 AI credits per month",
+            "OCR for Arabic and English",
+            "Smart reminders with 3 thresholds",
+            "Email support"
+          ]
+        },
+        "practice": {
+          "name": "Practice",
+          "tagline": "For a small team that handles real paperwork.",
+          "price": "120",
+          "priceSuffix": "OMR",
+          "badge": "Most chosen",
+          "features": [
+            "100 GB of bilingual document storage",
+            "2,000 AI credits per month",
+            "OCR for Arabic and English",
+            "Document chat with page citations",
+            "Smart reminders with custom thresholds",
+            "Up to 10 workspace members",
+            "Priority support during business hours"
+          ]
+        },
+        "office": {
+          "name": "Office",
+          "tagline": "For an office with steady document flow.",
+          "price": "Custom",
+          "priceSuffix": "",
+          "features": [
+            "Unlimited bilingual document storage",
+            "Volume AI credits, pooled across the workspace",
+            "OCR for Arabic and English",
+            "Document chat with page citations",
+            "Smart reminders with custom thresholds",
+            "Unlimited workspace members",
+            "Dedicated success contact",
+            "Onboarding for the team"
+          ]
+        }
+      },
+      "footnote": "AI credits are pooled across the workspace. One credit covers one OCR page, one chat question, or one search query."
+    },
+    "testimonials": {
+      "kicker": "Notes from real offices",
+      "title": "What teams tell us after the first month",
+      "subtitle": "These are paraphrased from onboarding calls. They are not endorsements.",
+      "items": {
+        "salim": {
+          "quote": "We stopped losing track of commercial registration renewals. The reminders are the part we did not know we needed.",
+          "name": "Salim Al-Busaidi",
+          "role": "Operations lead, Muscat"
+        },
+        "mona": {
+          "quote": "My accountant and I work in two languages. The fact that the app treats Arabic and English as the same document is the feature I keep telling people about.",
+          "name": "Mona El-Sayed",
+          "role": "Independent auditor, Cairo"
+        },
+        "khaled": {
+          "quote": "I scanned a stack of twelve contracts in a Saturday morning. By lunch the dates were in my calendar.",
+          "name": "Khaled Al-Mutairi",
+          "role": "Legal consultant, Kuwait City"
+        }
+      }
+    },
+    "faq": {
+      "kicker": "Questions, answered plainly",
+      "title": "Frequently asked",
+      "items": {
+        "data": {
+          "question": "Where is my data stored?",
+          "answer": "Inside your tenant. DocVault is multi-tenant by design, which means your documents are not shared with other workspaces, and they are not used to train shared models."
+        },
+        "languages": {
+          "question": "Which languages are supported?",
+          "answer": "Arabic and English, end to end. OCR, search, and chat all work in both. More languages are on the roadmap but only ship after they meet the same confidence bar."
+        },
+        "trial": {
+          "question": "Is there a trial?",
+          "answer": "Yes. The first 30 days on any plan are free, with full feature access. No credit card to start."
+        },
+        "migrate": {
+          "question": "Can I bring my existing files?",
+          "answer": "Yes. Drag a folder into the upload area and DocVault will process it in the background. PDF, JPEG, PNG, TIFF, DOC, and DOCX are all supported."
+        },
+        "billing": {
+          "question": "How does billing work?",
+          "answer": "Plans are billed in Omani Rial. Monthly or yearly. We send one consolidated invoice for the workspace."
+        },
+        "support": {
+          "question": "How do I reach a person?",
+          "answer": "Email us at the address in the footer. We respond within one business day, and faster on the Practice and Office plans."
+        }
+      }
+    },
+    "footer": {
+      "tagline": "A quiet workspace for the documents that matter. Built bilingual from day one.",
+      "columns": {
+        "product": {
+          "title": "Product",
+          "links": [
+            { "label": "Features", "href": "#features" },
+            { "label": "How it works", "href": "#how-it-works" },
+            { "label": "Pricing", "href": "#pricing" },
+            { "label": "FAQ", "href": "#faq" }
+          ]
+        },
+        "company": {
+          "title": "Company",
+          "links": [
+            { "label": "About", "href": "mailto:hello@docvault.app?subject=About%20DocVault" },
+            { "label": "Contact", "href": "mailto:hello@docvault.app?subject=Contact" },
+            { "label": "Careers", "href": "mailto:careers@docvault.app?subject=Careers" }
+          ]
+        },
+        "legal": {
+          "title": "Legal",
+          "links": [
+            { "label": "Privacy", "href": "mailto:legal@docvault.app?subject=Privacy%20policy" },
+            { "label": "Terms", "href": "mailto:legal@docvault.app?subject=Terms%20of%20service" },
+            { "label": "Security", "href": "mailto:legal@docvault.app?subject=Security" }
+          ]
+        }
+      },
+      "contactEmail": "hello@docvault.app",
+      "contactLabel": "Email us",
+      "copyright": "© 2026 DocVault. All rights reserved."
+    }
   }
 }
