@@ -6,6 +6,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/lib/i18n';
 import { useCachedFile } from '@/features/documents/use-cached-file';
+import { NativeModuleErrorBoundary } from '@/components/native-module-error-boundary';
 
 export interface NativeImageViewerProps {
   url: string | null;
@@ -103,16 +104,18 @@ export function NativeImageViewer({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Galeria urls={[localUri]} theme="light">
-        <GaleriaImage>
-          <Image
-            source={{ uri: localUri }}
-            style={styles.image}
-            contentFit="contain"
-            recyclingKey={localUri}
-          />
-        </GaleriaImage>
-      </Galeria>
+      <NativeModuleErrorBoundary fallbackTitle="Image viewer unavailable">
+        <Galeria urls={[localUri]} theme="light">
+          <GaleriaImage>
+            <Image
+              source={{ uri: localUri }}
+              style={styles.image}
+              contentFit="contain"
+              recyclingKey={localUri}
+            />
+          </GaleriaImage>
+        </Galeria>
+      </NativeModuleErrorBoundary>
     </View>
   );
 }

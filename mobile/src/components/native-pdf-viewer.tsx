@@ -6,6 +6,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/lib/i18n';
 import { useCachedFile } from '@/features/documents/use-cached-file';
+import { NativeModuleErrorBoundary } from '@/components/native-module-error-boundary';
 
 type PdfViewComponent = React.ComponentType<{
   uri: string;
@@ -108,26 +109,28 @@ export function NativePdfViewer({
 
   return (
     <View style={styles.container}>
-      <PdfView
-        uri={localUri}
-        style={styles.pdf}
-        doubleTapToZoom
-        pagingEnabled={false}
-        fitMode="width"
-        onLoadComplete={(e) => {
-          setRenderError(null);
-          onPageChange?.({ pageIndex: 0, pageCount: e.nativeEvent.pageCount });
-        }}
-        onPageChanged={(e) => {
-          onPageChange?.({
-            pageIndex: e.nativeEvent.pageIndex,
-            pageCount: e.nativeEvent.pageCount,
-          });
-        }}
-        onError={(e) => {
-          setRenderError(e.nativeEvent.message || t('viewer.loadFailed'));
-        }}
-      />
+      <NativeModuleErrorBoundary fallbackTitle="PDF viewer unavailable">
+        <PdfView
+          uri={localUri}
+          style={styles.pdf}
+          doubleTapToZoom
+          pagingEnabled={false}
+          fitMode="width"
+          onLoadComplete={(e) => {
+            setRenderError(null);
+            onPageChange?.({ pageIndex: 0, pageCount: e.nativeEvent.pageCount });
+          }}
+          onPageChanged={(e) => {
+            onPageChange?.({
+              pageIndex: e.nativeEvent.pageIndex,
+              pageCount: e.nativeEvent.pageCount,
+            });
+          }}
+          onError={(e) => {
+            setRenderError(e.nativeEvent.message || t('viewer.loadFailed'));
+          }}
+        />
+      </NativeModuleErrorBoundary>
     </View>
   );
 }
