@@ -105,6 +105,12 @@ const translations = {
       backToFolders: 'Folders',
       breadcrumbFolders: 'Folders',
     },
+    viewer: {
+      loading: 'Loading preview',
+      loadFailed: 'Could not load preview',
+      pageOf: 'Page %{current} of %{total}',
+      downloadFirst: 'Preparing file',
+    },
   },
   ar: {
     home: {
@@ -204,6 +210,12 @@ const translations = {
       moveFailed: 'تعذّر نقل المستند',
       backToFolders: 'المجلدات',
       breadcrumbFolders: 'المجلدات',
+    },
+    viewer: {
+      loading: 'جارٍ التحميل',
+      loadFailed: 'تعذّر تحميل المعاينة',
+      pageOf: 'الصفحة %{current} من %{total}',
+      downloadFirst: 'تجهيز الملف',
     },
   },
 };
