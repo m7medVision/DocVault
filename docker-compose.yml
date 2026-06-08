@@ -109,6 +109,98 @@ services:
     networks:
       - docvault-dev
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: docvault-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - docvault-dev
+
+  tempo:
+    image: grafana/tempo:2.10.1
+    container_name: docvault-tempo
+    restart: unless-stopped
+    user: "0:0"
+    command: ["-config.file=/etc/tempo.yml"]
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./ops/observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo_data:/tmp/tempo
+    networks:
+      - docvault-dev
+
+  loki:
+    image: grafana/loki:latest
+    container_name: docvault-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./ops/observability/loki.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - docvault-dev
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: docvault-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - docvault-dev
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: docvault-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector.yml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    volumes:
+      - ./ops/observability/otel-collector.yml:/etc/otel-collector.yml:ro
+    depends_on:
+      - tempo
+    networks:
+      - docvault-dev
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: docvault-promtail
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ./ops/observability/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - docvault-dev
+
 volumes:
   postgres_data:
     driver: local
@@ -117,6 +209,14 @@ volumes:
   rabbitmq_data:
     driver: local
   minio_data:
+    driver: local
+  grafana_data:
+    driver: local
+  tempo_data:
+    driver: local
+  loki_data:
+    driver: local
+  prometheus_data:
     driver: local
 
 networks:

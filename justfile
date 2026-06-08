@@ -10,11 +10,14 @@ help:
     @echo ""
     @echo "DocVault — Development Commands"
     @echo ""
-    @echo "  just dev-up          Start infra (postgres, redis, rabbitmq, minio)"
-    @echo "  just dev-down        Stop all infra services"
-    @echo "  just dev-logs        View infra logs"
+    @echo "  just dev-up          Start infra + observability"
+    @echo "  just dev-down        Stop infra + observability"
+    @echo "  just dev-logs        View Docker service logs"
     @echo "  just dev-ps          Show running services"
     @echo "  just dev-restart     Restart infra services"
+    @echo "  just obs-up          Start Grafana observability stack"
+    @echo "  just obs-down        Stop Grafana observability stack"
+    @echo "  just obs-logs        View observability logs"
     @echo ""
     @echo "  just dev-backend     Run backend API (Go)"
     @echo "  just dev-reminder    Run reminder service (Go)"
@@ -37,11 +40,11 @@ help:
     @echo ""
 
 dev-up:
-    @echo "Starting infrastructure services..."
+    @echo "Starting infrastructure and observability services..."
     docker compose --env-file {{ENV_FILE}} up -d
 
 dev-down:
-    @echo "Stopping infrastructure services..."
+    @echo "Stopping infrastructure and observability services..."
     docker compose --env-file {{ENV_FILE}} down
 
 dev-logs:
@@ -53,6 +56,17 @@ dev-ps:
 dev-restart:
     just dev-down
     just dev-up
+
+obs-up:
+    @echo "Starting observability stack..."
+    docker compose --env-file {{ENV_FILE}} up -d grafana tempo loki prometheus otel-collector promtail
+
+obs-down:
+    @echo "Stopping observability stack..."
+    docker compose --env-file {{ENV_FILE}} stop grafana tempo loki prometheus otel-collector promtail
+
+obs-logs:
+    docker compose --env-file {{ENV_FILE}} logs -f grafana tempo loki prometheus otel-collector promtail
 
 dev-backend:
     cd backend && air -c .air.toml
