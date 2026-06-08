@@ -1,47 +1,67 @@
 import { Linking, View, StyleSheet, Pressable } from 'react-native';
 
-import { PdfViewer } from '@/components/pdf-viewer';
-import { ImageViewer } from '@/components/image-viewer';
+import { NativePdfViewer } from '@/components/native-pdf-viewer';
+import { NativeImageViewer } from '@/components/native-image-viewer';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatFileSize } from '@/constants/document';
+import { useTranslation } from '@/lib/i18n';
 
 type PreviewMode = 'pdf' | 'image' | 'fallback';
 
 function getPreviewMode(mimeType: string): PreviewMode {
   if (mimeType === 'application/pdf') return 'pdf';
-  if (mimeType.startsWith('image/jpeg') || mimeType.startsWith('image/png')) return 'image';
+  if (
+    mimeType.startsWith('image/jpeg') ||
+    mimeType.startsWith('image/png') ||
+    mimeType.startsWith('image/webp') ||
+    mimeType.startsWith('image/gif')
+  ) {
+    return 'image';
+  }
   return 'fallback';
+}
+
+function extensionFromMime(mimeType: string, fallback: string): string {
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType.startsWith('image/jpeg')) return 'jpg';
+  if (mimeType.startsWith('image/png')) return 'png';
+  if (mimeType.startsWith('image/webp')) return 'webp';
+  if (mimeType.startsWith('image/gif')) return 'gif';
+  return fallback;
 }
 
 interface FilePreviewProps {
   url: string | null;
   mimeType: string;
   fileSize?: number;
+  documentId: string;
 }
 
-export function FilePreview({ url, mimeType, fileSize }: FilePreviewProps) {
+export function FilePreview({ url, mimeType, fileSize, documentId }: FilePreviewProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   if (!url) {
     return (
       <View style={[styles.center, { backgroundColor: theme.surface }]}>
         <ThemedText type="small" themeColor="textSecondary">
-          Loading preview...
+          {t('viewer.loading')}
         </ThemedText>
       </View>
     );
   }
 
   const mode = getPreviewMode(mimeType);
+  const extension = extensionFromMime(mimeType, 'bin');
 
   if (mode === 'pdf') {
-    return <PdfViewer url={url} />;
+    return <NativePdfViewer url={url} documentId={documentId} extension={extension} />;
   }
 
   if (mode === 'image') {
-    return <ImageViewer url={url} />;
+    return <NativeImageViewer url={url} documentId={documentId} extension={extension} />;
   }
 
   return (

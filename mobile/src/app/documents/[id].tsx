@@ -106,7 +106,7 @@ export default function DocumentDetailScreen() {
 
       <View style={styles.content}>
         {activeTab === 'document' && (
-          <FilePreview url={downloadUrl} mimeType={mimeType} fileSize={fileSize} />
+          <FilePreview url={downloadUrl} mimeType={mimeType} fileSize={fileSize} documentId={id} />
         )}
         {activeTab === 'ocr' && <DocumentViewer pages={pages} />}
         {activeTab === 'translated' && (
