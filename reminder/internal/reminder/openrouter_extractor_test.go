@@ -114,8 +114,8 @@ func TestOpenRouterDateExtractorFallbackOn429(t *testing.T) {
 			return
 		}
 
-		if model != "google/gemini-2.0-flash-001" {
-			t.Fatalf("fallback model = %v, want google/gemini-2.0-flash-001", model)
+		if model != "google/gemini-2.5-flash" {
+			t.Fatalf("fallback model = %v, want google/gemini-2.5-flash", model)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -123,7 +123,7 @@ func TestOpenRouterDateExtractorFallbackOn429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	extractor := NewOpenRouterDateExtractor("test-key", "openai/gpt-4.1-mini", 4000, server.Client(), "google/gemini-2.0-flash-001")
+	extractor := NewOpenRouterDateExtractor("test-key", "openai/gpt-4.1-mini", 4000, server.Client(), "google/gemini-2.5-flash")
 	extractor.baseURL = server.URL
 
 	dates, err := extractor.ExtractDates(context.Background(), "Expires April 14, 2027", "warranty")
@@ -164,7 +164,7 @@ func TestOpenRouterDateExtractorFallbackAlsoFails(t *testing.T) {
 	}))
 	defer server.Close()
 
-	extractor := NewOpenRouterDateExtractor("test-key", "openai/gpt-4.1-mini", 4000, server.Client(), "google/gemini-2.0-flash-001")
+	extractor := NewOpenRouterDateExtractor("test-key", "openai/gpt-4.1-mini", 4000, server.Client(), "google/gemini-2.5-flash")
 	extractor.baseURL = server.URL
 
 	_, err := extractor.ExtractDates(context.Background(), "Expires April 14, 2027", "warranty")
@@ -185,7 +185,7 @@ func TestOpenRouterDateExtractorNoFallbackOnPermanentError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	extractor := NewOpenRouterDateExtractor("test-key", "openai/gpt-4.1-mini", 4000, server.Client(), "google/gemini-2.0-flash-001")
+	extractor := NewOpenRouterDateExtractor("test-key", "openai/gpt-4.1-mini", 4000, server.Client(), "google/gemini-2.5-flash")
 	extractor.baseURL = server.URL
 
 	_, err := extractor.ExtractDates(context.Background(), "Expires April 14, 2027", "warranty")
