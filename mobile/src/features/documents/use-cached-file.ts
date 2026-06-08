@@ -91,7 +91,7 @@ export function useCachedFile({
           return;
         }
 
-        destinationDir().create();
+        destinationDir().create({ idempotent: true });
         const downloaded = await downloadTo(remoteUrl, file);
 
         if (cancelled) return;
