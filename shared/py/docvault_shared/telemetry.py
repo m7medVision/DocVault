@@ -68,7 +68,7 @@ def init_telemetry(service_name: str = "docvault-service") -> TelemetryProvider:
         {
             SERVICE_NAME: service_name,
             SERVICE_VERSION: "1.0.0",
-            ResourceAttributes.DEPLOYMENT_ENVIRONMENT.value: environment,
+            ResourceAttributes.DEPLOYMENT_ENVIRONMENT: environment,
         }
     )
 

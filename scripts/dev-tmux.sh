@@ -37,7 +37,7 @@ tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" -n infra
 infra_main_pane=$(tmux display-message -p -t "$SESSION_NAME:infra.0" "#{pane_id}")
 infra_helper_pane=$(tmux split-window -P -F "#{pane_id}" -t "$infra_main_pane" -v -c "$ROOT_DIR")
 tmux send-keys -t "$infra_main_pane" "just dev-up && just dev-logs" C-m
-tmux send-keys -t "$infra_helper_pane" "printf 'Infra helpers\n\n'; printf 'just dev-ps\n'; printf 'just dev-down\n'; printf 'just dev-restart\n'; exec '$LOGIN_SHELL'" C-m
+tmux send-keys -t "$infra_helper_pane" "printf 'Docker helpers\n\n'; printf 'Grafana: http://localhost:3001\n'; printf 'just dev-ps\n'; printf 'just dev-down\n'; printf 'just dev-restart\n'; printf 'just obs-logs\n'; exec '$LOGIN_SHELL'" C-m
 tmux select-layout -t "$SESSION_NAME:infra" main-horizontal
 
 tmux new-window -t "$SESSION_NAME" -n services -c "$ROOT_DIR"

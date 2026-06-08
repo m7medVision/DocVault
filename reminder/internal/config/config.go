@@ -71,7 +71,7 @@ func Load() (*Config, error) {
 		ReminderExtractionEnabled:       getEnvBool("REMINDER_EXTRACTION_ENABLED", true),
 		OpenRouterAPIKey:                getEnv("OPENROUTER_API_KEY", ""),
 		ReminderExtractionModel:         getEnv("REMINDER_EXTRACTION_MODEL", "openai/gpt-4.1-mini"),
-		ReminderExtractionFallbackModel: getEnv("REMINDER_EXTRACTION_FALLBACK_MODEL", "google/gemini-2.0-flash-001"),
+		ReminderExtractionFallbackModel: getEnv("REMINDER_EXTRACTION_FALLBACK_MODEL", "google/gemini-2.5-flash"),
 		ReminderExtractionMaxChars:      getEnvInt("REMINDER_EXTRACTION_MAX_CHARS", 16000),
 		NotifyDaysBefore:                []int{30, 7, 1},
 		NotifyOnDate:                    true,

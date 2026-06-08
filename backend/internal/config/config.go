@@ -11,6 +11,7 @@ import (
 )
 
 const defaultEmbeddingModel = "openai/text-embedding-3-large"
+const defaultChatModel = "google/gemini-2.5-flash"
 
 var approvedEmbeddingModels = []string{defaultEmbeddingModel}
 
@@ -167,7 +168,7 @@ func Load() (*Config, error) {
 			EmbeddingAPIKey:   getEnvString("OPENROUTER_API_KEY", ""),
 			EmbeddingURL:      getEnvString("EMBEDDING_URL", ""),
 			EmbeddingDim:      getEnvInt("EMBEDDING_DIM", 1024),
-			ChatModel:         getEnvString("OPENROUTER_CHAT_MODEL", "google/gemini-2.0-flash-001"),
+			ChatModel:         getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),
