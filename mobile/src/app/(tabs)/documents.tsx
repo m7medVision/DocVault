@@ -5,20 +5,29 @@ import { Button, Card , useThemeColor } from 'heroui-native';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
 import { ThemedText } from '@/components/themed-text';
+import { FolderIcon, ChevronRightIcon } from '@/components/icons';
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES, formatFileSize } from '@/constants/document';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/lib/i18n';
 import { useDocumentPicker } from '@/features/documents/use-document-picker';
 import { useDocuments } from '@/features/documents/use-documents';
 import { useUpload } from '@/features/documents/use-upload';
+import { useFolders } from '@/features/folders/use-folders';
 
 export default function DocumentsScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const { t, isRTL } = useTranslation();
+  const { folders } = useFolders();
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const filters = { type, status };
   const { documents, loading, error, reload } = useDocuments(filters);
   const { files, error: pickerError, pickFiles, removeFile, clearFiles } = useDocumentPicker();
   const { uploading, progress, error: uploadError, upload } = useUpload();
+
+  const rootFolders = folders.filter((f) => !f.parent_id).slice(0, 4);
 
   async function uploadSelectedFiles() {
     if (uploading || files.length === 0) return;
@@ -55,6 +64,29 @@ export default function DocumentsScreen() {
       {pickerError && <ThemedText themeColor="textSecondary">{pickerError}</ThemedText>}
       {uploadError && <ThemedText themeColor="textSecondary">{uploadError}</ThemedText>}
       {progress && <ThemedText themeColor="textSecondary">{progress}</ThemedText>}
+
+      {rootFolders.length > 0 ? (
+        <Pressable
+          onPress={() => router.push('/folders' as never)}
+          accessibilityRole="button"
+          accessibilityLabel={t('folders.title')}
+        >
+          <Card className="rounded-2xl border border-divider bg-content1 p-3">
+            <View style={[styles.folderEntry, isRTL && styles.rtlRow]}>
+              <View style={[styles.folderEntryIcon, { backgroundColor: `${theme.accent}1A` }]}>
+                <FolderIcon size={18} color={theme.accent} strokeWidth={1.5} />
+              </View>
+              <View style={styles.folderEntryText}>
+                <ThemedText type="smallBold">{t('folders.title')}</ThemedText>
+                <ThemedText type="code" themeColor="textSecondary">
+                  {rootFolders.length}
+                </ThemedText>
+              </View>
+              <ChevronRightIcon size={18} color={theme.muted} strokeWidth={1.5} />
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
       {files.length > 0 && (
         <Card className="rounded-3xl border border-divider bg-content1 p-4">
           <View style={styles.documentCard}>
@@ -201,5 +233,24 @@ const styles = StyleSheet.create({
   emptyCard: {
     gap: Spacing.one,
     alignItems: 'center',
+  },
+  folderEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  rtlRow: {
+    flexDirection: 'row-reverse',
+  },
+  folderEntryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  folderEntryText: {
+    flex: 1,
+    gap: 1,
   },
 });
