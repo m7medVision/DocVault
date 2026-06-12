@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { Button, Card, Input } from 'heroui-native';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useRole } from '@/hooks/use-role';
 import { useTranslation } from '@/lib/i18n';
 import { updateProfile, updateEmail, updatePassword } from '@/features/profile/api';
 
 export default function SettingsScreen() {
   const { user, updateUser, logout } = useAuth();
+  const { isAdmin } = useRole();
   const { t, isRTL } = useTranslation();
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
@@ -207,10 +209,34 @@ export default function SettingsScreen() {
         </Button>
       </Card>
 
+      <Card className="rounded-2xl border border-divider bg-content1 p-4">
+        <ThemedText type="smallBold" style={styles.sectionTitle}>
+          {t('home.viewAll')}
+        </ThemedText>
+        <View style={styles.linksGroup}>
+          <NavRow label={t('notifications.title')} onPress={() => router.push('/notifications')} />
+          <NavRow label={t('tags.title')} onPress={() => router.push('/tags')} />
+          {isAdmin && (
+            <NavRow label={t('admin.title')} onPress={() => router.push('/admin')} />
+          )}
+        </View>
+      </Card>
+
       <Button variant="secondary" onPress={() => void handleLogout()}>
         <Button.Label>{t('settings.logout')}</Button.Label>
       </Button>
     </DocVaultScreen>
+  );
+}
+
+function NavRow({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={styles.navRow}>
+      <ThemedText type="small">{label}</ThemedText>
+      <ThemedText type="code" themeColor="textSecondary">
+        ›
+      </ThemedText>
+    </Pressable>
   );
 }
 
@@ -220,6 +246,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.two,
+  },
+  linksGroup: {
+    gap: Spacing.one,
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.two,
   },
   rtlRow: {
     flexDirection: 'row-reverse',

@@ -13,13 +13,11 @@ export async function listReminders(): Promise<ReminderListResponse> {
   };
 }
 
-export async function dismissReminder(id: string): Promise<void> {
-  await apiFetch(`/reminders/${id}/dismiss`, { method: 'PATCH' });
-}
-
-export async function snoozeReminder(id: string, minutes: number): Promise<void> {
-  await apiFetch(`/reminders/${id}/snooze`, {
+// The backend exposes only `PATCH /reminders/{id}` with an `active` flag — there
+// is no dedicated dismiss/snooze endpoint. Dismissing a reminder deactivates it.
+export async function setReminderActive(id: string, active: boolean): Promise<void> {
+  await apiFetch(`/reminders/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ snooze_minutes: minutes }),
+    body: JSON.stringify({ active }),
   });
 }

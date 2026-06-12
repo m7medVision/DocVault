@@ -70,3 +70,13 @@ export async function getDocumentVersions(id: string): Promise<DocumentVersionsR
 export async function downloadDocument(id: string): Promise<DocumentDownloadResponse> {
   return apiFetch<DocumentDownloadResponse>(`/documents/${id}/download`);
 }
+
+export async function updateDocumentMetadata(
+  id: string,
+  updates: Record<string, string>,
+): Promise<void> {
+  await apiFetch(`/documents/${id}/metadata`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
