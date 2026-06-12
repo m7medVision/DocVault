@@ -22,6 +22,9 @@ export interface SearchOptions {
   language?: string;
   status?: string;
   folder_id?: string;
+  tags?: string[];
+  start_date?: string;
+  end_date?: string;
   limit?: number;
 }
 

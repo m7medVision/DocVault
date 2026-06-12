@@ -4,13 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { 
-  Home, 
-  Files, 
-  Upload, 
-  Search, 
-  Bell, 
-  Settings 
+import {
+  Home,
+  Files,
+  Upload,
+  Search,
+  Bell,
+  Settings,
+  BarChart3,
+  Inbox,
+  Tags,
+  Activity,
 } from "lucide-react";
 
 import {
@@ -44,7 +48,11 @@ export function AppSidebar() {
     { title: tNav("documents"), url: `${localePrefix}/documents`, icon: Files },
     { title: tNav("upload"), url: `${localePrefix}/documents/upload`, icon: Upload },
     { title: tNav("search"), url: `${localePrefix}/search`, icon: Search },
+    { title: tNav("tags"), url: `${localePrefix}/tags`, icon: Tags },
     { title: tNav("reminders"), url: `${localePrefix}/reminders`, icon: Bell },
+    { title: tNav("notifications"), url: `${localePrefix}/notifications`, icon: Inbox },
+    { title: tNav("activity"), url: `${localePrefix}/activity`, icon: Activity },
+    { title: tNav("analytics"), url: `${localePrefix}/analytics`, icon: BarChart3 },
     { title: tNav("settings"), url: `${localePrefix}/settings`, icon: Settings },
   ];
 
