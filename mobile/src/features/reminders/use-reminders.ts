@@ -1,49 +1,60 @@
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { listReminders, dismissReminder, snoozeReminder } from './api';
+import { listReminders, setReminderActive } from './api';
+import { listDocuments } from '@/features/documents/api';
+import type { Reminder } from './types';
+
+export type ReminderFilter = 'active' | 'all';
 
 export function useReminders() {
   const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<ReminderFilter>('active');
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['reminders'],
-    queryFn: listReminders,
+    queryFn: async () => {
+      const [reminderRes, documentRes] = await Promise.all([
+        listReminders(),
+        listDocuments({ limit: 100 }).catch(() => ({ documents: [], total: 0 })),
+      ]);
+
+      const titles = new Map(documentRes.documents.map((d) => [d.id, d.title]));
+      const now = Date.now();
+
+      const reminders: Reminder[] = reminderRes.reminders.map((r) => ({
+        ...r,
+        document_title: titles.get(r.document_id) ?? r.document_title,
+        days_until: Math.ceil(
+          (new Date(r.trigger_date).getTime() - now) / (1000 * 60 * 60 * 24),
+        ),
+      }));
+
+      return { reminders };
+    },
   });
 
-  const dismissMutation = useMutation({
-    mutationFn: dismissReminder,
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['reminders'] });
-      const previous = queryClient.getQueryData<{ reminders: typeof data extends { reminders: infer R } ? R : never }>(['reminders']);
-      queryClient.setQueryData(['reminders'], (old: { reminders: { id: string }[] } | undefined) => {
-        if (!old) return old;
-        return { ...old, reminders: old.reminders.filter((r) => r.id !== id) };
-      });
-      return { previous };
-    },
-    onError: (_err, _id, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['reminders'], context.previous);
-      }
-    },
+  const setActiveMutation = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      setReminderActive(id, active),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['reminders'] });
     },
   });
 
-  const snoozeMutation = useMutation({
-    mutationFn: ({ id, minutes }: { id: string; minutes: number }) => snoozeReminder(id, minutes),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['reminders'] });
-    },
-  });
+  const reminders = useMemo(() => {
+    const all = data?.reminders ?? [];
+    return filter === 'active' ? all.filter((r) => r.active) : all;
+  }, [data, filter]);
 
   return {
-    reminders: data?.reminders ?? [],
+    reminders,
+    filter,
+    setFilter,
     loading: isLoading,
     error: error ? (error instanceof Error ? error.message : 'Failed to load reminders') : null,
     reload: refetch,
-    dismiss: (id: string) => dismissMutation.mutateAsync(id),
-    snooze: (id: string, minutes: number) => snoozeMutation.mutateAsync({ id, minutes }),
+    dismiss: (id: string) => setActiveMutation.mutateAsync({ id, active: false }),
+    reactivate: (id: string) => setActiveMutation.mutateAsync({ id, active: true }),
   };
 }
