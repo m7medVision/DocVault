@@ -28,8 +28,10 @@ import {
   Calendar,
   Bell,
   MessageSquare,
+  History,
 } from "lucide-react";
 import { DocumentViewer } from "@/components/DocumentViewer";
+import { VersionTimeline } from "@/components/VersionTimeline";
 import { FilePreview } from "@/components/FilePreview";
 import { useDocumentDetail } from "@/features/documents/useDocumentDetail";
 import { useDocumentReminders } from "@/features/documents/useDocumentReminders";
@@ -40,6 +42,7 @@ export default function DocumentDetailPage() {
   const documentId = params.id as string;
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
+  const tVersions = useTranslations("versions");
 
   const { document, loading, error, presignedUrl, handleDownload, handleUpdateMetadata, handleRenameTitle } =
     useDocumentDetail(documentId);
@@ -172,6 +175,10 @@ export default function DocumentDetailPage() {
               {t("translatedVersion")}
             </TabsTrigger>
           )}
+          <TabsTrigger value="versions" className="gap-1.5">
+            <History className="size-4" />
+            {tVersions("title")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="document">
@@ -306,6 +313,10 @@ export default function DocumentDetailPage() {
             </div>
           </TabsContent>
         )}
+
+        <TabsContent value="versions">
+          <VersionTimeline versions={document.versions ?? []} />
+        </TabsContent>
       </Tabs>
 
       <Sheet open={metadataOpen} onOpenChange={setMetadataOpen}>

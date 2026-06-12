@@ -47,7 +47,11 @@
     "settings": "الإعدادات",
     "profile": "الحساب",
     "mainMenu": "القائمة الرئيسية",
-    "admin": "الإدارة"
+    "admin": "الإدارة",
+    "analytics": "التحليلات",
+    "notifications": "الإشعارات",
+    "tags": "الوسوم",
+    "activity": "النشاط"
   },
   "dashboard": {
     "title": "لوحة التحكم",
@@ -241,12 +245,37 @@
     "expiry": "انتهاء",
     "renewal": "تجديد",
     "daysOverdue": "متأخر {count} يوم",
-    "daysUntil": "{count} يوم"
+    "daysUntil": "{count} يوم",
+    "subtitle": "ابقَ على اطلاع بالتجديدات ورسائل النظام ونشاط المستندات.",
+    "filterAll": "الكل",
+    "filterUnread": "غير المقروءة",
+    "read": "مقروء",
+    "loadMore": "تحميل المزيد",
+    "loading": "جارٍ التحميل…",
+    "empty": "لا يوجد شيء بعد",
+    "unreadCount": "{count} غير مقروء",
+    "justNow": "الآن"
   },
   "admin": {
     "title": "الإدارة",
     "auditLog": "سجل التدقيق",
     "members": "الأعضاء",
+    "policies": "السياسات",
+    "permissions": "الصلاحيات",
+    "viewPermissions": "عرض الصلاحيات",
+    "currentRole": "الدور الحالي",
+    "roles": "الأدوار",
+    "noPolicies": "لا توجد سياسات معرّفة",
+    "addPolicy": "إضافة سياسة",
+    "subject": "الموضوع",
+    "object": "المورد",
+    "removePolicy": "إزالة",
+    "policiesSubtitle": "إدارة قواعد التحكم في الوصول لمساحة العمل هذه.",
+    "permissionsSubtitle": "الأدوار والصلاحيات الفعّالة لهذا العضو.",
+    "changeRole": "تغيير الدور",
+    "roleUpdated": "تم تحديث الدور",
+    "policyAdded": "تمت إضافة السياسة",
+    "policyRemoved": "تمت إزالة السياسة",
     "workspaceMembers": "أعضاء مساحة العمل",
     "noMembersFound": "لم يتم العثور على أعضاء",
     "noAuditEvents": "لم يتم العثور على أحداث تدقيق",
@@ -269,6 +298,46 @@
     "admin": "مدير",
     "member": "عضو",
     "viewer": "مشاهد"
+  },
+  "versions": {
+    "title": "سجل الإصدارات",
+    "version": "الإصدار {number}",
+    "current": "الحالي",
+    "uploadedBy": "رفع بواسطة",
+    "size": "الحجم",
+    "type": "النوع",
+    "noVersions": "لا يوجد سجل إصدارات متاح"
+  },
+  "analytics": {
+    "title": "التحليلات",
+    "subtitle": "لمحة سريعة عن مكتبة مستنداتك.",
+    "totalDocuments": "إجمالي المستندات",
+    "pending": "قيد المعالجة",
+    "completedThisWeek": "اكتملت هذا الأسبوع",
+    "storageUsed": "التخزين المستخدم",
+    "byStatus": "المستندات حسب الحالة",
+    "byType": "المستندات حسب النوع",
+    "processed": "تمت المعالجة",
+    "processing": "قيد المعالجة",
+    "failed": "فشل",
+    "noData": "لا توجد بيانات بعد"
+  },
+  "tags": {
+    "title": "الوسوم",
+    "subtitle": "تصفّح الوسوم وانتقل إلى المستندات التي تستخدمها.",
+    "searchPlaceholder": "ابحث في الوسوم…",
+    "noTags": "لم يتم العثور على وسوم",
+    "documentsWithTag": "المستندات الموسومة بـ \"{tag}\"",
+    "noDocuments": "لم يتم العثور على مستندات لهذا الوسم",
+    "openInSearch": "فتح في البحث"
+  },
+  "activity": {
+    "title": "النشاط",
+    "subtitle": "جدول زمني لما يحدث في مساحة عملك.",
+    "empty": "لا يوجد نشاط بعد",
+    "loadMore": "تحميل المزيد",
+    "you": "أنت",
+    "system": "النظام"
   },
   "settings": {
     "title": "الإعدادات",

@@ -47,7 +47,11 @@
     "settings": "Settings",
     "profile": "Account",
     "mainMenu": "Main Menu",
-    "admin": "Admin"
+    "admin": "Admin",
+    "analytics": "Analytics",
+    "notifications": "Notifications",
+    "tags": "Tags",
+    "activity": "Activity"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -241,12 +245,37 @@
     "expiry": "Expiry",
     "renewal": "Renewal",
     "daysOverdue": "{count}d overdue",
-    "daysUntil": "{count}d"
+    "daysUntil": "{count}d",
+    "subtitle": "Stay on top of renewals, system messages, and document activity.",
+    "filterAll": "All",
+    "filterUnread": "Unread",
+    "read": "Read",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "empty": "Nothing here yet",
+    "unreadCount": "{count} unread",
+    "justNow": "Just now"
   },
   "admin": {
     "title": "Admin",
     "auditLog": "Audit Log",
     "members": "Members",
+    "policies": "Policies",
+    "permissions": "Permissions",
+    "viewPermissions": "View permissions",
+    "currentRole": "Current role",
+    "roles": "Roles",
+    "noPolicies": "No policies defined",
+    "addPolicy": "Add policy",
+    "subject": "Subject",
+    "object": "Resource",
+    "removePolicy": "Remove",
+    "policiesSubtitle": "Manage role-based access control rules for this workspace.",
+    "permissionsSubtitle": "Effective roles and permissions for this member.",
+    "changeRole": "Change role",
+    "roleUpdated": "Role updated",
+    "policyAdded": "Policy added",
+    "policyRemoved": "Policy removed",
     "workspaceMembers": "Workspace Members",
     "noMembersFound": "No members found",
     "noAuditEvents": "No audit events found",
@@ -269,6 +298,46 @@
     "admin": "Admin",
     "member": "Member",
     "viewer": "Viewer"
+  },
+  "versions": {
+    "title": "Version history",
+    "version": "Version {number}",
+    "current": "Current",
+    "uploadedBy": "Uploaded by",
+    "size": "Size",
+    "type": "Type",
+    "noVersions": "No version history available"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "A snapshot of your document library.",
+    "totalDocuments": "Total documents",
+    "pending": "Pending processing",
+    "completedThisWeek": "Completed this week",
+    "storageUsed": "Storage used",
+    "byStatus": "Documents by status",
+    "byType": "Documents by type",
+    "processed": "Processed",
+    "processing": "Processing",
+    "failed": "Failed",
+    "noData": "No data yet"
+  },
+  "tags": {
+    "title": "Tags",
+    "subtitle": "Browse tags and jump to the documents that use them.",
+    "searchPlaceholder": "Search tags…",
+    "noTags": "No tags found",
+    "documentsWithTag": "Documents tagged \"{tag}\"",
+    "noDocuments": "No documents found for this tag",
+    "openInSearch": "Open in search"
+  },
+  "activity": {
+    "title": "Activity",
+    "subtitle": "A timeline of what's happening across your workspace.",
+    "empty": "No activity yet",
+    "loadMore": "Load more",
+    "you": "You",
+    "system": "System"
   },
   "settings": {
     "title": "Settings",

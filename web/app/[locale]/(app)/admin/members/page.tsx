@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useMembers } from "@/features/admin/useMembers";
 
@@ -48,6 +50,8 @@ function getStatusVariant(status: string) {
 
 export default function MembersPage() {
   const t = useTranslations("admin");
+  const pathname = usePathname();
+  const localePrefix = pathname.split("/")[1] || "en";
   const {
     members,
     loading,
@@ -144,6 +148,11 @@ export default function MembersPage() {
                     onClick={() => void handleEditRole(member)}
                   >
                     {t("edit")}
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/${localePrefix}/admin/members/${member.id}`}>
+                      {t("viewPermissions")}
+                    </Link>
                   </Button>
                 </div>
               </div>
