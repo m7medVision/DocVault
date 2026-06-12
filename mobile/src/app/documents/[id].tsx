@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { DocVaultScreen } from '@/components/docvault-screen';
 import { FilePreview } from '@/components/file-preview';
 import { DocumentViewer } from '@/components/document-viewer';
+import { VersionTimeline } from '@/components/version-timeline';
+import { DocumentInfo } from '@/components/document-info';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useDocumentDetail } from '@/features/documents/use-document-detail';
+import { useUploadProgress } from '@/features/progress/use-upload-progress';
 import { useTranslation } from '@/lib/i18n';
 
-type Tab = 'document' | 'ocr' | 'translated';
+type Tab = 'document' | 'ocr' | 'translated' | 'versions' | 'info';
 
 interface PdfPageInfo {
   pageIndex: number;
@@ -23,6 +27,8 @@ export default function DocumentDetailScreen() {
   const {
     document,
     pages,
+    versions,
+    metadata,
     downloadUrl,
     mimeType,
     fileSize,
@@ -32,6 +38,10 @@ export default function DocumentDetailScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('document');
   const [pdfPage, setPdfPage] = useState<PdfPageInfo | null>(null);
   const { t } = useTranslation();
+  const theme = useTheme();
+
+  const isProcessing = document?.status === 'pending' || document?.status === 'processing';
+  const progress = useUploadProgress(id, isProcessing);
 
   const hasTranslation = document?.language && document.language !== 'en' && pages.some((p) => p.translated_text);
   const tabs: { key: Tab; label: string }[] = [
@@ -41,6 +51,8 @@ export default function DocumentDetailScreen() {
   if (hasTranslation) {
     tabs.push({ key: 'translated', label: 'Translated' });
   }
+  tabs.push({ key: 'versions', label: t('versions.title') });
+  tabs.push({ key: 'info', label: t('info.title') });
 
   if (loading) {
     return (
@@ -82,6 +94,14 @@ export default function DocumentDetailScreen() {
               </ThemedText>
             </View>
           ) : null}
+          <Pressable
+            style={[styles.chatBtn, { borderColor: theme.border }]}
+            onPress={() => router.push(`/documents/chat/${id}`)}
+          >
+            <ThemedText type="smallBold" themeColor="accent">
+              {t('chat.title')}
+            </ThemedText>
+          </Pressable>
           {downloadUrl && (
             <Pressable
               style={styles.downloadBtn}
@@ -100,6 +120,17 @@ export default function DocumentDetailScreen() {
           </ThemedText>
           <StatusBadge status={document.status} />
         </View>
+        {isProcessing && progress.status !== 'idle' && (
+          <View style={[styles.progressBanner, { backgroundColor: theme.surface }]}>
+            <ThemedText type="code" themeColor="textSecondary">
+              {progress.status === 'completed'
+                ? t('progress.completed')
+                : progress.status === 'failed'
+                  ? t('progress.failed')
+                  : `${t('progress.processing')} ${progress.progress}%`}
+            </ThemedText>
+          </View>
+        )}
       </View>
 
       <View style={styles.tabBar}>
@@ -132,6 +163,12 @@ export default function DocumentDetailScreen() {
         {activeTab === 'ocr' && <DocumentViewer pages={pages} />}
         {activeTab === 'translated' && (
           <DocumentViewer pages={pages} translated />
+        )}
+        {(activeTab === 'versions' || activeTab === 'info') && (
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {activeTab === 'versions' && <VersionTimeline versions={versions} />}
+            {activeTab === 'info' && <DocumentInfo documentId={id} metadata={metadata} />}
+          </ScrollView>
         )}
       </View>
     </DocVaultScreen>
@@ -181,6 +218,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one + 2,
     borderRadius: Spacing.two,
+  },
+  chatBtn: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + 2,
+    borderRadius: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  progressBanner: {
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + 2,
+  },
+  scrollContent: {
+    gap: Spacing.two,
+    paddingBottom: Spacing.four,
   },
   pagePill: {
     paddingHorizontal: Spacing.two,

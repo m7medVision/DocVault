@@ -1,7 +1,7 @@
 import { Linking, View, StyleSheet, Pressable } from 'react-native';
 
-import { NativePdfViewer } from '@/components/native-pdf-viewer';
-import { NativeImageViewer } from '@/components/native-image-viewer';
+import { PdfViewer } from '@/components/pdf-viewer';
+import { ImageViewer } from '@/components/image-viewer';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -23,15 +23,6 @@ function getPreviewMode(mimeType: string): PreviewMode {
   return 'fallback';
 }
 
-function extensionFromMime(mimeType: string, fallback: string): string {
-  if (mimeType === 'application/pdf') return 'pdf';
-  if (mimeType.startsWith('image/jpeg')) return 'jpg';
-  if (mimeType.startsWith('image/png')) return 'png';
-  if (mimeType.startsWith('image/webp')) return 'webp';
-  if (mimeType.startsWith('image/gif')) return 'gif';
-  return fallback;
-}
-
 interface FilePreviewProps {
   url: string | null;
   mimeType: string;
@@ -40,7 +31,7 @@ interface FilePreviewProps {
   onPdfPageChange?: (info: { pageIndex: number; pageCount: number }) => void;
 }
 
-export function FilePreview({ url, mimeType, fileSize, documentId, onPdfPageChange }: FilePreviewProps) {
+export function FilePreview({ url, mimeType, fileSize, onPdfPageChange }: FilePreviewProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -55,21 +46,13 @@ export function FilePreview({ url, mimeType, fileSize, documentId, onPdfPageChan
   }
 
   const mode = getPreviewMode(mimeType);
-  const extension = extensionFromMime(mimeType, 'bin');
 
   if (mode === 'pdf') {
-    return (
-      <NativePdfViewer
-        url={url}
-        documentId={documentId}
-        extension={extension}
-        onPageChange={onPdfPageChange}
-      />
-    );
+    return <PdfViewer url={url} onPageChange={onPdfPageChange} />;
   }
 
   if (mode === 'image') {
-    return <NativeImageViewer url={url} documentId={documentId} extension={extension} />;
+    return <ImageViewer url={url} />;
   }
 
   return (
