@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/migrate"
@@ -129,6 +130,15 @@ func mustVisible(t *testing.T, repo *aclRepository, params VisibilityParams) boo
 		t.Fatalf("IsDocumentVisible error: %v", err)
 	}
 	return visible
+}
+
+func mustWritable(t *testing.T, repo *aclRepository, params VisibilityParams) bool {
+	t.Helper()
+	writable, err := repo.IsDocumentWritable(context.Background(), params)
+	if err != nil {
+		t.Fatalf("IsDocumentWritable error: %v", err)
+	}
+	return writable
 }
 
 // TestVisibility_RestrictedDocumentGrantAndAdminBypass covers the core rule:
@@ -417,6 +427,108 @@ func TestVisibility_SearchFiltersRestrictedChunks(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("admin search should retrieve the restricted document's chunk")
+		}
+	})
+}
+
+// TestWritability_ReadGrantDoesNotConferWrite covers write-permission
+// enforcement: on a restricted document a read grant grants visibility but NOT
+// writability; only a write (or delete) grant makes the doc writable. The owner
+// and is_admin=true are always writable.
+func TestWritability_ReadGrantDoesNotConferWrite(t *testing.T) {
+	withTx(t, func(tx pgx.Tx) {
+		f := seedBase(t, tx)
+		f.documentID = queryID(t, tx,
+			`INSERT INTO documents (tenant_id, org_id, owner_id, title, is_restricted)
+			 VALUES ($1, $2, $3, 'Restricted Doc', true) RETURNING id`,
+			f.tenantID, f.orgID, f.userA)
+
+		repo := aclRepoForTx(tx)
+		base := VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
+
+		// Grant userB a READ grant on the document.
+		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+			TenantID: f.tenantID, OrgID: f.orgID,
+			ResourceType: "document", ResourceID: f.documentID,
+			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
+		}); err != nil {
+			t.Fatalf("CreateGrant (read): %v", err)
+		}
+
+		// A read grant confers visibility but must NOT confer writability.
+		if !mustVisible(t, repo, withUser(base, f.userB, false)) {
+			t.Fatal("userB should see the doc after a read grant")
+		}
+		if mustWritable(t, repo, withUser(base, f.userB, false)) {
+			t.Fatal("a read grant must NOT confer write permission on a restricted doc")
+		}
+
+		// Grant userB a WRITE grant on the document -> now writable.
+		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+			TenantID: f.tenantID, OrgID: f.orgID,
+			ResourceType: "document", ResourceID: f.documentID,
+			PrincipalType: "user", PrincipalID: f.userB, Permission: "write",
+		}); err != nil {
+			t.Fatalf("CreateGrant (write): %v", err)
+		}
+		if !mustWritable(t, repo, withUser(base, f.userB, false)) {
+			t.Fatal("userB should be able to write the doc after a write grant")
+		}
+
+		// Owner is always writable.
+		if !mustWritable(t, repo, withUser(base, f.userA, false)) {
+			t.Fatal("owner userA should be able to write their own restricted doc")
+		}
+
+		// is_admin=true bypasses restriction and is writable.
+		if !mustWritable(t, repo, withUser(base, f.userB, true)) {
+			t.Fatal("is_admin=true should be able to write a restricted doc")
+		}
+	})
+}
+
+// TestVisibility_FolderCycleTerminates seeds a folder cycle (A.parent_id=B and
+// B.parent_id=A) with a document in A and asserts the cycle-protected recursive
+// CTE terminates: IsDocumentVisible and IsDocumentWritable must RETURN (not
+// hang) within a 5s deadline. A regression that drops the cycle guard would
+// loop forever and trip the context timeout.
+func TestVisibility_FolderCycleTerminates(t *testing.T) {
+	withTx(t, func(tx pgx.Tx) {
+		f := seedBase(t, tx)
+
+		// Insert both folders with NULL parents first (parent_id has an FK to
+		// folders(id)), then wire the mutual cycle with UPDATEs.
+		folderA := queryID(t, tx,
+			`INSERT INTO folders (tenant_id, org_id, name, is_restricted)
+			 VALUES ($1, $2, 'Folder A', false) RETURNING id`, f.tenantID, f.orgID)
+		folderB := queryID(t, tx,
+			`INSERT INTO folders (tenant_id, org_id, name, is_restricted)
+			 VALUES ($1, $2, 'Folder B', false) RETURNING id`, f.tenantID, f.orgID)
+		exec(t, tx, `UPDATE folders SET parent_id = $1 WHERE id = $2`, folderB, folderA)
+		exec(t, tx, `UPDATE folders SET parent_id = $1 WHERE id = $2`, folderA, folderB)
+
+		// Document lives in folder A, which sits on the cycle.
+		f.documentID = queryID(t, tx,
+			`INSERT INTO documents (tenant_id, org_id, folder_id, owner_id, title, is_restricted)
+			 VALUES ($1, $2, $3, $4, 'Doc In Cyclic Folder', false) RETURNING id`,
+			f.tenantID, f.orgID, folderA, f.userA)
+
+		repo := aclRepoForTx(tx)
+		params := VisibilityParams{
+			TenantID: f.tenantID, OrgID: f.orgID,
+			DocumentID: f.documentID, UserID: f.userB,
+		}
+
+		// The cycle-protected CTE must terminate; bound each call by 5s so a
+		// regression that loses the guard fails fast instead of hanging the suite.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if _, err := repo.IsDocumentVisible(ctx, params); err != nil {
+			t.Fatalf("IsDocumentVisible did not terminate on a folder cycle within 5s: %v", err)
+		}
+		if _, err := repo.IsDocumentWritable(ctx, params); err != nil {
+			t.Fatalf("IsDocumentWritable did not terminate on a folder cycle within 5s: %v", err)
 		}
 	})
 }
