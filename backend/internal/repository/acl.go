@@ -23,6 +23,17 @@ type VisibilityParams struct {
 	IsAdmin    bool
 }
 
+// FolderVisibilityParams identifies a single folder and the principal whose read
+// visibility is being evaluated.
+type FolderVisibilityParams struct {
+	TenantID string
+	OrgID    string
+	FolderID string
+	UserID   string
+	GroupIDs []string
+	IsAdmin  bool
+}
+
 // ListVisibleParams filters a per-principal visible document listing.
 type ListVisibleParams struct {
 	TenantID string
@@ -103,6 +114,7 @@ type SetRestrictedParams struct {
 type ACLRepository interface {
 	IsDocumentVisible(ctx context.Context, params VisibilityParams) (bool, error)
 	IsDocumentWritable(ctx context.Context, params VisibilityParams) (bool, error)
+	IsFolderVisible(ctx context.Context, params FolderVisibilityParams) (bool, error)
 	ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error)
 	ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, *string, error)
 
@@ -189,6 +201,35 @@ func (r *aclRepository) IsDocumentWritable(ctx context.Context, params Visibilit
 		return false, nil
 	}
 	return *writable, nil
+}
+
+// IsFolderVisible reports whether the principal may read the folder. A missing
+// folder maps to (false, nil) so callers cannot distinguish "not found" from
+// "not visible" (avoids leaking existence).
+func (r *aclRepository) IsFolderVisible(ctx context.Context, params FolderVisibilityParams) (bool, error) {
+	groupIDs := params.GroupIDs
+	if groupIDs == nil {
+		groupIDs = []string{}
+	}
+
+	visible, err := r.queries.IsFolderVisibleToUser(ctx, sqldb.IsFolderVisibleToUserParams{
+		IsAdmin:  params.IsAdmin,
+		UserID:   params.UserID,
+		GroupIds: groupIDs,
+		FolderID: params.FolderID,
+		TenantID: params.TenantID,
+		OrgID:    params.OrgID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to evaluate folder visibility: %w", err)
+	}
+	if visible == nil {
+		return false, nil
+	}
+	return *visible, nil
 }
 
 // ListUserGroupIDs returns the group IDs the user belongs to within the org.

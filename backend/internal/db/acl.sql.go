@@ -317,6 +317,62 @@ func (q *Queries) IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWr
 	return writable, err
 }
 
+const isFolderVisibleToUser = `-- name: IsFolderVisibleToUser :one
+WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted, path) AS (
+  SELECT f.id, f.parent_id, f.is_restricted, ARRAY[f.id]
+  FROM folders f
+  WHERE f.id = $5::uuid
+    AND f.tenant_id = $6::uuid AND f.org_id = $3::uuid
+  UNION ALL
+  SELECT pf.id, pf.parent_id, pf.is_restricted, fc.path || pf.id
+  FROM folders pf JOIN folder_chain fc ON pf.id = fc.parent_id
+  WHERE NOT pf.id = ANY(fc.path) AND array_length(fc.path, 1) < 100
+)
+SELECT
+  $1::boolean
+  OR f.created_by = $2::uuid
+  OR NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted)
+  OR EXISTS (SELECT 1 FROM acl_grants g
+       WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
+         AND g.permission='read'
+         AND g.org_id = $3::uuid
+         AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
+           OR (g.principal_type='group' AND g.principal_id = ANY($4::uuid[])))) AS visible
+FROM folders f
+WHERE f.id = $5::uuid
+  AND f.tenant_id = $6::uuid AND f.org_id = $3::uuid
+`
+
+type IsFolderVisibleToUserParams struct {
+	IsAdmin  bool     `json:"is_admin"`
+	UserID   string   `json:"user_id"`
+	OrgID    string   `json:"org_id"`
+	GroupIds []string `json:"group_ids"`
+	FolderID string   `json:"folder_id"`
+	TenantID string   `json:"tenant_id"`
+}
+
+// Mirrors IsDocumentVisibleToUser but is seeded from the FOLDER itself instead of
+// a document's containing folder. The recursive folder_chain starts at the target
+// folder and walks parent_id up to the root, cycle-protected with a path
+// accumulator and a depth cap. The folder is visible iff the principal is an
+// admin, OR created the folder, OR the folder itself is NOT restricted and has no
+// restricted ancestor, OR there is a read grant on the folder or any of its
+// ancestors for the user or one of their groups (scoped to org_id).
+func (q *Queries) IsFolderVisibleToUser(ctx context.Context, arg IsFolderVisibleToUserParams) (*bool, error) {
+	row := q.db.QueryRow(ctx, isFolderVisibleToUser,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.OrgID,
+		arg.GroupIds,
+		arg.FolderID,
+		arg.TenantID,
+	)
+	var visible *bool
+	err := row.Scan(&visible)
+	return visible, err
+}
+
 const listGrantsByResource = `-- name: ListGrantsByResource :many
 SELECT id, tenant_id, org_id, resource_type, resource_id, principal_type, principal_id, permission, granted_by, created_at
 FROM acl_grants

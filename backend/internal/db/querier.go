@@ -76,6 +76,14 @@ type Querier interface {
 	IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVisibleToUserParams) (*bool, error)
 	IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWritableToUserParams) (*bool, error)
 	IsEmailTakenByOther(ctx context.Context, arg IsEmailTakenByOtherParams) (bool, error)
+	// Mirrors IsDocumentVisibleToUser but is seeded from the FOLDER itself instead of
+	// a document's containing folder. The recursive folder_chain starts at the target
+	// folder and walks parent_id up to the root, cycle-protected with a path
+	// accumulator and a depth cap. The folder is visible iff the principal is an
+	// admin, OR created the folder, OR the folder itself is NOT restricted and has no
+	// restricted ancestor, OR there is a read grant on the folder or any of its
+	// ancestors for the user or one of their groups (scoped to org_id).
+	IsFolderVisibleToUser(ctx context.Context, arg IsFolderVisibleToUserParams) (*bool, error)
 	ListActiveReminderRulesByTenant(ctx context.Context, arg ListActiveReminderRulesByTenantParams) ([]ReminderRule, error)
 	ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]Folder, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)

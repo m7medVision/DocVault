@@ -16,16 +16,20 @@ import (
 // whether requireDocVisible hit the database. visible controls the result of
 // IsDocumentVisible; visErr is returned ahead of visible when set.
 type fakeACLRepository struct {
-	visible  bool
-	visErr   error
-	writable bool
-	writeErr error
+	visible       bool
+	visErr        error
+	writable      bool
+	writeErr      error
+	folderVisible bool
+	folderVisErr  error
 
 	isDocumentVisibleCalls  int
 	isDocumentWritableCalls int
+	isFolderVisibleCalls    int
 	listGroupIDsCalls       int
 	lastVisibilityParams    repository.VisibilityParams
 	lastWritableParams      repository.VisibilityParams
+	lastFolderVisParams     repository.FolderVisibilityParams
 }
 
 func (f *fakeACLRepository) IsDocumentVisible(ctx context.Context, params repository.VisibilityParams) (bool, error) {
@@ -44,6 +48,15 @@ func (f *fakeACLRepository) IsDocumentWritable(ctx context.Context, params repos
 		return false, f.writeErr
 	}
 	return f.writable, nil
+}
+
+func (f *fakeACLRepository) IsFolderVisible(ctx context.Context, params repository.FolderVisibilityParams) (bool, error) {
+	f.isFolderVisibleCalls++
+	f.lastFolderVisParams = params
+	if f.folderVisErr != nil {
+		return false, f.folderVisErr
+	}
+	return f.folderVisible, nil
 }
 
 func (f *fakeACLRepository) ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error) {

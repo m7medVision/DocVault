@@ -44,6 +44,37 @@ func (h *Handler) requireDocVisible(w http.ResponseWriter, r *http.Request, docu
 	return false
 }
 
+// requireFolderVisible returns true if it already wrote an error response (caller
+// should return). Admins short-circuit without a DB lookup. For non-admins it
+// evaluates per-folder read visibility; an invisible folder or any error is
+// reported as 404 (not 403) so callers cannot probe for existence.
+func (h *Handler) requireFolderVisible(w http.ResponseWriter, r *http.Request, folderID string) bool {
+	ctx := r.Context()
+	role := middleware.GetUserRole(ctx)
+	if middleware.HasMinRole(role, middleware.RoleAdmin) {
+		return false // short-circuit, no DB
+	}
+	userID := middleware.GetUserID(ctx)
+	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	visible, err := h.aclRepo.IsFolderVisible(ctx, repository.FolderVisibilityParams{
+		TenantID: middleware.GetTenantID(ctx),
+		OrgID:    middleware.GetOrgID(ctx),
+		FolderID: folderID,
+		UserID:   userID,
+		GroupIDs: groupIDs,
+		IsAdmin:  false,
+	})
+	if err != nil {
+		http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		return true
+	}
+	if !visible {
+		http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		return true
+	}
+	return false
+}
+
 // requireDocWritable returns true if it already wrote an error response (caller
 // should return). Admins short-circuit without a DB lookup. For non-admins it
 // evaluates per-document write permission: org-open documents remain writable by
