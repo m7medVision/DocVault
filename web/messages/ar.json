@@ -48,6 +48,9 @@
     "profile": "الحساب",
     "mainMenu": "القائمة الرئيسية",
     "admin": "الإدارة",
+    "adminMembers": "الأعضاء",
+    "adminPolicies": "السياسات",
+    "adminAudit": "سجل التدقيق",
     "analytics": "التحليلات",
     "notifications": "الإشعارات",
     "tags": "الوسوم",
@@ -297,7 +300,14 @@
     "disabled": "معطل",
     "admin": "مدير",
     "member": "عضو",
-    "viewer": "مشاهد"
+    "viewer": "مشاهد",
+    "all": "الكل",
+    "inviteMember": "دعوة عضو",
+    "allRoles": "جميع الأدوار",
+    "admins": "المديرون",
+    "viewers": "المشاهدون",
+    "joined": "انضم",
+    "edit": "تعديل"
   },
   "versions": {
     "title": "سجل الإصدارات",

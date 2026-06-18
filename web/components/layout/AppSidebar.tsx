@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -15,6 +16,10 @@ import {
   Inbox,
   Tags,
   Activity,
+  Shield,
+  Users,
+  ScrollText,
+  ChevronDown,
 } from "lucide-react";
 
 import {
@@ -25,10 +30,18 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 export function AppSidebar() {
   const tNav = useTranslations("nav");
@@ -54,6 +67,19 @@ export function AppSidebar() {
     { title: tNav("activity"), url: `${localePrefix}/activity`, icon: Activity },
     { title: tNav("analytics"), url: `${localePrefix}/analytics`, icon: BarChart3 },
     { title: tNav("settings"), url: `${localePrefix}/settings`, icon: Settings },
+  ];
+
+  const isAdminActive = pathname.startsWith(`${localePrefix}/admin`);
+  const [adminOpen, setAdminOpen] = useState(isAdminActive);
+
+  useEffect(() => {
+    if (isAdminActive) setAdminOpen(true);
+  }, [isAdminActive]);
+
+  const adminItems = [
+    { title: tNav("adminMembers"), url: `${localePrefix}/admin/members`, icon: Users },
+    { title: tNav("adminPolicies"), url: `${localePrefix}/admin/casbin`, icon: Shield },
+    { title: tNav("adminAudit"), url: `${localePrefix}/admin/audit`, icon: ScrollText },
   ];
 
   return (
@@ -89,18 +115,37 @@ export function AppSidebar() {
         </SidebarGroup>
         
         <SidebarGroup className="mt-auto">
-          <SidebarGroupContent>
-            <SidebarMenu>
+          <SidebarMenu>
+            <Collapsible
+              open={adminOpen}
+              onOpenChange={setAdminOpen}
+              className="group/collapsible"
+            >
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith(`${localePrefix}/admin`)}>
-                  <Link href={`${localePrefix}/admin`}>
-                    <Settings />
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton isActive={isAdminActive}>
+                    <Shield />
                     <span>{tNav("admin")}</span>
-                  </Link>
-                </SidebarMenuButton>
+                    <ChevronDown className="ms-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180 rtl:group-data-[state=open]/collapsible:-rotate-180" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {adminItems.map((item) => (
+                      <SidebarMenuSubItem key={item.url}>
+                        <SidebarMenuSubButton asChild isActive={pathname === item.url}>
+                          <Link href={item.url}>
+                            <item.icon />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
               </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
+            </Collapsible>
+          </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-4" />

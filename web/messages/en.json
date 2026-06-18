@@ -48,6 +48,9 @@
     "profile": "Account",
     "mainMenu": "Main Menu",
     "admin": "Admin",
+    "adminMembers": "Members",
+    "adminPolicies": "Policies",
+    "adminAudit": "Audit Log",
     "analytics": "Analytics",
     "notifications": "Notifications",
     "tags": "Tags",
@@ -297,7 +300,14 @@
     "disabled": "Disabled",
     "admin": "Admin",
     "member": "Member",
-    "viewer": "Viewer"
+    "viewer": "Viewer",
+    "all": "All",
+    "inviteMember": "Invite Member",
+    "allRoles": "All Roles",
+    "admins": "Admins",
+    "viewers": "Viewers",
+    "joined": "Joined",
+    "edit": "Edit"
   },
   "versions": {
     "title": "Version history",
