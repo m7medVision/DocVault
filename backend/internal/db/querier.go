@@ -85,10 +85,13 @@ type Querier interface {
 	// ancestors for the user or one of their groups (scoped to org_id).
 	IsFolderVisibleToUser(ctx context.Context, arg IsFolderVisibleToUserParams) (*bool, error)
 	ListActiveReminderRulesByTenant(ctx context.Context, arg ListActiveReminderRulesByTenantParams) ([]ReminderRule, error)
-	ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]Folder, error)
+	ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]ListAllFoldersRow, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
 	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]ListDocumentsRow, error)
-	ListFoldersByParent(ctx context.Context, arg ListFoldersByParentParams) ([]Folder, error)
+	// List endpoints intentionally omit index_content: the markdown "About this
+	// folder" overview is large, never serialized in lists (json:"-"), and exposed
+	// only via the dedicated, visibility-checked folder index endpoint.
+	ListFoldersByParent(ctx context.Context, arg ListFoldersByParentParams) ([]ListFoldersByParentRow, error)
 	ListGrantsByResource(ctx context.Context, arg ListGrantsByResourceParams) ([]AclGrant, error)
 	ListGroupIDsForUser(ctx context.Context, arg ListGroupIDsForUserParams) ([]string, error)
 	ListGroups(ctx context.Context, arg ListGroupsParams) ([]Group, error)
@@ -96,7 +99,7 @@ type Querier interface {
 	ListMembershipsByTenant(ctx context.Context, arg ListMembershipsByTenantParams) ([]ListMembershipsByTenantRow, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
 	ListReminderRulesByTenant(ctx context.Context, arg ListReminderRulesByTenantParams) ([]ReminderRule, error)
-	ListRootFolders(ctx context.Context, arg ListRootFoldersParams) ([]Folder, error)
+	ListRootFolders(ctx context.Context, arg ListRootFoldersParams) ([]ListRootFoldersRow, error)
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListUpcomingReminderRules(ctx context.Context, arg ListUpcomingReminderRulesParams) ([]ReminderRule, error)
 	ListVisibleDocuments(ctx context.Context, arg ListVisibleDocumentsParams) ([]ListVisibleDocumentsRow, error)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/document"
@@ -208,7 +209,11 @@ func (r *folderRepository) ListByParent(ctx context.Context, tenantID, orgID, pa
 	if err != nil {
 		return nil, fmt.Errorf("failed to query folders: %w", err)
 	}
-	return toModelFolders(folders), nil
+	out := make([]model.Folder, 0, len(folders))
+	for _, f := range folders {
+		out = append(out, folderListRow(f.ID, f.TenantID, f.OrgID, f.ParentID, f.Name, f.CreatedBy, f.CreatedAt.Time))
+	}
+	return out, nil
 }
 
 func (r *folderRepository) ListRoot(ctx context.Context, tenantID, orgID string) ([]model.Folder, error) {
@@ -219,7 +224,11 @@ func (r *folderRepository) ListRoot(ctx context.Context, tenantID, orgID string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list root folders: %w", err)
 	}
-	return toModelFolders(folders), nil
+	out := make([]model.Folder, 0, len(folders))
+	for _, f := range folders {
+		out = append(out, folderListRow(f.ID, f.TenantID, f.OrgID, f.ParentID, f.Name, f.CreatedBy, f.CreatedAt.Time))
+	}
+	return out, nil
 }
 
 func (r *folderRepository) ListAll(ctx context.Context, tenantID, orgID string) ([]model.Folder, error) {
@@ -230,7 +239,11 @@ func (r *folderRepository) ListAll(ctx context.Context, tenantID, orgID string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list all folders: %w", err)
 	}
-	return toModelFolders(folders), nil
+	out := make([]model.Folder, 0, len(folders))
+	for _, f := range folders {
+		out = append(out, folderListRow(f.ID, f.TenantID, f.OrgID, f.ParentID, f.Name, f.CreatedBy, f.CreatedAt.Time))
+	}
+	return out, nil
 }
 
 func (r *folderRepository) Update(ctx context.Context, folder *model.Folder) error {
@@ -301,12 +314,20 @@ func (r *folderRepository) SetIndex(ctx context.Context, tenantID, orgID, id str
 	return nil
 }
 
-func toModelFolders(folders []sqldb.Folder) []model.Folder {
-	models := make([]model.Folder, 0, len(folders))
-	for _, folder := range folders {
-		models = append(models, toModelFolder(folder))
+// folderListRow maps the scalar columns shared by the folder LIST queries into
+// a model.Folder. IndexContent is intentionally left nil: list endpoints never
+// expose the folder overview (it is served only by the dedicated, visibility-
+// checked folder index endpoint).
+func folderListRow(id, tenantID, orgID string, parentID *string, name string, createdBy *string, createdAt time.Time) model.Folder {
+	return model.Folder{
+		ID:        id,
+		TenantID:  tenantID,
+		OrgID:     orgID,
+		ParentID:  parentID,
+		Name:      name,
+		CreatedBy: createdBy,
+		CreatedAt: createdAt,
 	}
-	return models
 }
 
 func toModelFolder(folder sqldb.Folder) model.Folder {

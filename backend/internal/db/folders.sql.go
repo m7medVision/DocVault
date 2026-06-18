@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createFolder = `-- name: CreateFolder :exec
@@ -224,7 +226,7 @@ func (q *Queries) GetFolderSubtreeHeight(ctx context.Context, arg GetFolderSubtr
 }
 
 const listAllFolders = `-- name: ListAllFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
 ORDER BY name ASC
@@ -235,15 +237,26 @@ type ListAllFoldersParams struct {
 	OrgID    string `json:"org_id"`
 }
 
-func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]Folder, error) {
+type ListAllFoldersRow struct {
+	ID           string             `json:"id"`
+	TenantID     string             `json:"tenant_id"`
+	OrgID        string             `json:"org_id"`
+	ParentID     *string            `json:"parent_id"`
+	Name         string             `json:"name"`
+	CreatedBy    *string            `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	IsRestricted bool               `json:"is_restricted"`
+}
+
+func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]ListAllFoldersRow, error) {
 	rows, err := q.db.Query(ctx, listAllFolders, arg.TenantID, arg.OrgID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Folder{}
+	items := []ListAllFoldersRow{}
 	for rows.Next() {
-		var i Folder
+		var i ListAllFoldersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -253,7 +266,6 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.IsRestricted,
-			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -266,7 +278,7 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 }
 
 const listFoldersByParent = `-- name: ListFoldersByParent :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id = $3
 ORDER BY name ASC
@@ -278,15 +290,29 @@ type ListFoldersByParentParams struct {
 	ParentID *string `json:"parent_id"`
 }
 
-func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByParentParams) ([]Folder, error) {
+type ListFoldersByParentRow struct {
+	ID           string             `json:"id"`
+	TenantID     string             `json:"tenant_id"`
+	OrgID        string             `json:"org_id"`
+	ParentID     *string            `json:"parent_id"`
+	Name         string             `json:"name"`
+	CreatedBy    *string            `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	IsRestricted bool               `json:"is_restricted"`
+}
+
+// List endpoints intentionally omit index_content: the markdown "About this
+// folder" overview is large, never serialized in lists (json:"-"), and exposed
+// only via the dedicated, visibility-checked folder index endpoint.
+func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByParentParams) ([]ListFoldersByParentRow, error) {
 	rows, err := q.db.Query(ctx, listFoldersByParent, arg.TenantID, arg.OrgID, arg.ParentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Folder{}
+	items := []ListFoldersByParentRow{}
 	for rows.Next() {
-		var i Folder
+		var i ListFoldersByParentRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -296,7 +322,6 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.IsRestricted,
-			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -309,7 +334,7 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 }
 
 const listRootFolders = `-- name: ListRootFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id IS NULL
 ORDER BY name ASC
@@ -320,15 +345,26 @@ type ListRootFoldersParams struct {
 	OrgID    string `json:"org_id"`
 }
 
-func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams) ([]Folder, error) {
+type ListRootFoldersRow struct {
+	ID           string             `json:"id"`
+	TenantID     string             `json:"tenant_id"`
+	OrgID        string             `json:"org_id"`
+	ParentID     *string            `json:"parent_id"`
+	Name         string             `json:"name"`
+	CreatedBy    *string            `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	IsRestricted bool               `json:"is_restricted"`
+}
+
+func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams) ([]ListRootFoldersRow, error) {
 	rows, err := q.db.Query(ctx, listRootFolders, arg.TenantID, arg.OrgID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Folder{}
+	items := []ListRootFoldersRow{}
 	for rows.Next() {
-		var i Folder
+		var i ListRootFoldersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -338,7 +374,6 @@ func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.IsRestricted,
-			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
