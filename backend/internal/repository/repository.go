@@ -58,6 +58,7 @@ type FolderRepository interface {
 	ListRoot(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
 	ListAll(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
 	GetAncestorIDs(ctx context.Context, tenantID, orgID, folderID string) ([]string, error)
+	SubtreeHeight(ctx context.Context, tenantID, orgID, folderID string) (int, error)
 	Update(ctx context.Context, folder *document.Folder) error
 	Move(ctx context.Context, tenantID, orgID, folderID string, parentID *string) (int64, error)
 	Delete(ctx context.Context, tenantID, orgID, id string) error

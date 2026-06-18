@@ -80,17 +80,38 @@ func (r *folderRepository) GetAncestorIDs(ctx context.Context, tenantID, orgID, 
 	return ids, nil
 }
 
+// Move reparents a folder atomically. The cycle check lives inside the single
+// MoveFolder UPDATE: the row is updated only when the new parent is neither the
+// folder itself nor any of its descendants. A 0 rows-affected result therefore
+// signals a rejected (cycle/invalid-parent) move and is surfaced to the caller
+// via the returned row count rather than as a database error.
 func (r *folderRepository) Move(ctx context.Context, tenantID, orgID, folderID string, parentID *string) (int64, error) {
 	rows, err := r.queries.MoveFolder(ctx, sqldb.MoveFolderParams{
-		ParentID: parentID,
-		ID:       folderID,
-		TenantID: tenantID,
-		OrgID:    orgID,
+		NewParent: parentID,
+		ID:        folderID,
+		TenantID:  tenantID,
+		OrgID:     orgID,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to move folder: %w", err)
 	}
 	return rows, nil
+}
+
+// SubtreeHeight returns the height of the subtree rooted at folderID: the
+// number of folder levels from the folder itself down to its deepest
+// descendant. The folder alone has height 1. A folder that does not exist
+// returns height 0.
+func (r *folderRepository) SubtreeHeight(ctx context.Context, tenantID, orgID, folderID string) (int, error) {
+	height, err := r.queries.GetFolderSubtreeHeight(ctx, sqldb.GetFolderSubtreeHeightParams{
+		FolderID: folderID,
+		TenantID: tenantID,
+		OrgID:    orgID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get folder subtree height: %w", err)
+	}
+	return int(height), nil
 }
 
 func (r *folderRepository) GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Folder, error) {

@@ -55,6 +55,12 @@ type Querier interface {
 	// matches root-level folders. Name matching is case-insensitive to mirror the
 	// unique-name indexes (lower(name)).
 	GetFolderByParentName(ctx context.Context, arg GetFolderByParentNameParams) (Folder, error)
+	// Returns the height of the subtree rooted at folder_id, i.e. the number of
+	// folder levels from the folder itself down to its deepest descendant. The
+	// folder alone is height 1. Used as a soft depth guard so a reparent that would
+	// push the moved subtree's deepest leaf past the cap is rejected. Cycle-protected
+	// with a path accumulator and a depth cap mirroring the other recursive queries.
+	GetFolderSubtreeHeight(ctx context.Context, arg GetFolderSubtreeHeightParams) (int32, error)
 	GetMembershipByID(ctx context.Context, arg GetMembershipByIDParams) (GetMembershipByIDRow, error)
 	GetPendingReminderEvents(ctx context.Context, arg GetPendingReminderEventsParams) ([]ReminderEvent, error)
 	GetPrimaryMembershipByUserID(ctx context.Context, arg GetPrimaryMembershipByUserIDParams) (GetPrimaryMembershipByUserIDRow, error)
@@ -86,8 +92,14 @@ type Querier interface {
 	ListUpcomingReminderRules(ctx context.Context, arg ListUpcomingReminderRulesParams) ([]ReminderRule, error)
 	ListVisibleDocuments(ctx context.Context, arg ListVisibleDocumentsParams) ([]ListVisibleDocumentsRow, error)
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error)
-	// Reparents a folder while preserving its name. A NULL parent_id moves the
-	// folder to root.
+	// Reparents a folder while preserving its name. A NULL new_parent moves the
+	// folder to root. The cycle check is performed atomically inside this single
+	// UPDATE so two concurrent opposite reparents cannot each pass a separate check
+	// and then both write a cycle: the update only succeeds when the new parent is
+	// neither the folder itself nor any of its descendants. Descendants are gathered
+	// by a recursive CTE seeded at the folder being moved, cycle-protected with a
+	// path accumulator and a depth cap mirroring the other recursive queries. A
+	// 0 rows-affected result signals a rejected (cycle/invalid-parent) move.
 	MoveFolder(ctx context.Context, arg MoveFolderParams) (int64, error)
 	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	RemoveTagFromDocument(ctx context.Context, arg RemoveTagFromDocumentParams) error

@@ -251,9 +251,17 @@ const maxFolderDepth = 12
 // Reparent moves a folder under a new parent (or to root when parentID is nil)
 // while preserving the folder's name. It enforces three guards:
 //   - self-parent: parentID equals folderID,
-//   - cycle: parentID is the folder itself or any descendant of it (detected by
-//     checking whether folderID appears among the target parent's ancestors),
-//   - depth: the resulting depth would exceed maxFolderDepth.
+//   - cycle: parentID is the folder itself or any descendant of it,
+//   - depth: the resulting depth of the moved subtree's deepest leaf would
+//     exceed maxFolderDepth.
+//
+// The cycle guard is authoritative and atomic: it lives inside the single
+// MoveFolder UPDATE, which only mutates the row when the new parent is neither
+// the folder nor any of its descendants. Reparent therefore treats a 0
+// rows-affected result from the move as a cycle/invalid-parent rejection. This
+// closes the TOCTOU window where two concurrent opposite reparents (move A under
+// B while moving B under A) could each pass a separate pre-check and then both
+// write a cycle. The depth check is a soft cap applied before the move.
 //
 // When parentID is non-nil the target parent must exist in the same tenant/org.
 func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID string, parentID *string) error {
@@ -276,6 +284,7 @@ func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID 
 	}
 
 	// Move to root: no parent existence/cycle/depth checks needed (depth 1).
+	// The atomic UPDATE always succeeds for a NULL parent on an existing row.
 	if parentID == nil || *parentID == "" {
 		if _, err := s.repo.Move(ctx, tenantID, orgID, folderID, nil); err != nil {
 			return fmt.Errorf("failed to move folder: %w", err)
@@ -285,7 +294,8 @@ func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID 
 
 	target := *parentID
 
-	// Self-parent.
+	// Self-parent: rejected explicitly for a precise error message. The atomic
+	// UPDATE also rejects this case, so it is safe even under a race.
 	if target == folderID {
 		return ErrFolderSelfParent
 	}
@@ -295,27 +305,30 @@ func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID 
 		return ErrTargetParentNotFound
 	}
 
-	// Cycle + depth: gather the target parent's ancestors (inclusive of itself).
-	// If the moved folder is among them, moving under the target would create a
-	// cycle. The number of ancestors is the target parent's depth.
+	// Soft depth guard (not the cycle check). The moved folder's resulting depth
+	// is the target parent's depth (== number of its ancestors, inclusive) plus
+	// the height of the moved subtree, since the subtree hangs below the new
+	// parent. Reject when the deepest moved leaf would exceed the cap.
 	ancestors, err := s.repo.GetAncestorIDs(ctx, tenantID, orgID, target)
 	if err != nil {
 		return fmt.Errorf("failed to compute target ancestors: %w", err)
 	}
-	for _, id := range ancestors {
-		if id == folderID {
-			return ErrFolderCycle
-		}
+	subtreeHeight, err := s.repo.SubtreeHeight(ctx, tenantID, orgID, folderID)
+	if err != nil {
+		return fmt.Errorf("failed to compute moved subtree height: %w", err)
 	}
-
-	// Depth of target parent = number of its ancestors (inclusive). The moved
-	// folder sits one level below, so its resulting depth is len(ancestors)+1.
-	if len(ancestors)+1 > maxFolderDepth {
+	if len(ancestors)+subtreeHeight > maxFolderDepth {
 		return ErrFolderDepthExceeded
 	}
 
-	if _, err := s.repo.Move(ctx, tenantID, orgID, folderID, &target); err != nil {
+	// Atomic cycle-safe move. 0 rows affected means the UPDATE's in-statement
+	// guard rejected the new parent as the folder itself or a descendant of it.
+	rows, err := s.repo.Move(ctx, tenantID, orgID, folderID, &target)
+	if err != nil {
 		return fmt.Errorf("failed to move folder: %w", err)
+	}
+	if rows == 0 {
+		return ErrFolderCycle
 	}
 	return nil
 }

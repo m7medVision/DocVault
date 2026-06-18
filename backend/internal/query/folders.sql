@@ -42,12 +42,55 @@ WHERE tenant_id = $1 AND org_id = $2
 LIMIT 1;
 
 -- name: MoveFolder :execrows
--- Reparents a folder while preserving its name. A NULL parent_id moves the
--- folder to root.
+-- Reparents a folder while preserving its name. A NULL new_parent moves the
+-- folder to root. The cycle check is performed atomically inside this single
+-- UPDATE so two concurrent opposite reparents cannot each pass a separate check
+-- and then both write a cycle: the update only succeeds when the new parent is
+-- neither the folder itself nor any of its descendants. Descendants are gathered
+-- by a recursive CTE seeded at the folder being moved, cycle-protected with a
+-- path accumulator and a depth cap mirroring the other recursive queries. A
+-- 0 rows-affected result signals a rejected (cycle/invalid-parent) move.
+WITH RECURSIVE descendants(descendant_id, path) AS (
+  SELECT f.id, ARRAY[f.id]
+  FROM folders f
+  WHERE f.id = sqlc.arg(id)::uuid
+    AND f.tenant_id = sqlc.arg(tenant_id)::uuid AND f.org_id = sqlc.arg(org_id)::uuid
+  UNION ALL
+  SELECT cf.id, d.path || cf.id
+  FROM folders cf JOIN descendants d ON cf.parent_id = d.descendant_id
+  WHERE cf.tenant_id = sqlc.arg(tenant_id)::uuid AND cf.org_id = sqlc.arg(org_id)::uuid
+    AND NOT cf.id = ANY(d.path) AND array_length(d.path, 1) < 100
+)
 UPDATE folders
-SET parent_id = sqlc.narg(parent_id)::uuid
+SET parent_id = sqlc.narg(new_parent)::uuid
 WHERE id = sqlc.arg(id)::uuid
-  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid
+  AND (
+    sqlc.narg(new_parent)::uuid IS NULL
+    OR (
+      sqlc.narg(new_parent)::uuid <> id
+      AND sqlc.narg(new_parent)::uuid NOT IN (SELECT descendant_id FROM descendants)
+    )
+  );
+
+-- name: GetFolderSubtreeHeight :one
+-- Returns the height of the subtree rooted at folder_id, i.e. the number of
+-- folder levels from the folder itself down to its deepest descendant. The
+-- folder alone is height 1. Used as a soft depth guard so a reparent that would
+-- push the moved subtree's deepest leaf past the cap is rejected. Cycle-protected
+-- with a path accumulator and a depth cap mirroring the other recursive queries.
+WITH RECURSIVE subtree(id, path, depth) AS (
+  SELECT f.id, ARRAY[f.id], 1
+  FROM folders f
+  WHERE f.id = sqlc.arg(folder_id)::uuid
+    AND f.tenant_id = sqlc.arg(tenant_id)::uuid AND f.org_id = sqlc.arg(org_id)::uuid
+  UNION ALL
+  SELECT cf.id, s.path || cf.id, s.depth + 1
+  FROM folders cf JOIN subtree s ON cf.parent_id = s.id
+  WHERE cf.tenant_id = sqlc.arg(tenant_id)::uuid AND cf.org_id = sqlc.arg(org_id)::uuid
+    AND NOT cf.id = ANY(s.path) AND array_length(s.path, 1) < 100
+)
+SELECT COALESCE(MAX(depth), 0)::int AS height FROM subtree;
 
 -- name: GetFolderAncestorIDs :many
 -- Returns the folder itself plus all of its ancestors (walking parent_id up to
