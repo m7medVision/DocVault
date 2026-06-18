@@ -152,17 +152,12 @@ func (s *DocumentService) Upload(ctx context.Context, input *UploadDocumentInput
 		return nil, fmt.Errorf("file is required")
 	}
 
-	const maxFileSize = 50 * 1024 * 1024
-	if input.File.Size > maxFileSize {
+	if input.File.Size > model.MaxFileSize {
 		return nil, fmt.Errorf("file size exceeds maximum of 50MB")
 	}
 
-	validDocTypes := map[string]bool{
-		"invoice": true, "contract": true, "identity": true,
-		"warranty": true, "receipt": true, "other": true,
-	}
-	if !validDocTypes[input.DocType] {
-		return nil, fmt.Errorf("invalid document type: %s", input.DocType)
+	if _, err := model.ParseDocType(input.DocType); err != nil {
+		return nil, err
 	}
 
 	docID := uuid.New().String()
@@ -609,23 +604,6 @@ type ProcessingStatus struct {
 	Progress int
 }
 
-var stageProgress = map[string]struct {
-	Message  string
-	Progress int
-}{
-	"uploaded":           {"Upload received", 5},
-	"ocr_queued":         {"Queued for OCR...", 15},
-	"ocr_running":        {"Running OCR...", 30},
-	"ocr_complete":       {"OCR complete", 55},
-	"processing_queued":  {"Queued for processing...", 65},
-	"processing_running": {"Extracting metadata...", 75},
-	"indexing":           {"Indexing document...", 85},
-	"suggesting":         {"Generating suggestions...", 90},
-	"completed":          {"Processing complete", 100},
-	"ocr_failed":         {"OCR failed", 0},
-	"processing_failed":  {"Processing failed", 0},
-}
-
 func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, orgID, documentID string) (string, string, int) {
 	doc, err := s.repo.GetByID(ctx, tenantID, orgID, documentID)
 	if err != nil {
@@ -633,16 +611,16 @@ func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, org
 	}
 
 	if doc.ProcessingStage != nil {
-		stage := *doc.ProcessingStage
-		if info, ok := stageProgress[stage]; ok {
-			if stage == "ocr_failed" || stage == "processing_failed" {
+		stage := model.ProcessingStage(*doc.ProcessingStage)
+		if message, percent, known := stage.Progress(); known {
+			if stage.IsFailed() {
 				errMsg := ""
 				if doc.ProcessingError != nil {
 					errMsg = *doc.ProcessingError
 				}
 				return "failed", errMsg, 0
 			}
-			return stage, info.Message, info.Progress
+			return string(stage), message, percent
 		}
 	}
 
