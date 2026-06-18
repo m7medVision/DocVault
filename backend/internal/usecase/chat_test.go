@@ -136,6 +136,22 @@ func TestStreamChat_EmitsContentAndSourcesAndFinishes(t *testing.T) {
 		t.Fatalf("StreamChat() error = %v", err)
 	}
 
+	// Retrieval must be scoped to the caller's tenant/org. Global chat (no
+	// DocumentID) must not constrain to a single document. This is the guarantee
+	// that keeps chat from leaking across tenants/orgs.
+	if repo.lastReq.TenantID != "tenant-1" {
+		t.Fatalf("retrieval TenantID = %q, want %q", repo.lastReq.TenantID, "tenant-1")
+	}
+	if repo.lastReq.OrgID != "org-1" {
+		t.Fatalf("retrieval OrgID = %q, want %q", repo.lastReq.OrgID, "org-1")
+	}
+	if repo.lastReq.DocumentID != "" {
+		t.Fatalf("global chat DocumentID = %q, want empty", repo.lastReq.DocumentID)
+	}
+	if repo.lastReq.MinScore != minimumChatGroundingScore {
+		t.Fatalf("retrieval MinScore = %v, want %v", repo.lastReq.MinScore, minimumChatGroundingScore)
+	}
+
 	out := buf.String()
 
 	if !strings.Contains(out, "TEXT_MESSAGE_CONTENT") {
@@ -200,6 +216,36 @@ func TestStreamChat_EmptyRetrievalNoSources(t *testing.T) {
 	}
 	if !strings.Contains(out, "RUN_FINISHED") {
 		t.Fatalf("output missing RUN_FINISHED\n---\n%s", out)
+	}
+}
+
+func TestStreamChat_PropagatesDocumentScope(t *testing.T) {
+	server := cannedChatServer(t)
+	defer server.Close()
+
+	repo := &stubSearchRepository{result: &repository.SearchResult{Chunks: stubChunks()}}
+	svc := NewChatService(stubEmbedder{embedding: fixedEmbedding()}, repo)
+	svc.chatBaseURL = server.URL
+	svc.httpClient = server.Client()
+
+	var buf bytes.Buffer
+	err := svc.StreamChat(context.Background(), &ChatInput{
+		DocumentID: "doc-scoped",
+		Messages:   []ChatMessage{{Role: "user", Content: "what does this say?"}},
+		TenantID:   "tenant-1",
+		OrgID:      "org-1",
+		APIKey:     "test-key",
+		ChatModel:  "test-model",
+	}, &buf)
+	if err != nil {
+		t.Fatalf("StreamChat() error = %v", err)
+	}
+
+	if repo.lastReq.DocumentID != "doc-scoped" {
+		t.Fatalf("per-document chat DocumentID = %q, want %q", repo.lastReq.DocumentID, "doc-scoped")
+	}
+	if repo.lastReq.TenantID != "tenant-1" || repo.lastReq.OrgID != "org-1" {
+		t.Fatalf("per-document chat must stay tenant/org scoped; got tenant=%q org=%q", repo.lastReq.TenantID, repo.lastReq.OrgID)
 	}
 }
 
