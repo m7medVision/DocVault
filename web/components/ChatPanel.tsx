@@ -90,7 +90,7 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
 
           const sources =
             message.role === "assistant"
-              ? dedupeSources(sourcesByMessage[message.id])
+              ? sortSourcesByNumber(sourcesByMessage[message.id])
               : [];
 
           return (
@@ -127,10 +127,13 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
                         <div className="flex flex-wrap gap-1.5">
                           {sources.map((source) => (
                             <Link
-                              key={`${source.documentId}-${source.page}`}
+                              key={source.n}
                               href={`${localePrefix}/documents/${source.documentId}?page=${source.page}`}
                               className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-xs text-foreground transition-colors hover:bg-accent"
                             >
+                              <span className="font-medium text-muted-foreground tabular-nums">
+                                [{source.n}]
+                              </span>
                               <FileText className="size-3 shrink-0 text-muted-foreground" />
                               <span className="max-w-[14rem] truncate">
                                 {source.title || t("untitledSource")}
@@ -201,18 +204,11 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
 }
 
 /**
- * De-duplicate citations that point at the same document page, keeping the
- * first (lowest passage number) occurrence and its order.
+ * Order citations by their passage number so the [n] chips line up with the
+ * inline [n] markers in the assistant's answer. Every cited passage is kept
+ * (numbers are unique per turn), so no inline marker is left without a chip.
  */
-function dedupeSources(sources: ChatSource[] | undefined): ChatSource[] {
+function sortSourcesByNumber(sources: ChatSource[] | undefined): ChatSource[] {
   if (!sources || sources.length === 0) return [];
-  const seen = new Set<string>();
-  const result: ChatSource[] = [];
-  for (const source of sources) {
-    const key = `${source.documentId}-${source.page}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(source);
-  }
-  return result;
+  return [...sources].sort((a, b) => a.n - b.n);
 }

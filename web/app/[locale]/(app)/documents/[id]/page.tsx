@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -40,6 +40,8 @@ import { ChatPanel } from "@/components/ChatPanel";
 export default function DocumentDetailPage() {
   const params = useParams();
   const documentId = params.id as string;
+  const searchParams = useSearchParams();
+  const pageParam = searchParams.get("page");
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
   const tVersions = useTranslations("versions");
@@ -48,6 +50,7 @@ export default function DocumentDetailPage() {
     useDocumentDetail(documentId);
 
   const [selectedPage, setSelectedPage] = useState(0);
+  const [activeTab, setActiveTab] = useState("document");
   const [editingMetadata, setEditingMetadata] = useState<string | null>(null);
   const [correctedValue, setCorrectedValue] = useState("");
   const [metadataOpen, setMetadataOpen] = useState(false);
@@ -57,6 +60,18 @@ export default function DocumentDetailPage() {
   const [titleValue, setTitleValue] = useState("");
 
   const { reminders } = useDocumentReminders(documentId);
+
+  // Deep link from a chat citation (?page=N): open the OCR tab at the cited page.
+  useEffect(() => {
+    if (!pageParam || !document?.pages?.length) return;
+    const target = Number(pageParam);
+    if (!Number.isFinite(target)) return;
+    const index = document.pages.findIndex((p) => p.page_number === target);
+    if (index >= 0) {
+      setSelectedPage(index);
+      setActiveTab("ocr");
+    }
+  }, [pageParam, document]);
 
   const extractedDates = document?.metadata?.filter(
     (m) =>
@@ -159,7 +174,7 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="document" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="document" className="gap-1.5">
             <FileText className="size-4" />
