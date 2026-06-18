@@ -1,24 +1,68 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Loader2, Bot, User } from "lucide-react";
+import { Send, Loader2, Bot, User, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface ChatPanelProps {
+interface ChatSource {
+  n: number;
   documentId: string;
+  title: string;
+  page: number;
+  score: number;
+}
+
+interface ChatPanelProps {
+  /**
+   * When provided, the chat is scoped to a single document. When omitted, the
+   * chat spans the caller's whole organization (global "Ask" surface).
+   */
+  documentId?: string;
 }
 
 export function ChatPanel({ documentId }: ChatPanelProps) {
   const t = useTranslations("chat");
+  const pathname = usePathname();
   const [input, setInput] = useState("");
+  // Citations keyed by the assistant messageId they belong to. The backend
+  // emits a SOURCES event (re-emitted by /api/chat as a CUSTOM "sources" event)
+  // after the assistant text for a turn; absence of the event means no sources.
+  const [sourcesByMessage, setSourcesByMessage] = useState<
+    Record<string, ChatSource[]>
+  >({});
+
+  const localePrefix = (() => {
+    const segment = pathname.split("/")[1];
+    return segment === "ar" ? "/ar" : "";
+  })();
+
+  const onCustomEvent = useCallback(
+    (eventType: string, data: unknown) => {
+      if (eventType !== "sources" || !data || typeof data !== "object") return;
+      const { messageId, sources } = data as {
+        messageId?: string;
+        sources?: ChatSource[];
+      };
+      if (!messageId || !Array.isArray(sources) || sources.length === 0) return;
+      setSourcesByMessage((prev) => ({ ...prev, [messageId]: sources }));
+    },
+    []
+  );
+
+  const chatUrl = documentId
+    ? `/api/chat?documentId=${documentId}`
+    : "/api/chat";
 
   const { messages, sendMessage, isLoading, error } = useChat({
-    connection: fetchServerSentEvents(`/api/chat?documentId=${documentId}`),
+    connection: fetchServerSentEvents(chatUrl),
+    onCustomEvent,
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -44,6 +88,11 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
               ?.map((part) => (part.type === "text" ? part.content : ""))
               .join("") ?? "";
 
+          const sources =
+            message.role === "assistant"
+              ? dedupeSources(sourcesByMessage[message.id])
+              : [];
+
           return (
             <div
               key={message.id}
@@ -64,11 +113,39 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
                 }`}
               >
                 {message.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none break-words dark:prose-invert prose-p:my-0 prose-headings:mb-2 prose-headings:mt-4 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {textContent}
-                    </ReactMarkdown>
-                  </div>
+                  <>
+                    <div className="prose prose-sm max-w-none break-words dark:prose-invert prose-p:my-0 prose-headings:mb-2 prose-headings:mt-4 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {textContent}
+                      </ReactMarkdown>
+                    </div>
+                    {sources.length > 0 && (
+                      <div className="mt-2 border-t border-border/60 pt-2">
+                        <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                          {t("sourcesTitle")}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sources.map((source) => (
+                            <Link
+                              key={`${source.documentId}-${source.page}`}
+                              href={`${localePrefix}/documents/${source.documentId}?page=${source.page}`}
+                              className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-xs text-foreground transition-colors hover:bg-accent"
+                            >
+                              <FileText className="size-3 shrink-0 text-muted-foreground" />
+                              <span className="max-w-[14rem] truncate">
+                                {source.title || t("untitledSource")}
+                              </span>
+                              {source.page > 0 && (
+                                <span className="text-muted-foreground">
+                                  {t("pageShort", { page: source.page })}
+                                </span>
+                              )}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <span className="whitespace-pre-wrap">{textContent}</span>
                 )}
@@ -121,4 +198,21 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
       </div>
     </div>
   );
+}
+
+/**
+ * De-duplicate citations that point at the same document page, keeping the
+ * first (lowest passage number) occurrence and its order.
+ */
+function dedupeSources(sources: ChatSource[] | undefined): ChatSource[] {
+  if (!sources || sources.length === 0) return [];
+  const seen = new Set<string>();
+  const result: ChatSource[] = [];
+  for (const source of sources) {
+    const key = `${source.documentId}-${source.page}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(source);
+  }
+  return result;
 }
