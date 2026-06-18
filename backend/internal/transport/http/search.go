@@ -51,7 +51,11 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 
 	userID := middleware.GetUserID(ctx)
 	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to resolve permissions","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
 
 	input := &usecase.SearchInput{
 		Query:     body.Query,

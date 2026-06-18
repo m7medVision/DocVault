@@ -120,7 +120,11 @@ func (h *Handler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to resolve permissions","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
 
 	docType := r.URL.Query().Get("type")
 	folderID := r.URL.Query().Get("folder_id")

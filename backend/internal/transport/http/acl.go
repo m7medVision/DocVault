@@ -24,7 +24,11 @@ func (h *Handler) requireDocVisible(w http.ResponseWriter, r *http.Request, docu
 		return false // short-circuit, no DB
 	}
 	userID := middleware.GetUserID(ctx)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	if err != nil {
+		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		return true
+	}
 	visible, err := h.aclRepo.IsDocumentVisible(ctx, repository.VisibilityParams{
 		TenantID:   middleware.GetTenantID(ctx),
 		OrgID:      middleware.GetOrgID(ctx),
@@ -55,7 +59,11 @@ func (h *Handler) requireFolderVisible(w http.ResponseWriter, r *http.Request, f
 		return false // short-circuit, no DB
 	}
 	userID := middleware.GetUserID(ctx)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	if err != nil {
+		http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		return true
+	}
 	visible, err := h.aclRepo.IsFolderVisible(ctx, repository.FolderVisibilityParams{
 		TenantID: middleware.GetTenantID(ctx),
 		OrgID:    middleware.GetOrgID(ctx),
@@ -88,7 +96,11 @@ func (h *Handler) requireDocWritable(w http.ResponseWriter, r *http.Request, doc
 		return false // short-circuit, no DB
 	}
 	userID := middleware.GetUserID(ctx)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
+	if err != nil {
+		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		return true
+	}
 	writable, err := h.aclRepo.IsDocumentWritable(ctx, repository.VisibilityParams{
 		TenantID:   middleware.GetTenantID(ctx),
 		OrgID:      middleware.GetOrgID(ctx),
