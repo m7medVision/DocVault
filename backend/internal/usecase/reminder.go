@@ -85,37 +85,19 @@ type CreateReminderOutput struct {
 	Reminder model.ReminderRule
 }
 
-var (
-	errDocumentIDRequired  = errors.New("document ID is required")
-	errRuleTypeRequired    = errors.New("rule type is required")
-	errTriggerDateRequired = errors.New("trigger date is required")
-)
-
 // Create creates a new reminder rule.
 func (s *ReminderService) Create(ctx context.Context, input *CreateReminderInput) (*CreateReminderOutput, error) {
-	if input.TenantID == "" {
-		return nil, errTenantIDRequired
-	}
-	if input.DocumentID == "" {
-		return nil, errDocumentIDRequired
-	}
-	if input.RuleType == "" {
-		return nil, errRuleTypeRequired
-	}
-	if input.TriggerDate.IsZero() {
-		return nil, errTriggerDateRequired
-	}
-
-	reminder := &model.ReminderRule{
+	reminder, err := model.NewReminderRule(model.NewReminderRuleParams{
 		ID:               uuid.New().String(),
-		DocumentID:       input.DocumentID,
 		TenantID:         input.TenantID,
+		DocumentID:       input.DocumentID,
 		RuleType:         input.RuleType,
 		TriggerDate:      input.TriggerDate,
 		NotifyDaysBefore: input.NotifyDaysBefore,
 		Source:           input.Source,
-		Active:           true,
-		CreatedAt:        time.Now(),
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	if s.repo == nil {
