@@ -29,6 +29,9 @@ export default async function AdminLayout({
             <Link href={`/${locale}/admin/members`}>{t("members")}</Link>
           </Button>
           <Button variant="ghost" className="w-full justify-start" asChild>
+            <Link href={`/${locale}/admin/groups`}>{t("groups")}</Link>
+          </Button>
+          <Button variant="ghost" className="w-full justify-start" asChild>
             <Link href={`/${locale}/admin/casbin`}>{t("policies")}</Link>
           </Button>
         </nav>

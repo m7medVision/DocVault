@@ -80,6 +80,7 @@ export function AppSidebar() {
 
   const adminItems = [
     { title: tNav("adminMembers"), url: `${localePrefix}/admin/members`, icon: Users },
+    { title: tNav("adminGroups"), url: `${localePrefix}/admin/groups`, icon: Users },
     { title: tNav("adminPolicies"), url: `${localePrefix}/admin/casbin`, icon: Shield },
     { title: tNav("adminAudit"), url: `${localePrefix}/admin/audit`, icon: ScrollText },
   ];
