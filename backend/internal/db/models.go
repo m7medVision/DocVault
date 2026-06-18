@@ -12,6 +12,133 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AclPermission string
+
+const (
+	AclPermissionRead   AclPermission = "read"
+	AclPermissionWrite  AclPermission = "write"
+	AclPermissionDelete AclPermission = "delete"
+)
+
+func (e *AclPermission) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AclPermission(s)
+	case string:
+		*e = AclPermission(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AclPermission: %T", src)
+	}
+	return nil
+}
+
+type NullAclPermission struct {
+	AclPermission AclPermission `json:"acl_permission"`
+	Valid         bool          `json:"valid"` // Valid is true if AclPermission is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAclPermission) Scan(value interface{}) error {
+	if value == nil {
+		ns.AclPermission, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AclPermission.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAclPermission) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AclPermission), nil
+}
+
+type AclPrincipalType string
+
+const (
+	AclPrincipalTypeUser  AclPrincipalType = "user"
+	AclPrincipalTypeGroup AclPrincipalType = "group"
+)
+
+func (e *AclPrincipalType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AclPrincipalType(s)
+	case string:
+		*e = AclPrincipalType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AclPrincipalType: %T", src)
+	}
+	return nil
+}
+
+type NullAclPrincipalType struct {
+	AclPrincipalType AclPrincipalType `json:"acl_principal_type"`
+	Valid            bool             `json:"valid"` // Valid is true if AclPrincipalType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAclPrincipalType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AclPrincipalType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AclPrincipalType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAclPrincipalType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AclPrincipalType), nil
+}
+
+type AclResourceType string
+
+const (
+	AclResourceTypeDocument AclResourceType = "document"
+	AclResourceTypeFolder   AclResourceType = "folder"
+)
+
+func (e *AclResourceType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AclResourceType(s)
+	case string:
+		*e = AclResourceType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AclResourceType: %T", src)
+	}
+	return nil
+}
+
+type NullAclResourceType struct {
+	AclResourceType AclResourceType `json:"acl_resource_type"`
+	Valid           bool            `json:"valid"` // Valid is true if AclResourceType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAclResourceType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AclResourceType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AclResourceType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAclResourceType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AclResourceType), nil
+}
+
 type DocumentStatus string
 
 const (
@@ -232,6 +359,19 @@ func (ns NullReminderRuleSource) Value() (driver.Value, error) {
 	return string(ns.ReminderRuleSource), nil
 }
 
+type AclGrant struct {
+	ID            string             `json:"id"`
+	TenantID      string             `json:"tenant_id"`
+	OrgID         string             `json:"org_id"`
+	ResourceType  AclResourceType    `json:"resource_type"`
+	ResourceID    string             `json:"resource_id"`
+	PrincipalType AclPrincipalType   `json:"principal_type"`
+	PrincipalID   string             `json:"principal_id"`
+	Permission    AclPermission      `json:"permission"`
+	GrantedBy     *string            `json:"granted_by"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type AuditEvent struct {
 	ID         string             `json:"id"`
 	TenantID   string             `json:"tenant_id"`
@@ -276,6 +416,7 @@ type Document struct {
 	SuggestedFilename    *string            `json:"suggested_filename"`
 	SuggestionConfidence *float32           `json:"suggestion_confidence"`
 	SuggestionCreateNew  *bool              `json:"suggestion_create_new"`
+	IsRestricted         bool               `json:"is_restricted"`
 }
 
 type DocumentMetadatum struct {
@@ -329,12 +470,28 @@ type ExtractedTextChunk struct {
 }
 
 type Folder struct {
+	ID           string             `json:"id"`
+	TenantID     string             `json:"tenant_id"`
+	OrgID        string             `json:"org_id"`
+	ParentID     *string            `json:"parent_id"`
+	Name         string             `json:"name"`
+	CreatedBy    *string            `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	IsRestricted bool               `json:"is_restricted"`
+}
+
+type Group struct {
 	ID        string             `json:"id"`
 	TenantID  string             `json:"tenant_id"`
 	OrgID     string             `json:"org_id"`
-	ParentID  *string            `json:"parent_id"`
 	Name      string             `json:"name"`
 	CreatedBy *string            `json:"created_by"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type GroupMember struct {
+	GroupID   string             `json:"group_id"`
+	UserID    string             `json:"user_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 

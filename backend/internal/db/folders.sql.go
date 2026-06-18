@@ -55,7 +55,7 @@ func (q *Queries) DeleteFolder(ctx context.Context, arg DeleteFolderParams) (int
 }
 
 const getFolderByID = `-- name: GetFolderByID :one
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3
 `
@@ -77,12 +77,13 @@ func (q *Queries) GetFolderByID(ctx context.Context, arg GetFolderByIDParams) (F
 		&i.Name,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.IsRestricted,
 	)
 	return i, err
 }
 
 const listAllFolders = `-- name: ListAllFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
 ORDER BY name ASC
@@ -110,6 +111,7 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 			&i.Name,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsRestricted,
 		); err != nil {
 			return nil, err
 		}
@@ -122,7 +124,7 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 }
 
 const listFoldersByParent = `-- name: ListFoldersByParent :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id = $3
 ORDER BY name ASC
@@ -151,6 +153,7 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 			&i.Name,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsRestricted,
 		); err != nil {
 			return nil, err
 		}
@@ -163,7 +166,7 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 }
 
 const listRootFolders = `-- name: ListRootFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id IS NULL
 ORDER BY name ASC
@@ -191,6 +194,7 @@ func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams
 			&i.Name,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsRestricted,
 		); err != nil {
 			return nil, err
 		}
