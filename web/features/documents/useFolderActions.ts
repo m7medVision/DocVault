@@ -6,6 +6,7 @@ import {
   createFolder,
   renameFolder,
   deleteFolder,
+  moveFolder,
   moveDocument,
   updateDocumentTitle,
 } from '@/lib/api/folders';
@@ -25,6 +26,7 @@ export interface UseFolderActionsResult {
   rename: (folderId: string, newName: string) => Promise<boolean>;
   remove: (folderId: string) => Promise<boolean>;
   moveDoc: (documentId: string, folderId?: string) => Promise<boolean>;
+  saveMove: (folderId: string, parentId: string | null) => Promise<boolean>;
   renameDoc: (documentId: string, title: string) => Promise<boolean>;
 }
 
@@ -111,6 +113,24 @@ export function useFolderActions(
     [options]
   );
 
+  const saveMove = useCallback(
+    async (folderId: string, parentId: string | null): Promise<boolean> => {
+      try {
+        await moveFolder(folderId, parentId);
+        toast.success('Folder moved');
+        await loadFolders();
+        options.onSuccess?.();
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to move folder';
+        toast.error(message);
+        return false;
+      }
+    },
+    [loadFolders, options]
+  );
+
   const renameDoc = useCallback(
     async (documentId: string, title: string): Promise<boolean> => {
       try {
@@ -135,6 +155,7 @@ export function useFolderActions(
     rename,
     remove,
     moveDoc,
+    saveMove,
     renameDoc,
   };
 }

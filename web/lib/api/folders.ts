@@ -40,6 +40,19 @@ export async function renameFolder(
   });
 }
 
+export async function moveFolder(
+  id: string,
+  parentId: string | null
+): Promise<{ id: string; parent_id: string | null }> {
+  return apiFetch<{ id: string; parent_id: string | null }>(
+    `/folders/${id}/move`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ parent_id: parentId }),
+    }
+  );
+}
+
 export async function deleteFolder(id: string): Promise<void> {
   await apiFetch(`/folders/${id}`, { method: 'DELETE' });
 }
