@@ -191,8 +191,8 @@ func (r *folderRepository) GetByID(ctx context.Context, tenantID, orgID, id stri
 		OrgID:    orgID,
 	})
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("folder not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errFolderNotFound
 		}
 		return nil, fmt.Errorf("failed to get folder: %w", err)
 	}
@@ -273,7 +273,7 @@ func (r *folderRepository) Delete(ctx context.Context, tenantID, orgID, id strin
 		return fmt.Errorf("failed to delete folder: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("folder not found")
+		return errFolderNotFound
 	}
 	return nil
 }
