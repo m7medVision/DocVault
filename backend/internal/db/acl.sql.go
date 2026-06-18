@@ -175,14 +175,15 @@ func (q *Queries) DeleteGroup(ctx context.Context, arg DeleteGroupParams) (int64
 }
 
 const isDocumentVisibleToUser = `-- name: IsDocumentVisibleToUser :one
-WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted) AS (
-  SELECT f.id, f.parent_id, f.is_restricted
+WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted, path) AS (
+  SELECT f.id, f.parent_id, f.is_restricted, ARRAY[f.id]
   FROM folders f JOIN documents d ON d.folder_id = f.id
   WHERE d.id = $4::uuid
     AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
   UNION ALL
-  SELECT pf.id, pf.parent_id, pf.is_restricted
+  SELECT pf.id, pf.parent_id, pf.is_restricted, fc.path || pf.id
   FROM folders pf JOIN folder_chain fc ON pf.id = fc.parent_id
+  WHERE NOT pf.id = ANY(fc.path) AND array_length(fc.path, 1) < 100
 )
 SELECT
   $1::boolean
@@ -348,11 +349,12 @@ func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]Group
 
 const listVisibleDocuments = `-- name: ListVisibleDocuments :many
 WITH RECURSIVE folder_ancestors AS (
-  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted
+  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
   FROM folders f WHERE f.org_id = $2::uuid
   UNION ALL
-  SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted
+  SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
+  WHERE NOT pf.id = ANY(fa.path) AND array_length(fa.path, 1) < 100
 )
 SELECT d.id, d.tenant_id, d.org_id, d.folder_id, d.owner_id, d.title,
        d.doc_type, d.status, d.language, d.created_at

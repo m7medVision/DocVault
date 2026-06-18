@@ -13,11 +13,12 @@ import (
 
 const searchDocumentChunks = `-- name: SearchDocumentChunks :many
 WITH RECURSIVE folder_ancestors AS (
-  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted
+  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
   FROM folders f WHERE f.org_id = $2
   UNION ALL
-  SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted
+  SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
+  WHERE NOT pf.id = ANY(fa.path) AND array_length(fa.path, 1) < 100
 ),
 filtered_chunks AS (
   SELECT
