@@ -20,9 +20,6 @@ WITH RECURSIVE folder_ancestors AS (
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
   WHERE NOT pf.id = ANY(fa.path) AND array_length(fa.path, 1) < 100
 ),
-query AS (
-  SELECT replace(websearch_to_tsquery('english', $3)::text, '&', '|')::tsquery AS tsq
-),
 filtered_chunks AS (
   SELECT
     c.document_id,
@@ -33,15 +30,10 @@ filtered_chunks AS (
     COALESCE(p.page_number, 0)::integer AS page_number,
     COALESCE(d.language, '') AS language,
     FALSE AS is_translation,
-    c.embedding <=> $4::text::vector AS distance,
-    GREATEST(0.0, 1 - (c.embedding <=> $4::text::vector)) AS raw_semantic_score,
-    POSITION(LOWER($3) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
-    POSITION(LOWER($3) IN LOWER(d.title)) > 0 AS title_contains_query,
-    -- Full-text keyword rank against the OR-query (term-frequency weighted).
-    ts_rank(
-      to_tsvector('english', COALESCE(c.chunk_text, '') || ' ' || COALESCE(d.title, '')),
-      (SELECT tsq FROM query)
-    ) AS lexical_rank
+    c.embedding <=> $3::text::vector AS distance,
+    GREATEST(0.0, 1 - (c.embedding <=> $3::text::vector)) AS raw_semantic_score,
+    POSITION(LOWER($4) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
+    POSITION(LOWER($4) IN LOWER(d.title)) > 0 AS title_contains_query
   FROM extracted_text_chunks c
   JOIN documents d ON c.document_id = d.id
   LEFT JOIN document_pages p ON c.page_id = p.id
@@ -101,16 +93,12 @@ scored_chunks AS (
     GREATEST(
       LEAST(1.0, GREATEST(0.0, (raw_semantic_score - 0.4) / 0.6)),
       CASE
-        WHEN LOWER(BTRIM(title)) = LOWER(BTRIM($3)) THEN 1.0
-        WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM($3)) THEN 0.99
+        WHEN LOWER(BTRIM(title)) = LOWER(BTRIM($4)) THEN 1.0
+        WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM($4)) THEN 0.99
         WHEN chunk_contains_query THEN 0.97
         WHEN title_contains_query THEN 0.95
         ELSE 0.0
-      END,
-      -- Keyword score: any full-text keyword match lifts the chunk above the
-      -- candidate/grounding floor even when the conversational embedding is weak;
-      -- the rank breaks ties by how well the keywords match.
-      CASE WHEN lexical_rank > 0 THEN LEAST(0.94, 0.6 + lexical_rank * 4) ELSE 0.0 END
+      END
     )::double precision AS score
   FROM filtered_chunks
 ),
@@ -123,7 +111,7 @@ vector_matches AS (
 lexical_matches AS (
   SELECT document_id, title, doc_type, chunk_id, chunk_text, page_number, language, is_translation, distance, score
   FROM scored_chunks
-  WHERE score >= 0.55
+  WHERE score >= 0.95
   ORDER BY score DESC, distance ASC
   LIMIT $1
 ),
@@ -165,8 +153,8 @@ LIMIT $1
 type SearchDocumentChunksParams struct {
 	LimitCount  int32              `json:"limit_count"`
 	OrgID       string             `json:"org_id"`
-	QueryText   string             `json:"query_text"`
 	QueryVector string             `json:"query_vector"`
+	QueryText   string             `json:"query_text"`
 	TenantID    string             `json:"tenant_id"`
 	DocType     *string            `json:"doc_type"`
 	Language    *string            `json:"language"`
@@ -193,17 +181,12 @@ type SearchDocumentChunksRow struct {
 	Score         float64      `json:"score"`
 }
 
-// Build the keyword query ONCE: Postgres' english dictionary tokenizes, removes
-// stopwords, and stems; flipping '&' to '|' turns the default AND into OR so any
-// query keyword can match. No application-side word lists.
-// High-confidence keyword/exact matches, surfaced even when they fall outside the
-// vector top-K (0.55 is the floor a per-term keyword match produces).
 func (q *Queries) SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error) {
 	rows, err := q.db.Query(ctx, searchDocumentChunks,
 		arg.LimitCount,
 		arg.OrgID,
-		arg.QueryText,
 		arg.QueryVector,
+		arg.QueryText,
 		arg.TenantID,
 		arg.DocType,
 		arg.Language,

@@ -431,60 +431,6 @@ func TestVisibility_SearchFiltersRestrictedChunks(t *testing.T) {
 	})
 }
 
-// TestSearch_KeywordMatchSurfacesChunk proves the full-text keyword path: a messy
-// natural-language query whose embedding is deliberately opposite the chunk still
-// surfaces the chunk above the grounding floor purely on shared keywords (vps,
-// invoice) — Postgres handles tokenization/stopwords/stemming, no app word lists.
-func TestSearch_KeywordMatchSurfacesChunk(t *testing.T) {
-	withTx(t, func(tx pgx.Tx) {
-		f := seedBase(t, tx)
-		f.documentID = queryID(t, tx,
-			`INSERT INTO documents (tenant_id, org_id, owner_id, title, status)
-			 VALUES ($1, $2, $3, 'Invoice OVHcloud', 'processed') RETURNING id`,
-			f.tenantID, f.orgID, f.userA)
-		versionID := queryID(t, tx,
-			`INSERT INTO document_versions (document_id, version_number, storage_key, mime_type, file_size)
-			 VALUES ($1, 1, 'key/1', 'application/pdf', 1024) RETURNING id`, f.documentID)
-		pageID := queryID(t, tx,
-			`INSERT INTO document_pages (document_id, version_id, page_number, ocr_text)
-			 VALUES ($1, $2, 1, 'vps invoice') RETURNING id`, f.documentID, versionID)
-		exec(t, tx,
-			`INSERT INTO extracted_text_chunks (document_id, page_id, chunk_index, chunk_text, embedding)
-			 VALUES ($1, $2, 0, 'Monthly invoice for your VPS hosting from OVHcloud', $3::vector)`,
-			f.documentID, pageID, embeddingLiteral(0.1))
-
-		search := searchRepoForTx(tx)
-		// Opposite query vector (weak semantic score) + low floor (as chat uses):
-		// only the keyword match can surface the chunk.
-		res, err := search.Search(context.Background(), SearchRequest{
-			Query:       "i'm looking for a vps invoice it cost me a few bucks",
-			QueryVector: embeddingLiteral(-0.1),
-			TenantID:    f.tenantID,
-			OrgID:       f.orgID,
-			UserID:      f.userB,
-			Limit:       10,
-			MinScore:    0.01,
-		})
-		if err != nil {
-			t.Fatalf("Search: %v", err)
-		}
-		var score float64
-		found := false
-		for _, c := range res.Chunks {
-			if c.DocumentID == f.documentID {
-				found = true
-				score = c.Score
-			}
-		}
-		if !found {
-			t.Fatal("keyword query did not surface the matching vps/invoice chunk")
-		}
-		if score < 0.55 {
-			t.Fatalf("keyword match score = %v, want >= 0.55", score)
-		}
-	})
-}
-
 // TestWritability_ReadGrantDoesNotConferWrite covers write-permission
 // enforcement: on a restricted document a read grant grants visibility but NOT
 // writability; only a write (or delete) grant makes the doc writable. The owner

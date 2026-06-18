@@ -7,12 +7,6 @@ WITH RECURSIVE folder_ancestors AS (
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
   WHERE NOT pf.id = ANY(fa.path) AND array_length(fa.path, 1) < 100
 ),
--- Build the keyword query ONCE: Postgres' english dictionary tokenizes, removes
--- stopwords, and stems; flipping '&' to '|' turns the default AND into OR so any
--- query keyword can match. No application-side word lists.
-query AS (
-  SELECT replace(websearch_to_tsquery('english', sqlc.arg(query_text))::text, '&', '|')::tsquery AS tsq
-),
 filtered_chunks AS (
   SELECT
     c.document_id,
@@ -26,12 +20,7 @@ filtered_chunks AS (
     c.embedding <=> sqlc.arg(query_vector)::text::vector AS distance,
     GREATEST(0.0, 1 - (c.embedding <=> sqlc.arg(query_vector)::text::vector)) AS raw_semantic_score,
     POSITION(LOWER(sqlc.arg(query_text)) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
-    POSITION(LOWER(sqlc.arg(query_text)) IN LOWER(d.title)) > 0 AS title_contains_query,
-    -- Full-text keyword rank against the OR-query (term-frequency weighted).
-    ts_rank(
-      to_tsvector('english', COALESCE(c.chunk_text, '') || ' ' || COALESCE(d.title, '')),
-      (SELECT tsq FROM query)
-    ) AS lexical_rank
+    POSITION(LOWER(sqlc.arg(query_text)) IN LOWER(d.title)) > 0 AS title_contains_query
   FROM extracted_text_chunks c
   JOIN documents d ON c.document_id = d.id
   LEFT JOIN document_pages p ON c.page_id = p.id
@@ -96,11 +85,7 @@ scored_chunks AS (
         WHEN chunk_contains_query THEN 0.97
         WHEN title_contains_query THEN 0.95
         ELSE 0.0
-      END,
-      -- Keyword score: any full-text keyword match lifts the chunk above the
-      -- candidate/grounding floor even when the conversational embedding is weak;
-      -- the rank breaks ties by how well the keywords match.
-      CASE WHEN lexical_rank > 0 THEN LEAST(0.94, 0.6 + lexical_rank * 4) ELSE 0.0 END
+      END
     )::double precision AS score
   FROM filtered_chunks
 ),
@@ -110,12 +95,10 @@ vector_matches AS (
   ORDER BY distance ASC
   LIMIT sqlc.arg(limit_count)
 ),
--- High-confidence keyword/exact matches, surfaced even when they fall outside the
--- vector top-K (0.55 is the floor a per-term keyword match produces).
 lexical_matches AS (
   SELECT *
   FROM scored_chunks
-  WHERE score >= 0.55
+  WHERE score >= 0.95
   ORDER BY score DESC, distance ASC
   LIMIT sqlc.arg(limit_count)
 ),
