@@ -18,6 +18,7 @@ import (
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/migrate"
 	"github.com/docvault/backend/internal/minio"
+	"github.com/docvault/backend/internal/platform/cache"
 	"github.com/docvault/backend/internal/rabbitmq"
 	appredis "github.com/docvault/backend/internal/redis"
 	"github.com/docvault/backend/internal/repository"
@@ -141,6 +142,12 @@ func Run() error {
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
 	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
 	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)
+	// Cache query embeddings in Redis: identical /search and /chat queries reuse
+	// the vector instead of re-calling the external embedding API. The key is
+	// content-addressed (model+dim+text) and carries no tenant data, so it is
+	// safe to share across tenants. Best-effort: a cache failure falls through
+	// to the embedder.
+	queryEmbedder := search.NewCachingEmbedder(embedder, cache.NewRedis(redisClient.Client), cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim, 7*24*time.Hour)
 	h := handler.New(cfg, handler.Dependencies{
 		DB:              dbPool,
 		AuthzEnforcer:   authzEnforcer,
@@ -150,8 +157,8 @@ func Run() error {
 		AuditSvc:        usecase.NewAuditService(repos.Audit),
 		ReminderSvc:     usecase.NewReminderService(repos.Reminder),
 		NotificationSvc: usecase.NewNotificationService(repos.Notification),
-		SearchSvc:       usecase.NewSearchService(embedder, repos.Search),
-		ChatSvc:         usecase.NewChatService(embedder, repos.Search),
+		SearchSvc:       usecase.NewSearchService(queryEmbedder, repos.Search),
+		ChatSvc:         usecase.NewChatService(queryEmbedder, repos.Search),
 		UserRepo:        repos.User,
 		MembershipRepo:  repos.Membership,
 		PolicyRepo:      repos.Policy,
