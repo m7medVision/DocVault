@@ -173,11 +173,19 @@ func Run() error {
 	)
 
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
+		Handler: router,
+		// ReadHeaderTimeout guards against slow-loris header attacks. We
+		// deliberately do NOT set an absolute WriteTimeout: /chat streams
+		// Server-Sent Events that routinely outlast any fixed deadline, and a
+		// global WriteTimeout silently truncates the stream mid-response.
+		// Per-request bounds come from the handler context instead. ReadTimeout
+		// is generous enough to read large (up to 50MB) multipart uploads over
+		// slow mobile links.
+		ReadHeaderTimeout: 15 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		WriteTimeout:      0,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)
