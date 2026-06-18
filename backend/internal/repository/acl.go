@@ -100,6 +100,7 @@ type SetRestrictedParams struct {
 // groups, memberships, grants, and restrictions.
 type ACLRepository interface {
 	IsDocumentVisible(ctx context.Context, params VisibilityParams) (bool, error)
+	IsDocumentWritable(ctx context.Context, params VisibilityParams) (bool, error)
 	ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error)
 	ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, error)
 
@@ -154,6 +155,37 @@ func (r *aclRepository) IsDocumentVisible(ctx context.Context, params Visibility
 		return false, nil
 	}
 	return *visible, nil
+}
+
+// IsDocumentWritable reports whether the principal may write (edit/move/rename)
+// the document. Org-open documents remain writable by role; restricted documents
+// require a 'write' or 'delete' grant. A missing document maps to (false, nil) so
+// callers cannot distinguish "not found" from "not writable" (avoids leaking
+// existence).
+func (r *aclRepository) IsDocumentWritable(ctx context.Context, params VisibilityParams) (bool, error) {
+	groupIDs := params.GroupIDs
+	if groupIDs == nil {
+		groupIDs = []string{}
+	}
+
+	writable, err := r.queries.IsDocumentWritableToUser(ctx, sqldb.IsDocumentWritableToUserParams{
+		IsAdmin:    params.IsAdmin,
+		UserID:     params.UserID,
+		GroupIds:   groupIDs,
+		DocumentID: params.DocumentID,
+		TenantID:   params.TenantID,
+		OrgID:      params.OrgID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to evaluate document writability: %w", err)
+	}
+	if writable == nil {
+		return false, nil
+	}
+	return *writable, nil
 }
 
 // ListUserGroupIDs returns the group IDs the user belongs to within the org.

@@ -26,6 +26,34 @@ FROM documents d
 WHERE d.id = sqlc.arg(document_id)::uuid
   AND d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::uuid;
 
+-- name: IsDocumentWritableToUser :one
+WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted, path) AS (
+  SELECT f.id, f.parent_id, f.is_restricted, ARRAY[f.id]
+  FROM folders f JOIN documents d ON d.folder_id = f.id
+  WHERE d.id = sqlc.arg(document_id)::uuid
+    AND d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::uuid
+  UNION ALL
+  SELECT pf.id, pf.parent_id, pf.is_restricted, fc.path || pf.id
+  FROM folders pf JOIN folder_chain fc ON pf.id = fc.parent_id
+  WHERE NOT pf.id = ANY(fc.path) AND array_length(fc.path, 1) < 100
+)
+SELECT
+  sqlc.arg(is_admin)::boolean
+  OR d.owner_id = sqlc.arg(user_id)::uuid
+  OR (NOT d.is_restricted AND NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted))
+  OR EXISTS (SELECT 1 FROM acl_grants g
+       WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission IN ('write','delete')
+         AND ((g.principal_type='user'  AND g.principal_id=sqlc.arg(user_id)::uuid)
+           OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[]))))
+  OR EXISTS (SELECT 1 FROM acl_grants g
+       WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
+         AND g.permission IN ('write','delete')
+         AND ((g.principal_type='user'  AND g.principal_id=sqlc.arg(user_id)::uuid)
+           OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[])))) AS writable
+FROM documents d
+WHERE d.id = sqlc.arg(document_id)::uuid
+  AND d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::uuid;
+
 -- name: ListGroupIDsForUser :many
 SELECT gm.group_id FROM group_members gm JOIN groups g ON g.id = gm.group_id
 WHERE gm.user_id = sqlc.arg(user_id)::uuid AND g.org_id = sqlc.arg(org_id)::uuid;

@@ -226,6 +226,58 @@ func (q *Queries) IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVis
 	return visible, err
 }
 
+const isDocumentWritableToUser = `-- name: IsDocumentWritableToUser :one
+WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted, path) AS (
+  SELECT f.id, f.parent_id, f.is_restricted, ARRAY[f.id]
+  FROM folders f JOIN documents d ON d.folder_id = f.id
+  WHERE d.id = $4::uuid
+    AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
+  UNION ALL
+  SELECT pf.id, pf.parent_id, pf.is_restricted, fc.path || pf.id
+  FROM folders pf JOIN folder_chain fc ON pf.id = fc.parent_id
+  WHERE NOT pf.id = ANY(fc.path) AND array_length(fc.path, 1) < 100
+)
+SELECT
+  $1::boolean
+  OR d.owner_id = $2::uuid
+  OR (NOT d.is_restricted AND NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted))
+  OR EXISTS (SELECT 1 FROM acl_grants g
+       WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission IN ('write','delete')
+         AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
+           OR (g.principal_type='group' AND g.principal_id = ANY($3::uuid[]))))
+  OR EXISTS (SELECT 1 FROM acl_grants g
+       WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
+         AND g.permission IN ('write','delete')
+         AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
+           OR (g.principal_type='group' AND g.principal_id = ANY($3::uuid[])))) AS writable
+FROM documents d
+WHERE d.id = $4::uuid
+  AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
+`
+
+type IsDocumentWritableToUserParams struct {
+	IsAdmin    bool     `json:"is_admin"`
+	UserID     string   `json:"user_id"`
+	GroupIds   []string `json:"group_ids"`
+	DocumentID string   `json:"document_id"`
+	TenantID   string   `json:"tenant_id"`
+	OrgID      string   `json:"org_id"`
+}
+
+func (q *Queries) IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWritableToUserParams) (*bool, error) {
+	row := q.db.QueryRow(ctx, isDocumentWritableToUser,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.GroupIds,
+		arg.DocumentID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	var writable *bool
+	err := row.Scan(&writable)
+	return writable, err
+}
+
 const listGrantsByResource = `-- name: ListGrantsByResource :many
 SELECT id, tenant_id, org_id, resource_type, resource_id, principal_type, principal_id, permission, granted_by, created_at
 FROM acl_grants

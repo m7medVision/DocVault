@@ -397,7 +397,7 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.requireDocVisible(w, r, documentID) {
+	if h.requireDocWritable(w, r, documentID) {
 		return
 	}
 
@@ -506,7 +506,7 @@ func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.requireDocVisible(w, r, documentID) {
+	if h.requireDocWritable(w, r, documentID) {
 		return
 	}
 
@@ -578,7 +578,7 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.requireDocVisible(w, r, documentID) {
+	if h.requireDocWritable(w, r, documentID) {
 		return
 	}
 

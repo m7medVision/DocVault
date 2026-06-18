@@ -51,6 +51,7 @@ type Querier interface {
 	GetTagByName(ctx context.Context, arg GetTagByNameParams) (Tag, error)
 	GetUnreadNotificationCount(ctx context.Context, arg GetUnreadNotificationCountParams) (int64, error)
 	IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVisibleToUserParams) (*bool, error)
+	IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWritableToUserParams) (*bool, error)
 	IsEmailTakenByOther(ctx context.Context, arg IsEmailTakenByOtherParams) (bool, error)
 	ListActiveReminderRulesByTenant(ctx context.Context, arg ListActiveReminderRulesByTenantParams) ([]ReminderRule, error)
 	ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]Folder, error)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	model "github.com/docvault/backend/internal/domain/document"
@@ -15,12 +16,16 @@ import (
 // whether requireDocVisible hit the database. visible controls the result of
 // IsDocumentVisible; visErr is returned ahead of visible when set.
 type fakeACLRepository struct {
-	visible bool
-	visErr  error
+	visible  bool
+	visErr   error
+	writable bool
+	writeErr error
 
-	isDocumentVisibleCalls int
-	listGroupIDsCalls      int
-	lastVisibilityParams   repository.VisibilityParams
+	isDocumentVisibleCalls  int
+	isDocumentWritableCalls int
+	listGroupIDsCalls       int
+	lastVisibilityParams    repository.VisibilityParams
+	lastWritableParams      repository.VisibilityParams
 }
 
 func (f *fakeACLRepository) IsDocumentVisible(ctx context.Context, params repository.VisibilityParams) (bool, error) {
@@ -30,6 +35,15 @@ func (f *fakeACLRepository) IsDocumentVisible(ctx context.Context, params reposi
 		return false, f.visErr
 	}
 	return f.visible, nil
+}
+
+func (f *fakeACLRepository) IsDocumentWritable(ctx context.Context, params repository.VisibilityParams) (bool, error) {
+	f.isDocumentWritableCalls++
+	f.lastWritableParams = params
+	if f.writeErr != nil {
+		return false, f.writeErr
+	}
+	return f.writable, nil
 }
 
 func (f *fakeACLRepository) ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error) {
@@ -170,6 +184,57 @@ func TestRequireDocVisible_NotVisibleReturns404NotForbidden(t *testing.T) {
 	}
 	if fake.isDocumentVisibleCalls != 1 {
 		t.Fatalf("IsDocumentVisible called %d times; want 1", fake.isDocumentVisibleCalls)
+	}
+}
+
+// An admin must never trigger a database lookup for write checks either:
+// requireDocWritable short-circuits before consulting the ACL repository.
+func TestRequireDocWritable_AdminShortCircuitsWithoutRepoCall(t *testing.T) {
+	fake := &fakeACLRepository{writable: false} // would deny if consulted
+	h := newHandlerWithACL(fake)
+
+	w := httptest.NewRecorder()
+	req := requestWithAuth(middleware.RoleAdmin, "admin-1")
+
+	wrote := h.requireDocWritable(w, req, "doc-1")
+
+	if wrote {
+		t.Fatal("requireDocWritable wrote a response for an admin; expected short-circuit")
+	}
+	if fake.isDocumentWritableCalls != 0 {
+		t.Fatalf("IsDocumentWritable called %d times for admin; want 0", fake.isDocumentWritableCalls)
+	}
+	if fake.listGroupIDsCalls != 0 {
+		t.Fatalf("ListUserGroupIDs called %d times for admin; want 0", fake.listGroupIDsCalls)
+	}
+}
+
+// When the repository reports the document is not writable for a member, the
+// response must be 404 (not 403) so a member cannot probe for existence and a
+// read-only grant cannot be used to mutate a restricted document.
+func TestRequireDocWritable_NotWritableReturns404(t *testing.T) {
+	fake := &fakeACLRepository{writable: false}
+	h := newHandlerWithACL(fake)
+
+	w := httptest.NewRecorder()
+	req := requestWithAuth(middleware.RoleMember, "member-1")
+
+	wrote := h.requireDocWritable(w, req, "doc-1")
+
+	if !wrote {
+		t.Fatal("requireDocWritable returned false for a non-writable doc; expected it to write an error")
+	}
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (not 403) to avoid leaking existence", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "NOT_FOUND") {
+		t.Fatalf("body = %q, want NOT_FOUND code", w.Body.String())
+	}
+	if fake.isDocumentWritableCalls != 1 {
+		t.Fatalf("IsDocumentWritable called %d times; want 1", fake.isDocumentWritableCalls)
+	}
+	if fake.lastWritableParams.IsAdmin {
+		t.Fatal("member writability check sent IsAdmin=true; want false")
 	}
 }
 
