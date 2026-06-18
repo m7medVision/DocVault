@@ -143,3 +143,7 @@ sqlc-generate: sqlc-schema
 
 sqlc-check: sqlc-generate
 	git diff --exit-code -- backend/sqlc.yaml backend/internal/query backend/internal/db
+
+# Run DB-backed integration tests (require a live Postgres at DATABASE_URL).
+test-integration:
+	cd backend && go test -tags=integration ./...
