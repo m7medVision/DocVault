@@ -30,6 +30,7 @@ import {
   MessageSquare,
   History,
   Lock,
+  FolderInput,
 } from "lucide-react";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { VersionTimeline } from "@/components/VersionTimeline";
@@ -52,8 +53,18 @@ export default function DocumentDetailPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin" || user?.role === "owner";
 
-  const { document, loading, error, presignedUrl, handleDownload, handleUpdateMetadata, handleRenameTitle } =
-    useDocumentDetail(documentId);
+  const {
+    document,
+    loading,
+    error,
+    presignedUrl,
+    suggestionLoading,
+    handleDownload,
+    handleUpdateMetadata,
+    handleRenameTitle,
+    handleAcceptSuggestion,
+    handleDismissSuggestion,
+  } = useDocumentDetail(documentId);
 
   const [selectedPage, setSelectedPage] = useState(0);
   const [activeTab, setActiveTab] = useState("document");
@@ -133,6 +144,9 @@ export default function DocumentDetailPage() {
   const hasTranslation = document?.language && document.language !== "en";
   const latestVersion = document?.versions?.[document.versions.length - 1];
 
+  const suggestedPath = document?.suggested_folder_name?.trim() || "";
+  const hasSuggestion = suggestedPath.length > 0;
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -180,6 +194,40 @@ export default function DocumentDetailPage() {
           <span className="uppercase">{document.language || "-"}</span>
         </div>
       </div>
+
+      {hasSuggestion && (
+        <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <FolderInput className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{t("suggestedLocation")}</p>
+              <p className="text-sm text-muted-foreground" dir="auto">
+                {suggestedPath}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleAcceptSuggestion}
+              disabled={suggestionLoading}
+            >
+              {suggestionLoading && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              {t("acceptSuggestion")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDismissSuggestion}
+              disabled={suggestionLoading}
+            >
+              {t("dismissSuggestion")}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
