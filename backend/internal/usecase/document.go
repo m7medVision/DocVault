@@ -156,12 +156,24 @@ func (s *DocumentService) Upload(ctx context.Context, input *UploadDocumentInput
 		return nil, fmt.Errorf("file size exceeds maximum of 50MB")
 	}
 
-	if _, err := model.ParseDocType(input.DocType); err != nil {
-		return nil, err
-	}
-
 	docID := uuid.New().String()
 	versionID := uuid.New().String()
+
+	// Construct (and validate) the document aggregate before touching storage,
+	// so an invalid doc-type fails fast without leaving an orphaned object.
+	doc, err := model.NewDocument(model.NewDocumentParams{
+		ID:       docID,
+		TenantID: input.TenantID,
+		OrgID:    input.OrgID,
+		OwnerID:  input.OwnerID,
+		Title:    input.Title,
+		DocType:  input.DocType,
+		FolderID: input.FolderID,
+		Language: input.Language,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	storageKey := fmt.Sprintf("%s/%s/%s/%s/%s",
 		input.TenantID, input.OrgID, docID, versionID, input.File.Filename)
@@ -180,19 +192,6 @@ func (s *DocumentService) Upload(ctx context.Context, input *UploadDocumentInput
 		if err := s.objectStore.PutObject(ctx, storageKey, src, input.File.Size, mimeType); err != nil {
 			return nil, fmt.Errorf("failed to store document: %w", err)
 		}
-	}
-
-	doc := &model.Document{
-		ID:        docID,
-		TenantID:  input.TenantID,
-		OrgID:     input.OrgID,
-		FolderID:  input.FolderID,
-		OwnerID:   input.OwnerID,
-		Title:     input.Title,
-		DocType:   input.DocType,
-		Status:    model.DocumentStatusPending,
-		Language:  input.Language,
-		CreatedAt: time.Now(),
 	}
 
 	if err := s.repo.Create(ctx, doc); err != nil {
@@ -547,11 +546,7 @@ func (s *DocumentService) AcceptSuggestion(ctx context.Context, input *AcceptSug
 		return nil, fmt.Errorf("document not found: %w", err)
 	}
 
-	leaf := input.LeafFolderID
-	doc.FolderID = &leaf
-	if input.Title != "" {
-		doc.Title = input.Title
-	}
+	doc.AcceptSuggestion(input.LeafFolderID, input.Title)
 
 	completed := string(model.StageCompleted)
 	if err := s.repo.ApplySuggestion(ctx, doc, &completed); err != nil {
