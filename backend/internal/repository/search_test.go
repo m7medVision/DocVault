@@ -60,6 +60,49 @@ func TestSearchDocumentChunksParams_MapsTypedFilters(t *testing.T) {
 	}
 }
 
+func TestSearchDocumentChunksParams_MapsVisibilityFields(t *testing.T) {
+	params, err := searchDocumentChunksParams(SearchRequest{
+		Query:       "PDFObject",
+		QueryVector: "[0.25,0.75]",
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		OrgID:       "org-1",
+		GroupIDs:    []string{"group-a", "group-b"},
+		IsAdmin:     true,
+	})
+	if err != nil {
+		t.Fatalf("searchDocumentChunksParams() error = %v", err)
+	}
+
+	if params.UserID != "user-1" {
+		t.Fatalf("user id = %q, want user-1", params.UserID)
+	}
+	if !params.IsAdmin {
+		t.Fatalf("is_admin = %v, want true", params.IsAdmin)
+	}
+	if len(params.GroupIds) != 2 || params.GroupIds[0] != "group-a" || params.GroupIds[1] != "group-b" {
+		t.Fatalf("group ids = %#v, want [group-a group-b]", params.GroupIds)
+	}
+}
+
+func TestSearchDocumentChunksParams_NilGroupIDsBecomeEmptySlice(t *testing.T) {
+	params, err := searchDocumentChunksParams(SearchRequest{
+		Query:       "test",
+		QueryVector: "[0.25,0.75]",
+		UserID:      "user-1",
+		GroupIDs:    nil,
+	})
+	if err != nil {
+		t.Fatalf("searchDocumentChunksParams() error = %v", err)
+	}
+	if params.GroupIds == nil {
+		t.Fatal("group ids = nil, want non-nil empty slice (emit_empty_slices)")
+	}
+	if len(params.GroupIds) != 0 {
+		t.Fatalf("group ids = %#v, want empty slice", params.GroupIds)
+	}
+}
+
 func TestSearchDocumentChunksParams_DefaultsAndValidation(t *testing.T) {
 	t.Run("requires vector", func(t *testing.T) {
 		_, err := searchDocumentChunksParams(SearchRequest{Query: "test"})
