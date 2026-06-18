@@ -29,13 +29,16 @@ import {
   Bell,
   MessageSquare,
   History,
+  Lock,
 } from "lucide-react";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { VersionTimeline } from "@/components/VersionTimeline";
 import { FilePreview } from "@/components/FilePreview";
+import { ManageAccessDialog } from "@/components/ManageAccessDialog";
 import { useDocumentDetail } from "@/features/documents/useDocumentDetail";
 import { useDocumentReminders } from "@/features/documents/useDocumentReminders";
 import { ChatPanel } from "@/components/ChatPanel";
+import { useAuth } from "@/lib/useAuth";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -45,6 +48,9 @@ export default function DocumentDetailPage() {
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
   const tVersions = useTranslations("versions");
+  const tAccess = useTranslations("access");
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.role === "owner";
 
   const { document, loading, error, presignedUrl, handleDownload, handleUpdateMetadata, handleRenameTitle } =
     useDocumentDetail(documentId);
@@ -56,6 +62,7 @@ export default function DocumentDetailPage() {
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
 
@@ -207,6 +214,17 @@ export default function DocumentDetailPage() {
                 </div>
               )}
               <div className="ms-auto flex items-center gap-2">
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setAccessOpen(true)}
+                  >
+                    <Lock className="size-4" />
+                    {tAccess("manageAccess")}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -483,6 +501,16 @@ export default function DocumentDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {isAdmin && (
+        <ManageAccessDialog
+          open={accessOpen}
+          onOpenChange={setAccessOpen}
+          resourceType="document"
+          resourceId={documentId}
+          resourceTitle={document.title}
+        />
+      )}
     </div>
   );
 }
