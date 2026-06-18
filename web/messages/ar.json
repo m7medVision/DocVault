@@ -205,7 +205,15 @@
     "dateColumn": "التاريخ",
     "titleColumn": "العنوان",
     "typeColumn": "النوع",
-    "statusColumn": "الحالة"
+    "statusColumn": "الحالة",
+    "aboutFolder": "نبذة عن هذا المجلد",
+    "overviewEmpty": "لا توجد نبذة لهذا المجلد بعد.",
+    "overviewEdit": "تعديل",
+    "overviewSave": "حفظ",
+    "overviewCancel": "إلغاء",
+    "overviewEditPlaceholder": "اكتب نبذة بصيغة ماركداون لوصف ما ينتمي إلى هذا المجلد.",
+    "overviewPreviewHint": "تظهر معاينة للنبذة هنا أثناء الكتابة.",
+    "overviewSaveFailed": "تعذر حفظ النبذة. يرجى المحاولة مرة أخرى."
   },
   "chat": {
     "title": "محادثة مع المستند",

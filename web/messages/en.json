@@ -205,7 +205,15 @@
     "dateColumn": "Date",
     "titleColumn": "Title",
     "typeColumn": "Type",
-    "statusColumn": "Status"
+    "statusColumn": "Status",
+    "aboutFolder": "About this folder",
+    "overviewEmpty": "No overview yet for this folder.",
+    "overviewEdit": "Edit",
+    "overviewSave": "Save",
+    "overviewCancel": "Cancel",
+    "overviewEditPlaceholder": "Write an overview in Markdown to describe what belongs in this folder.",
+    "overviewPreviewHint": "A preview of your overview appears here as you write.",
+    "overviewSaveFailed": "We could not save the overview. Please try again."
   },
   "chat": {
     "title": "Chat with Document",
