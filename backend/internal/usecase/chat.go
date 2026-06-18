@@ -18,6 +18,12 @@ import (
 
 const defaultChatBaseURL = "https://openrouter.ai/api/v1"
 
+// minimumChatGroundingScore is the relevance floor for chunks fed to the chat
+// model. It is deliberately higher than the search-wide minimumSearchScore so
+// that weak, off-topic matches do not pollute the grounding context (and the
+// "couldn't find anything" path triggers for genuinely irrelevant questions).
+const minimumChatGroundingScore = 0.15
+
 const systemPrompt = `You are a helpful assistant that answers questions strictly from the user's documents.
 You are given a set of numbered passages retrieved from those documents.
 Answer ONLY using the information in the numbered passages below. Do not invent facts.
@@ -137,7 +143,7 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		OrgID:       input.OrgID,
 		QueryVector: search.FormatVectorLiteral(embedding),
 		Limit:       10,
-		MinScore:    minimumSearchScore,
+		MinScore:    minimumChatGroundingScore,
 		DocumentID:  input.DocumentID,
 	})
 	if err != nil {
