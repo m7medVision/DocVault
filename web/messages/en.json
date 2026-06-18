@@ -187,7 +187,10 @@
     "suggestedName": "Suggested name",
     "suggestionAccepted": "Suggestion applied",
     "suggestionFailed": "Failed to apply suggestion",
+    "suggestionDismissed": "Suggestion dismissed",
+    "suggestedLocation": "Suggested location",
     "acceptSuggestion": "Accept",
+    "dismissSuggestion": "Dismiss",
     "chatWithDoc": "Chat",
     "confidence": "Confidence",
     "recent": "Recent",
@@ -222,7 +225,13 @@
   "folder": {
     "newSubfolder": "New Subfolder",
     "folders": "Folders",
-    "noFolders": "No folders yet"
+    "noFolders": "No folders yet",
+    "moveToRoot": "Move to top level",
+    "folderMoved": "Folder moved",
+    "moveFailed": "Could not move the folder",
+    "moveCycle": "A folder cannot be moved into itself or one of its subfolders",
+    "moveDepth": "This move would nest the folder too deeply",
+    "moveTargetNotFound": "The destination folder no longer exists"
   },
   "search": {
     "placeholder": "Search documents...",

@@ -187,7 +187,10 @@
     "suggestedName": "الاسم المقترح",
     "suggestionAccepted": "تم تطبيق الاقتراح",
     "suggestionFailed": "فشل تطبيق الاقتراح",
+    "suggestionDismissed": "تم تجاهل الاقتراح",
+    "suggestedLocation": "الموقع المقترح",
     "acceptSuggestion": "قبول",
+    "dismissSuggestion": "تجاهل",
     "chatWithDoc": "محادثة",
     "confidence": "الثقة",
     "recent": "الأحدث",
@@ -222,7 +225,13 @@
   "folder": {
     "newSubfolder": "مجلد فرعي جديد",
     "folders": "مجلدات",
-    "noFolders": "لا توجد مجلدات بعد"
+    "noFolders": "لا توجد مجلدات بعد",
+    "moveToRoot": "نقل إلى المستوى الأعلى",
+    "folderMoved": "تم نقل المجلد",
+    "moveFailed": "تعذّر نقل المجلد",
+    "moveCycle": "لا يمكن نقل المجلد إلى داخل نفسه أو أحد مجلداته الفرعية",
+    "moveDepth": "هذا النقل سيجعل المجلد متداخلاً بعمق كبير",
+    "moveTargetNotFound": "المجلد الوجهة لم يعد موجوداً"
   },
   "search": {
     "placeholder": "البحث في المستندات...",
