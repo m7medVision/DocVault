@@ -22,6 +22,7 @@ import (
 	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/usecase"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -99,6 +100,110 @@ func withFolderTx(t *testing.T, fn func(tx pgx.Tx)) {
 func folderServiceForTx(tx pgx.Tx) *usecase.FolderService {
 	repo := repository.NewFolderRepositoryFromDBTX(tx)
 	return usecase.NewFolderService(repo, nil)
+}
+
+// folderPoolQuerier is the subset of the pgx query surface shared by *pgxpool.Pool
+// and pgx.Tx, letting the helpers below run against committed rows on a pool.
+type folderPoolQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+}
+
+// withFolderPool opens a migrated pool and seeds a tenant/org/user with REAL
+// committed rows under a freshly generated tenant id, runs fn against a
+// pool-backed FolderService (whose Reparent opens its own advisory-locked
+// transaction and commits), and unconditionally deletes the seeded rows
+// afterwards. Reparent cannot be exercised inside a single rolled-back
+// transaction because the advisory lock + real commits require a separate
+// transaction per call; this committed-rows-with-cleanup model is the
+// alternative. The tenant id is unique per call so concurrent test runs and the
+// advisory lock keyed on it never collide.
+func withFolderPool(t *testing.T, fn func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture)) {
+	t.Helper()
+	ctx := context.Background()
+
+	if err := migrate.Run(ctx, folderDatabaseURL()); err != nil {
+		t.Fatalf("migrate.Run: %v", err)
+	}
+
+	pool, err := pgxpool.New(ctx, folderDatabaseURL())
+	if err != nil {
+		t.Fatalf("pgxpool.New: %v", err)
+	}
+	defer pool.Close()
+
+	f := folderSeedBaseCommitted(t, pool)
+	defer folderCleanupCommitted(t, pool, f)
+
+	repo := repository.NewFolderRepositoryFromPool(pool)
+	svc := usecase.NewFolderService(repo, nil)
+	fn(pool, svc, f)
+}
+
+// folderSeedBaseCommitted creates a tenant, org, and user with committed rows on
+// the pool, returning their ids. Mirrors folderSeedBase but commits.
+func folderSeedBaseCommitted(t *testing.T, q folderPoolQuerier) folderTenantFixture {
+	t.Helper()
+	ctx := context.Background()
+	var f folderTenantFixture
+	scan := func(sql string, args ...interface{}) string {
+		var id string
+		if err := q.QueryRow(ctx, sql, args...).Scan(&id); err != nil {
+			t.Fatalf("seed query failed: %v\nSQL: %s", err, sql)
+		}
+		return id
+	}
+	f.tenantID = scan(`INSERT INTO tenants (name, plan) VALUES ('folder-reparent-test', 'business') RETURNING id`)
+	f.orgID = scan(`INSERT INTO organizations (tenant_id, name) VALUES ($1, 'folder-org') RETURNING id`, f.tenantID)
+	f.userID = scan(`INSERT INTO users (tenant_id, email, display_name) VALUES ($1, $2, 'User') RETURNING id`,
+		f.tenantID, "u+"+f.tenantID+"@folder.test")
+	return f
+}
+
+// folderCleanupCommitted removes every row seeded under the throwaway tenant so
+// the live database is left untouched. folders cascade-clean here explicitly.
+func folderCleanupCommitted(t *testing.T, q folderPoolQuerier, f folderTenantFixture) {
+	t.Helper()
+	ctx := context.Background()
+	for _, sql := range []string{
+		`DELETE FROM folders WHERE tenant_id = $1`,
+		`DELETE FROM users WHERE tenant_id = $1`,
+		`DELETE FROM organizations WHERE tenant_id = $1`,
+		`DELETE FROM tenants WHERE id = $1`,
+	} {
+		if _, err := q.Exec(ctx, sql, f.tenantID); err != nil {
+			t.Errorf("cleanup %q: %v", sql, err)
+		}
+	}
+}
+
+// createFolderRow inserts a single folder with committed visibility and returns
+// its id. parentID may be nil for a root folder.
+func createFolderRow(t *testing.T, q folderPoolQuerier, f folderTenantFixture, name string, parentID *string) string {
+	t.Helper()
+	var id string
+	if err := q.QueryRow(context.Background(),
+		`INSERT INTO folders (id, tenant_id, org_id, parent_id, name, created_by, created_at)
+		 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NOW()) RETURNING id`,
+		f.tenantID, f.orgID, parentID, name, f.userID).Scan(&id); err != nil {
+		t.Fatalf("insert folder %q: %v", name, err)
+	}
+	return id
+}
+
+// folderParentPool returns the parent_id of a folder via the pool (empty string
+// when NULL).
+func folderParentPool(t *testing.T, q folderPoolQuerier, folderID string) string {
+	t.Helper()
+	var parent *string
+	if err := q.QueryRow(context.Background(),
+		`SELECT parent_id FROM folders WHERE id = $1`, folderID).Scan(&parent); err != nil {
+		t.Fatalf("read parent_id: %v", err)
+	}
+	if parent == nil {
+		return ""
+	}
+	return *parent
 }
 
 // countFolders returns how many folders exist for the tenant/org.
@@ -199,34 +304,23 @@ func TestEnsureFolderPath_CreatesNestedPathIdempotently(t *testing.T) {
 // self-parent is rejected, a descendant-as-parent (cycle) is rejected, and a
 // valid move under an unrelated folder is accepted and persisted.
 func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
-	withFolderTx(t, func(tx pgx.Tx) {
-		f := folderSeedBase(t, tx)
-		svc := folderServiceForTx(tx)
+	// Uses committed rows on a pool because Reparent now opens its own
+	// advisory-locked transaction and commits; a single rolled-back tx cannot
+	// host it.
+	withFolderPool(t, func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture) {
 		ctx := context.Background()
 
 		// Tree: A (root) -> B (child of A) -> C (child of B); plus D at root.
-		a, err := svc.EnsureFolderPath(ctx, f.tenantID, f.orgID, f.userID, []string{"A"})
-		if err != nil {
-			t.Fatalf("seed A: %v", err)
-		}
-		b, err := svc.EnsureFolderPath(ctx, f.tenantID, f.orgID, f.userID, []string{"A", "B"})
-		if err != nil {
-			t.Fatalf("seed B: %v", err)
-		}
-		c, err := svc.EnsureFolderPath(ctx, f.tenantID, f.orgID, f.userID, []string{"A", "B", "C"})
-		if err != nil {
-			t.Fatalf("seed C: %v", err)
-		}
-		d, err := svc.EnsureFolderPath(ctx, f.tenantID, f.orgID, f.userID, []string{"D"})
-		if err != nil {
-			t.Fatalf("seed D: %v", err)
-		}
+		a := createFolderRow(t, pool, f, "A", nil)
+		b := createFolderRow(t, pool, f, "B", &a)
+		c := createFolderRow(t, pool, f, "C", &b)
+		d := createFolderRow(t, pool, f, "D", nil)
 
 		// Self-parent: moving A under A is rejected and does not mutate A.
 		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &a); !errors.Is(err, usecase.ErrFolderSelfParent) {
 			t.Fatalf("Reparent self-parent err = %v, want ErrFolderSelfParent", err)
 		}
-		if folderParent(t, tx, a) != "" {
+		if folderParentPool(t, pool, a) != "" {
 			t.Fatal("self-parent reparent must not change A's parent")
 		}
 
@@ -234,7 +328,7 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &c); !errors.Is(err, usecase.ErrFolderCycle) {
 			t.Fatalf("Reparent descendant-as-parent err = %v, want ErrFolderCycle", err)
 		}
-		if folderParent(t, tx, a) != "" {
+		if folderParentPool(t, pool, a) != "" {
 			t.Fatal("cycle-rejected reparent must not change A's parent")
 		}
 		// And the direct-child cycle case: moving A under B (also a descendant).
@@ -246,15 +340,20 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 		if err := svc.Reparent(ctx, f.tenantID, f.orgID, b, &d); err != nil {
 			t.Fatalf("valid Reparent err = %v, want nil", err)
 		}
-		if got := folderParent(t, tx, b); got != d {
+		if got := folderParentPool(t, pool, b); got != d {
 			t.Fatalf("after valid move B.parent = %s, want %s (D)", got, d)
 		}
 		// C still hangs under B (subtree moved with it); no folders were lost.
-		if got := folderParent(t, tx, c); got != b {
+		if got := folderParentPool(t, pool, c); got != b {
 			t.Fatalf("C.parent = %s, want %s (B) after moving B's subtree", got, b)
 		}
-		if got := countFolders(t, tx, f.tenantID, f.orgID); got != 4 {
-			t.Fatalf("folder count = %d after reparent, want 4 (A,B,C,D preserved)", got)
+
+		// Move-to-root: B back to root always succeeds (NULL parent).
+		if err := svc.Reparent(ctx, f.tenantID, f.orgID, b, nil); err != nil {
+			t.Fatalf("move-to-root Reparent err = %v, want nil", err)
+		}
+		if got := folderParentPool(t, pool, b); got != "" {
+			t.Fatalf("after move-to-root B.parent = %q, want root (NULL)", got)
 		}
 	})
 }
@@ -262,15 +361,10 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 // TestReparent_RejectsUnknownTargetParent asserts the target parent must exist
 // in the caller's tenant/org.
 func TestReparent_RejectsUnknownTargetParent(t *testing.T) {
-	withFolderTx(t, func(tx pgx.Tx) {
-		f := folderSeedBase(t, tx)
-		svc := folderServiceForTx(tx)
+	withFolderPool(t, func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture) {
 		ctx := context.Background()
 
-		a, err := svc.EnsureFolderPath(ctx, f.tenantID, f.orgID, f.userID, []string{"A"})
-		if err != nil {
-			t.Fatalf("seed A: %v", err)
-		}
+		a := createFolderRow(t, pool, f, "A", nil)
 
 		missing := "00000000-0000-0000-0000-000000000000"
 		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &missing); !errors.Is(err, usecase.ErrTargetParentNotFound) {

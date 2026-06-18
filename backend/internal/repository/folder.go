@@ -20,6 +20,19 @@ var errFolderNameExists = errors.New("folder name already exists under parent")
 // lookup miss via errors.Is rather than matching error-string substrings.
 var errFolderNotFound = errors.New("folder not found")
 
+// errFolderReparentCycle is the unexported sentinel exposed via
+// ErrFolderReparentCycle. Reparent returns it when the cycle-checked MoveFolder
+// UPDATE affected 0 rows, i.e. the new parent is the folder itself or one of its
+// descendants. The usecase maps it to its own ErrFolderCycle (HTTP 400).
+var errFolderReparentCycle = errors.New("reparent would create a folder cycle")
+
+// errFolderReparentDepthExceeded is the unexported sentinel exposed via
+// ErrFolderReparentDepthExceeded. Reparent returns it when the moved subtree's
+// deepest leaf would exceed the supplied depth cap. Because the depth check now
+// runs inside the same advisory-locked transaction as the move, the cap is hard
+// (no concurrent reparent can change the tree between the check and the write).
+var errFolderReparentDepthExceeded = errors.New("reparent would exceed the maximum folder depth")
+
 // isUniqueViolation reports whether err is a Postgres unique-constraint
 // violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
@@ -29,10 +42,16 @@ func isUniqueViolation(err error) bool {
 
 type folderRepository struct {
 	queries sqldb.Querier
+	// pool is retained so Reparent can open a transaction, take a tenant-scoped
+	// advisory lock, and run the cycle-checked move plus the depth checks inside
+	// one transaction. It is nil when the repository is constructed from a bare
+	// DBTX (integration helper), in which case Reparent is unsupported (mirrors
+	// documentRepository.ApplySuggestion).
+	pool *pgxpool.Pool
 }
 
 func NewFolderRepository(db *pgxpool.Pool) FolderRepository {
-	return &folderRepository{queries: sqldb.New(db)}
+	return &folderRepository{queries: sqldb.New(db), pool: db}
 }
 
 func (r *folderRepository) Create(ctx context.Context, folder *model.Folder) error {
@@ -73,50 +92,95 @@ func (r *folderRepository) GetByParentName(ctx context.Context, tenantID, orgID 
 	return &modelFolder, nil
 }
 
-func (r *folderRepository) GetAncestorIDs(ctx context.Context, tenantID, orgID, folderID string) ([]string, error) {
-	ids, err := r.queries.GetFolderAncestorIDs(ctx, sqldb.GetFolderAncestorIDsParams{
-		FolderID: folderID,
-		TenantID: tenantID,
-		OrgID:    orgID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get folder ancestors: %w", err)
+// Reparent reparents a folder under a new parent (NULL parentID moves it to
+// root) atomically AND race-safely. It is the ONLY sanctioned path for moving a
+// folder; the raw MoveFolder SQL must not be called from anywhere else, because
+// the cycle/depth safety of a reparent depends entirely on the serialization
+// established here.
+//
+// Cycle-safety mechanism (advisory lock): the cycle check inside the MoveFolder
+// UPDATE gives statement atomicity, NOT isolation against a concurrent statement
+// on a disjoint row. Under READ COMMITTED two concurrent opposite reparents
+// (move A under B in tx1, move B under A in tx2) could each see the other's
+// pre-commit tree, each pass its own in-statement descendants check, and both
+// commit — creating a cycle. To prevent this we open one transaction and FIRST
+// take a transaction-scoped advisory lock keyed on the tenant. All reparents
+// within a tenant therefore serialize: the second waiter only proceeds after the
+// first commits, so its descendants CTE sees the committed tree and its
+// cycle-checked UPDATE correctly returns 0 rows (-> ErrFolderReparentCycle).
+//
+// The depth check (target-parent ancestors + moved-subtree height) runs inside
+// the same locked transaction, making the depth cap HARD: no concurrent reparent
+// can change the tree between the check and the move.
+//
+// rows-affected == 0 from the cycle-checked UPDATE maps to
+// ErrFolderReparentCycle. A non-nil parentID that exceeds maxDepth maps to
+// ErrFolderReparentDepthExceeded. Move-to-root (NULL parent) skips the
+// cycle/depth guards and always succeeds for an existing row.
+func (r *folderRepository) Reparent(ctx context.Context, tenantID, orgID, folderID string, parentID *string, maxDepth int) error {
+	if r.pool == nil {
+		return fmt.Errorf("reparent requires a transactional repository")
 	}
-	return ids, nil
-}
 
-// Move reparents a folder atomically. The cycle check lives inside the single
-// MoveFolder UPDATE: the row is updated only when the new parent is neither the
-// folder itself nor any of its descendants. A 0 rows-affected result therefore
-// signals a rejected (cycle/invalid-parent) move and is surfaced to the caller
-// via the returned row count rather than as a database error.
-func (r *folderRepository) Move(ctx context.Context, tenantID, orgID, folderID string, parentID *string) (int64, error) {
-	rows, err := r.queries.MoveFolder(ctx, sqldb.MoveFolderParams{
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin reparent transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Serialize all reparents for this tenant. The transaction-scoped advisory
+	// lock is released automatically on commit/rollback. hashtext yields int4;
+	// cast to bigint to select the single-key pg_advisory_xact_lock overload.
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", tenantID); err != nil {
+		return fmt.Errorf("failed to acquire reparent lock: %w", err)
+	}
+
+	q := sqldb.New(tx)
+
+	// Depth is a HARD cap inside the lock: the moved folder's resulting depth is
+	// the target parent's depth (its ancestor count, inclusive) plus the height
+	// of the moved subtree. Only enforced for a non-NULL target (root is depth 1).
+	if parentID != nil && *parentID != "" {
+		ancestors, err := q.GetFolderAncestorIDs(ctx, sqldb.GetFolderAncestorIDsParams{
+			FolderID: *parentID,
+			TenantID: tenantID,
+			OrgID:    orgID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to compute target ancestors: %w", err)
+		}
+		height, err := q.GetFolderSubtreeHeight(ctx, sqldb.GetFolderSubtreeHeightParams{
+			FolderID: folderID,
+			TenantID: tenantID,
+			OrgID:    orgID,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to compute moved subtree height: %w", err)
+		}
+		if len(ancestors)+int(height) > maxDepth {
+			return errFolderReparentDepthExceeded
+		}
+	}
+
+	rows, err := q.MoveFolder(ctx, sqldb.MoveFolderParams{
 		NewParent: parentID,
 		ID:        folderID,
 		TenantID:  tenantID,
 		OrgID:     orgID,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to move folder: %w", err)
+		return fmt.Errorf("failed to move folder: %w", err)
 	}
-	return rows, nil
-}
+	if rows == 0 {
+		// The cycle-checked UPDATE rejected the new parent as the folder itself or
+		// a descendant of it. (A NULL parent on an existing row always affects 1.)
+		return errFolderReparentCycle
+	}
 
-// SubtreeHeight returns the height of the subtree rooted at folderID: the
-// number of folder levels from the folder itself down to its deepest
-// descendant. The folder alone has height 1. A folder that does not exist
-// returns height 0.
-func (r *folderRepository) SubtreeHeight(ctx context.Context, tenantID, orgID, folderID string) (int, error) {
-	height, err := r.queries.GetFolderSubtreeHeight(ctx, sqldb.GetFolderSubtreeHeightParams{
-		FolderID: folderID,
-		TenantID: tenantID,
-		OrgID:    orgID,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to get folder subtree height: %w", err)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit reparent transaction: %w", err)
 	}
-	return int(height), nil
+	return nil
 }
 
 func (r *folderRepository) GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Folder, error) {

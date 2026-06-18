@@ -58,10 +58,12 @@ type FolderRepository interface {
 	ListByParent(ctx context.Context, tenantID, orgID, parentID string) ([]document.Folder, error)
 	ListRoot(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
 	ListAll(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
-	GetAncestorIDs(ctx context.Context, tenantID, orgID, folderID string) ([]string, error)
-	SubtreeHeight(ctx context.Context, tenantID, orgID, folderID string) (int, error)
 	Update(ctx context.Context, folder *document.Folder) error
-	Move(ctx context.Context, tenantID, orgID, folderID string, parentID *string) (int64, error)
+	// Reparent is the only sanctioned path for moving a folder. It runs the
+	// cycle-checked move plus the depth check inside a single transaction that
+	// first takes a tenant-scoped advisory lock, so concurrent reparents within a
+	// tenant serialize and cannot race a cycle. maxDepth is the hard nesting cap.
+	Reparent(ctx context.Context, tenantID, orgID, folderID string, parentID *string, maxDepth int) error
 	Delete(ctx context.Context, tenantID, orgID, id string) error
 }
 
@@ -75,6 +77,16 @@ var ErrFolderNameExists = errFolderNameExists
 // (tenant, org, parent, name) tuple. Callers detect a lookup miss via
 // errors.Is(err, ErrFolderNotFound) instead of matching error-string substrings.
 var ErrFolderNotFound = errFolderNotFound
+
+// ErrFolderReparentCycle is returned by Reparent when the (advisory-locked)
+// cycle-checked move rejected the new parent as the folder itself or one of its
+// descendants. The usecase maps it to ErrFolderCycle.
+var ErrFolderReparentCycle = errFolderReparentCycle
+
+// ErrFolderReparentDepthExceeded is returned by Reparent when the moved subtree
+// would exceed the supplied depth cap. The usecase maps it to
+// ErrFolderDepthExceeded.
+var ErrFolderReparentDepthExceeded = errFolderReparentDepthExceeded
 
 // TagRepository provides tag data access.
 type TagRepository interface {
