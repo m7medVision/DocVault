@@ -155,6 +155,7 @@ func Run() error {
 		UserRepo:        repos.User,
 		MembershipRepo:  repos.Membership,
 		PolicyRepo:      repos.Policy,
+		ACLRepo:         repos.ACL,
 	})
 	middleware.SetAuthorizationAuditLogger(h.AuditAuthorizationDecision)
 	authHandler := handler.NewAuthHandler(dbPool, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger, repos.User)

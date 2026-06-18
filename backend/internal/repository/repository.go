@@ -108,6 +108,7 @@ type Repositories struct {
 	Membership   MembershipRepository
 	Policy       PolicyRepository
 	Search       SearchRepository
+	ACL          ACLRepository
 }
 
 // NewRepositories creates all repository instances with the given database pool.
@@ -123,5 +124,6 @@ func NewRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *Repositories 
 		Membership:   NewMembershipRepository(db),
 		Policy:       NewPolicyRepository(enforcer),
 		Search:       NewSearchRepository(db),
+		ACL:          NewACLRepository(db),
 	}
 }

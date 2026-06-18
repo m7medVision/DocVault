@@ -38,6 +38,7 @@ type Handler struct {
 	userRepo        repository.UserRepository
 	membershipRepo  repository.MembershipRepository
 	policyRepo      repository.PolicyRepository
+	aclRepo         repository.ACLRepository
 }
 
 type Dependencies struct {
@@ -54,6 +55,7 @@ type Dependencies struct {
 	UserRepo        repository.UserRepository
 	MembershipRepo  repository.MembershipRepository
 	PolicyRepo      repository.PolicyRepository
+	ACLRepo         repository.ACLRepository
 }
 
 func New(cfg *config.Config, deps Dependencies) *Handler {
@@ -72,5 +74,6 @@ func New(cfg *config.Config, deps Dependencies) *Handler {
 		userRepo:        deps.UserRepo,
 		membershipRepo:  deps.MembershipRepo,
 		policyRepo:      deps.PolicyRepo,
+		aclRepo:         deps.ACLRepo,
 	}
 }
