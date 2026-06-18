@@ -4,7 +4,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW());
 
 -- name: GetDocumentByID :one
 SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
-       processing_stage, processing_error, created_at
+       processing_stage, processing_error,
+       suggested_folder_name, suggested_filename, suggestion_confidence, suggestion_create_new,
+       created_at
 FROM documents
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3;
 

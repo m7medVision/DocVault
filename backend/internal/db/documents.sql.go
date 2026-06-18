@@ -124,7 +124,9 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 
 const getDocumentByID = `-- name: GetDocumentByID :one
 SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
-       processing_stage, processing_error, created_at
+       processing_stage, processing_error,
+       suggested_folder_name, suggested_filename, suggestion_confidence, suggestion_create_new,
+       created_at
 FROM documents
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3
 `
@@ -136,18 +138,22 @@ type GetDocumentByIDParams struct {
 }
 
 type GetDocumentByIDRow struct {
-	ID              string             `json:"id"`
-	TenantID        string             `json:"tenant_id"`
-	OrgID           string             `json:"org_id"`
-	FolderID        *string            `json:"folder_id"`
-	OwnerID         string             `json:"owner_id"`
-	Title           string             `json:"title"`
-	DocType         DocumentType       `json:"doc_type"`
-	Status          DocumentStatus     `json:"status"`
-	Language        *string            `json:"language"`
-	ProcessingStage *string            `json:"processing_stage"`
-	ProcessingError *string            `json:"processing_error"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ID                   string             `json:"id"`
+	TenantID             string             `json:"tenant_id"`
+	OrgID                string             `json:"org_id"`
+	FolderID             *string            `json:"folder_id"`
+	OwnerID              string             `json:"owner_id"`
+	Title                string             `json:"title"`
+	DocType              DocumentType       `json:"doc_type"`
+	Status               DocumentStatus     `json:"status"`
+	Language             *string            `json:"language"`
+	ProcessingStage      *string            `json:"processing_stage"`
+	ProcessingError      *string            `json:"processing_error"`
+	SuggestedFolderName  *string            `json:"suggested_folder_name"`
+	SuggestedFilename    *string            `json:"suggested_filename"`
+	SuggestionConfidence *float32           `json:"suggestion_confidence"`
+	SuggestionCreateNew  *bool              `json:"suggestion_create_new"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) GetDocumentByID(ctx context.Context, arg GetDocumentByIDParams) (GetDocumentByIDRow, error) {
@@ -165,6 +171,10 @@ func (q *Queries) GetDocumentByID(ctx context.Context, arg GetDocumentByIDParams
 		&i.Language,
 		&i.ProcessingStage,
 		&i.ProcessingError,
+		&i.SuggestedFolderName,
+		&i.SuggestedFilename,
+		&i.SuggestionConfidence,
+		&i.SuggestionCreateNew,
 		&i.CreatedAt,
 	)
 	return i, err

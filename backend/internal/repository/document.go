@@ -58,18 +58,22 @@ func (r *documentRepository) GetByID(ctx context.Context, tenantID, orgID, id st
 		return nil, fmt.Errorf("failed to get document: %w", err)
 	}
 	modelDoc := model.Document{
-		ID:              doc.ID,
-		TenantID:        doc.TenantID,
-		OrgID:           doc.OrgID,
-		FolderID:        doc.FolderID,
-		OwnerID:         doc.OwnerID,
-		Title:           doc.Title,
-		DocType:         string(doc.DocType),
-		Status:          model.DocumentStatus(doc.Status),
-		Language:        doc.Language,
-		ProcessingStage: doc.ProcessingStage,
-		ProcessingError: doc.ProcessingError,
-		CreatedAt:       doc.CreatedAt.Time,
+		ID:                   doc.ID,
+		TenantID:             doc.TenantID,
+		OrgID:                doc.OrgID,
+		FolderID:             doc.FolderID,
+		OwnerID:              doc.OwnerID,
+		Title:                doc.Title,
+		DocType:              string(doc.DocType),
+		Status:               model.DocumentStatus(doc.Status),
+		Language:             doc.Language,
+		ProcessingStage:      doc.ProcessingStage,
+		ProcessingError:      doc.ProcessingError,
+		SuggestedFolderName:  doc.SuggestedFolderName,
+		SuggestedFilename:    doc.SuggestedFilename,
+		SuggestionConfidence: doc.SuggestionConfidence,
+		SuggestionCreateNew:  doc.SuggestionCreateNew,
+		CreatedAt:            doc.CreatedAt.Time,
 	}
 	return &modelDoc, nil
 }
