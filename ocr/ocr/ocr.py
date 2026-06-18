@@ -1,5 +1,6 @@
 """Mistral OCR API client."""
 
+import asyncio
 import structlog
 import uuid
 from datetime import datetime
@@ -40,11 +41,11 @@ class MistralOCRClient:
 
         try:
             document_bytes = await self._download(job)
-            uploaded_file = self._upload_to_mistral(job, document_bytes)
+            uploaded_file = await self._upload_to_mistral(job, document_bytes)
             try:
-                response = self._run_ocr(job, uploaded_file)
+                response = await self._run_ocr(job, uploaded_file)
             finally:
-                self._delete_mistral_upload(job, uploaded_file.id)
+                await self._delete_mistral_upload(job, uploaded_file.id)
 
             pages = self._parse_ocr_response(response, job.document_id, job.version_id)
             result = OCRResult(
@@ -80,10 +81,15 @@ class MistralOCRClient:
         )
         return document_bytes
 
-    def _upload_to_mistral(self, job: OCRJob, document_bytes: bytes):
-        """Upload the document bytes to Mistral and return the file handle."""
+    async def _upload_to_mistral(self, job: OCRJob, document_bytes: bytes):
+        """Upload the document bytes to Mistral and return the file handle.
+
+        The Mistral SDK is synchronous, so the blocking upload runs in a worker
+        thread to avoid blocking the event loop.
+        """
         file_name = job.storage_key.rsplit("/", 1)[-1] or f"{job.document_id}.bin"
-        uploaded_file = self.client.files.upload(
+        uploaded_file = await asyncio.to_thread(
+            self.client.files.upload,
             file={
                 "file_name": file_name,
                 "content": document_bytes,
@@ -98,22 +104,34 @@ class MistralOCRClient:
         )
         return uploaded_file
 
-    def _run_ocr(self, job: OCRJob, uploaded_file) -> OCRResponse:
-        """Run OCR over the uploaded file via its signed URL."""
-        signed_url = self.client.files.get_signed_url(file_id=uploaded_file.id)
+    async def _run_ocr(self, job: OCRJob, uploaded_file) -> OCRResponse:
+        """Run OCR over the uploaded file via its signed URL.
+
+        Both blocking Mistral SDK calls (signed URL + OCR) run off the event
+        loop in worker threads.
+        """
+        signed_url = await asyncio.to_thread(
+            self.client.files.get_signed_url, file_id=uploaded_file.id
+        )
+        return await asyncio.to_thread(
+            self._ocr_process_sync, job, signed_url.url
+        )
+
+    def _ocr_process_sync(self, job: OCRJob, document_url: str) -> OCRResponse:
+        """Blocking Mistral OCR call, run off the event loop."""
         return self.client.ocr.process(
             model=self.model,
             document={
                 "type": "document_url",
-                "document_url": signed_url.url,
+                "document_url": document_url,
             },
             id=job.version_id,
         )
 
-    def _delete_mistral_upload(self, job: OCRJob, file_id: str) -> None:
+    async def _delete_mistral_upload(self, job: OCRJob, file_id: str) -> None:
         """Best-effort cleanup of the temporary Mistral upload."""
         try:
-            self.client.files.delete(file_id=file_id)
+            await asyncio.to_thread(self.client.files.delete, file_id=file_id)
         except Exception as cleanup_error:
             logger.warning(
                 "failed_to_delete_mistral_upload",
