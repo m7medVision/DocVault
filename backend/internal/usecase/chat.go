@@ -42,6 +42,9 @@ type ChatInput struct {
 	Messages   []ChatMessage
 	TenantID   string
 	OrgID      string
+	UserID     string
+	GroupIDs   []string
+	IsAdmin    bool
 	APIKey     string
 	ChatModel  string
 }
@@ -141,6 +144,9 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		Query:       query,
 		TenantID:    input.TenantID,
 		OrgID:       input.OrgID,
+		UserID:      input.UserID,
+		GroupIDs:    input.GroupIDs,
+		IsAdmin:     input.IsAdmin,
 		QueryVector: search.FormatVectorLiteral(embedding),
 		Limit:       10,
 		MinScore:    minimumChatGroundingScore,

@@ -64,11 +64,18 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 		return
 	}
 
+	userID := middleware.GetUserID(ctx)
+	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
+	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+
 	input := &usecase.ChatInput{
 		DocumentID: documentID,
 		Messages:   body.Messages,
 		TenantID:   tenantID,
 		OrgID:      orgID,
+		UserID:     userID,
+		GroupIDs:   groupIDs,
+		IsAdmin:    isAdmin,
 		APIKey:     h.cfg.Search.EmbeddingAPIKey,
 		ChatModel:  h.cfg.Search.ChatModel,
 	}

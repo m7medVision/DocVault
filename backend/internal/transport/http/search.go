@@ -49,6 +49,10 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID := middleware.GetUserID(ctx)
+	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
+	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+
 	input := &usecase.SearchInput{
 		Query:     body.Query,
 		Limit:     body.Limit,
@@ -61,6 +65,9 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		EndDate:   body.EndDate,
 		TenantID:  tenantID,
 		OrgID:     orgID,
+		UserID:    userID,
+		GroupIDs:  groupIDs,
+		IsAdmin:   isAdmin,
 	}
 
 	output, err := h.searchSvc.Search(ctx, input)

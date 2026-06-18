@@ -13,6 +13,7 @@ func TestSearchDocumentChunksParams_MapsTypedFilters(t *testing.T) {
 		Query:       "PDFObject",
 		QueryVector: "[0.25,0.75]",
 		TenantID:    "tenant-1",
+		UserID:      "user-1",
 		OrgID:       "org-1",
 		DocType:     "contract",
 		Language:    "en",
@@ -74,8 +75,15 @@ func TestSearchDocumentChunksParams_DefaultsAndValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("requires user id", func(t *testing.T) {
+		_, err := searchDocumentChunksParams(SearchRequest{Query: "test", QueryVector: "[0.25,0.75]"})
+		if err == nil {
+			t.Fatal("expected error when user id is missing")
+		}
+	})
+
 	t.Run("defaults invalid limit and empty tags", func(t *testing.T) {
-		params, err := searchDocumentChunksParams(SearchRequest{Query: "test", QueryVector: "[0.25,0.75]", Limit: 100})
+		params, err := searchDocumentChunksParams(SearchRequest{Query: "test", QueryVector: "[0.25,0.75]", UserID: "user-1", Limit: 100})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -84,6 +92,9 @@ func TestSearchDocumentChunksParams_DefaultsAndValidation(t *testing.T) {
 		}
 		if params.Tags == nil || len(params.Tags) != 0 {
 			t.Fatalf("tags = %#v, want empty slice", params.Tags)
+		}
+		if params.GroupIds == nil || len(params.GroupIds) != 0 {
+			t.Fatalf("group ids = %#v, want empty slice", params.GroupIds)
 		}
 	})
 }
