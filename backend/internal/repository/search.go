@@ -37,6 +37,7 @@ type SearchRequest struct {
 	TenantID    string
 	UserID      string
 	OrgID       string
+	DocumentID  string
 	DocType     string
 	Language    string
 	Status      string
@@ -94,6 +95,7 @@ func searchDocumentChunksParams(req SearchRequest) (sqldb.SearchDocumentChunksPa
 		QueryText:   strings.TrimSpace(req.Query),
 		TenantID:    req.TenantID,
 		OrgID:       req.OrgID,
+		DocumentID:  optionalString(req.DocumentID),
 		DocType:     optionalString(req.DocType),
 		Language:    optionalString(req.Language),
 		Status:      optionalString(req.Status),

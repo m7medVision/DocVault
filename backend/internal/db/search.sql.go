@@ -36,13 +36,14 @@ WITH filtered_chunks AS (
     AND ($7::text IS NULL OR d.language = $7::text)
     AND ($8::text IS NULL OR d.status::text = $8::text)
     AND ($9::uuid IS NULL OR d.folder_id = $9::uuid)
-    AND ($10::timestamptz IS NULL OR d.created_at >= $10::timestamptz)
-    AND ($11::timestamptz IS NULL OR d.created_at <= $11::timestamptz)
+    AND ($10::uuid IS NULL OR c.document_id = $10::uuid)
+    AND ($11::timestamptz IS NULL OR d.created_at >= $11::timestamptz)
+    AND ($12::timestamptz IS NULL OR d.created_at <= $12::timestamptz)
     AND (
-      cardinality($12::text[]) = 0
+      cardinality($13::text[]) = 0
       OR NOT EXISTS (
         SELECT 1
-        FROM unnest($12::text[]) AS required_tag(name)
+        FROM unnest($13::text[]) AS required_tag(name)
         WHERE NOT EXISTS (
           SELECT 1
           FROM document_tags dt
@@ -135,6 +136,7 @@ type SearchDocumentChunksParams struct {
 	Language    *string            `json:"language"`
 	Status      *string            `json:"status"`
 	FolderID    *string            `json:"folder_id"`
+	DocumentID  *string            `json:"document_id"`
 	StartDate   pgtype.Timestamptz `json:"start_date"`
 	EndDate     pgtype.Timestamptz `json:"end_date"`
 	Tags        []string           `json:"tags"`
@@ -163,6 +165,7 @@ func (q *Queries) SearchDocumentChunks(ctx context.Context, arg SearchDocumentCh
 		arg.Language,
 		arg.Status,
 		arg.FolderID,
+		arg.DocumentID,
 		arg.StartDate,
 		arg.EndDate,
 		arg.Tags,

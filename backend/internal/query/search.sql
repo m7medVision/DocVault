@@ -23,6 +23,7 @@ WITH filtered_chunks AS (
     AND (sqlc.narg(language)::text IS NULL OR d.language = sqlc.narg(language)::text)
     AND (sqlc.narg(status)::text IS NULL OR d.status::text = sqlc.narg(status)::text)
     AND (sqlc.narg(folder_id)::uuid IS NULL OR d.folder_id = sqlc.narg(folder_id)::uuid)
+    AND (sqlc.narg(document_id)::uuid IS NULL OR c.document_id = sqlc.narg(document_id)::uuid)
     AND (sqlc.narg(start_date)::timestamptz IS NULL OR d.created_at >= sqlc.narg(start_date)::timestamptz)
     AND (sqlc.narg(end_date)::timestamptz IS NULL OR d.created_at <= sqlc.narg(end_date)::timestamptz)
     AND (
