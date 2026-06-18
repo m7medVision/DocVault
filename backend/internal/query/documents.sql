@@ -82,6 +82,18 @@ SET processing_stage = COALESCE($1, processing_stage),
     processing_error = COALESCE($2, processing_error)
 WHERE id = $3 AND tenant_id = $4;
 
+-- name: ClearDocumentSuggestion :exec
+-- Clears the four folder-suggestion columns. The caller decides what
+-- processing_stage to set (e.g. "completed" on accept, unchanged on dismiss).
+UPDATE documents
+SET suggested_folder_name = NULL,
+    suggested_filename = NULL,
+    suggestion_confidence = NULL,
+    suggestion_create_new = FALSE,
+    processing_stage = COALESCE(sqlc.narg(processing_stage)::varchar, processing_stage)
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+
 -- name: GetDocumentStats :one
 WITH doc_stats AS (
   SELECT

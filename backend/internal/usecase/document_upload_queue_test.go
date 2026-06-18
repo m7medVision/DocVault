@@ -77,6 +77,10 @@ func (s *stubDocumentRepository) UpdateProcessingFields(context.Context, string,
 	return nil
 }
 
+func (s *stubDocumentRepository) ClearSuggestion(context.Context, string, string, string, *string) error {
+	return nil
+}
+
 type stubOCRDispatcher struct {
 	job *usecase.OCRJob
 }

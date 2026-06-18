@@ -11,6 +11,9 @@ import (
 type Querier interface {
 	AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error
 	AddTagToDocument(ctx context.Context, arg AddTagToDocumentParams) error
+	// Clears the four folder-suggestion columns. The caller decides what
+	// processing_stage to set (e.g. "completed" on accept, unchanged on dismiss).
+	ClearDocumentSuggestion(ctx context.Context, arg ClearDocumentSuggestionParams) error
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) error
 	CreateDocumentPage(ctx context.Context, arg CreateDocumentPageParams) error
@@ -41,7 +44,17 @@ type Querier interface {
 	GetDocumentStats(ctx context.Context, arg GetDocumentStatsParams) (GetDocumentStatsRow, error)
 	GetDocumentTags(ctx context.Context, arg GetDocumentTagsParams) ([]Tag, error)
 	GetDocumentVersions(ctx context.Context, arg GetDocumentVersionsParams) ([]DocumentVersion, error)
+	// Returns the folder itself plus all of its ancestors (walking parent_id up to
+	// the root), cycle-protected via a visited path. Used to detect reparent cycles:
+	// a folder may not be moved under itself or any of its descendants, which is
+	// equivalent to rejecting when the moved folder appears among the target
+	// parent's ancestors (inclusive of the target parent).
+	GetFolderAncestorIDs(ctx context.Context, arg GetFolderAncestorIDsParams) ([]string, error)
 	GetFolderByID(ctx context.Context, arg GetFolderByIDParams) (Folder, error)
+	// Finds a folder by its (tenant, org, parent, name) tuple. A NULL parent_id
+	// matches root-level folders. Name matching is case-insensitive to mirror the
+	// unique-name indexes (lower(name)).
+	GetFolderByParentName(ctx context.Context, arg GetFolderByParentNameParams) (Folder, error)
 	GetMembershipByID(ctx context.Context, arg GetMembershipByIDParams) (GetMembershipByIDRow, error)
 	GetPendingReminderEvents(ctx context.Context, arg GetPendingReminderEventsParams) ([]ReminderEvent, error)
 	GetPrimaryMembershipByUserID(ctx context.Context, arg GetPrimaryMembershipByUserIDParams) (GetPrimaryMembershipByUserIDRow, error)
@@ -73,6 +86,9 @@ type Querier interface {
 	ListUpcomingReminderRules(ctx context.Context, arg ListUpcomingReminderRulesParams) ([]ReminderRule, error)
 	ListVisibleDocuments(ctx context.Context, arg ListVisibleDocumentsParams) ([]ListVisibleDocumentsRow, error)
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error)
+	// Reparents a folder while preserving its name. A NULL parent_id moves the
+	// folder to root.
+	MoveFolder(ctx context.Context, arg MoveFolderParams) (int64, error)
 	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	RemoveTagFromDocument(ctx context.Context, arg RemoveTagFromDocumentParams) error
 	SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error)

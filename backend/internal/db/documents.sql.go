@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearDocumentSuggestion = `-- name: ClearDocumentSuggestion :exec
+UPDATE documents
+SET suggested_folder_name = NULL,
+    suggested_filename = NULL,
+    suggestion_confidence = NULL,
+    suggestion_create_new = FALSE,
+    processing_stage = COALESCE($1::varchar, processing_stage)
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+`
+
+type ClearDocumentSuggestionParams struct {
+	ProcessingStage *string `json:"processing_stage"`
+	ID              string  `json:"id"`
+	TenantID        string  `json:"tenant_id"`
+	OrgID           string  `json:"org_id"`
+}
+
+// Clears the four folder-suggestion columns. The caller decides what
+// processing_stage to set (e.g. "completed" on accept, unchanged on dismiss).
+func (q *Queries) ClearDocumentSuggestion(ctx context.Context, arg ClearDocumentSuggestionParams) error {
+	_, err := q.db.Exec(ctx, clearDocumentSuggestion,
+		arg.ProcessingStage,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	return err
+}
+
 const createDocument = `-- name: CreateDocument :exec
 INSERT INTO documents (id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, processing_stage, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())

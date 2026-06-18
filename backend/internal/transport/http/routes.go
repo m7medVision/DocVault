@@ -40,6 +40,8 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("GET /api/v1/documents/{id}/pages", h.GetDocumentPages, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 	handle("PATCH /api/v1/documents/{id}/move", h.MoveDocument, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
 	handle("PATCH /api/v1/documents/{id}/title", h.UpdateDocumentTitle, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
+	handle("POST /api/v1/documents/{id}/accept-suggestion", h.AcceptSuggestion, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
+	handle("DELETE /api/v1/documents/{id}/suggestion", h.DismissSuggestion, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
 	handle("GET /api/v1/documents/{id}/progress/ws", h.DocumentProgressWS)
 
 	handle("POST /api/v1/search", h.Search, middleware.Authorize(authzEnforcer, authz.ResourceSearch, authz.ActionRead))

@@ -2,13 +2,25 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/document"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// errFolderNameExists is the unexported sentinel exposed via ErrFolderNameExists.
+var errFolderNameExists = errors.New("folder name already exists under parent")
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 type folderRepository struct {
 	queries sqldb.Querier
@@ -31,9 +43,54 @@ func (r *folderRepository) Create(ctx context.Context, folder *model.Folder) err
 		CreatedBy: folder.CreatedBy,
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return errFolderNameExists
+		}
 		return fmt.Errorf("failed to create folder: %w", err)
 	}
 	return nil
+}
+
+func (r *folderRepository) GetByParentName(ctx context.Context, tenantID, orgID string, parentID *string, name string) (*model.Folder, error) {
+	folder, err := r.queries.GetFolderByParentName(ctx, sqldb.GetFolderByParentNameParams{
+		TenantID: tenantID,
+		OrgID:    orgID,
+		ParentID: parentID,
+		Name:     name,
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("folder not found")
+		}
+		return nil, fmt.Errorf("failed to get folder by name: %w", err)
+	}
+	modelFolder := toModelFolder(folder)
+	return &modelFolder, nil
+}
+
+func (r *folderRepository) GetAncestorIDs(ctx context.Context, tenantID, orgID, folderID string) ([]string, error) {
+	ids, err := r.queries.GetFolderAncestorIDs(ctx, sqldb.GetFolderAncestorIDsParams{
+		FolderID: folderID,
+		TenantID: tenantID,
+		OrgID:    orgID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get folder ancestors: %w", err)
+	}
+	return ids, nil
+}
+
+func (r *folderRepository) Move(ctx context.Context, tenantID, orgID, folderID string, parentID *string) (int64, error) {
+	rows, err := r.queries.MoveFolder(ctx, sqldb.MoveFolderParams{
+		ParentID: parentID,
+		ID:       folderID,
+		TenantID: tenantID,
+		OrgID:    orgID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to move folder: %w", err)
+	}
+	return rows, nil
 }
 
 func (r *folderRepository) GetByID(ctx context.Context, tenantID, orgID, id string) (*model.Folder, error) {

@@ -511,6 +511,75 @@ func (s *DocumentService) UpdateTitle(ctx context.Context, input *UpdateTitleInp
 	return nil
 }
 
+// AcceptSuggestionInput contains the data needed to accept a folder suggestion.
+// LeafFolderID is the id of the folder the document should be moved into (the
+// leaf of the suggested path, already find-or-created by the caller). Title is
+// the suggested display title; when empty the document title is left unchanged.
+type AcceptSuggestionInput struct {
+	TenantID     string
+	OrgID        string
+	DocumentID   string
+	LeafFolderID string
+	Title        string
+}
+
+// AcceptSuggestionOutput contains the updated document after accepting.
+type AcceptSuggestionOutput struct {
+	Document model.Document
+}
+
+// AcceptSuggestion moves the document into the resolved leaf folder, optionally
+// retitles it, clears the four suggestion columns, and sets processing_stage to
+// "completed". The folder path resolution (find-or-create) is performed by the
+// caller via FolderService.EnsureFolderPath; this method only commits the
+// document-side effects.
+func (s *DocumentService) AcceptSuggestion(ctx context.Context, input *AcceptSuggestionInput) (*AcceptSuggestionOutput, error) {
+	if input.TenantID == "" || input.OrgID == "" || input.DocumentID == "" {
+		return nil, fmt.Errorf("tenant_id, org_id, and document_id are required")
+	}
+	if input.LeafFolderID == "" {
+		return nil, fmt.Errorf("leaf_folder_id is required")
+	}
+
+	doc, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)
+	if err != nil {
+		return nil, fmt.Errorf("document not found: %w", err)
+	}
+
+	leaf := input.LeafFolderID
+	doc.FolderID = &leaf
+	if input.Title != "" {
+		doc.Title = input.Title
+	}
+	if err := s.repo.Update(ctx, doc); err != nil {
+		return nil, fmt.Errorf("failed to apply suggestion: %w", err)
+	}
+
+	completed := string(model.StageCompleted)
+	if err := s.repo.ClearSuggestion(ctx, input.TenantID, input.OrgID, input.DocumentID, &completed); err != nil {
+		return nil, fmt.Errorf("failed to clear suggestion: %w", err)
+	}
+
+	updated, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload document: %w", err)
+	}
+
+	return &AcceptSuggestionOutput{Document: *updated}, nil
+}
+
+// DismissSuggestion clears the four suggestion columns without moving or
+// retitling the document. The processing_stage is left unchanged.
+func (s *DocumentService) DismissSuggestion(ctx context.Context, tenantID, orgID, documentID string) error {
+	if tenantID == "" || orgID == "" || documentID == "" {
+		return fmt.Errorf("tenant_id, org_id, and document_id are required")
+	}
+	if err := s.repo.ClearSuggestion(ctx, tenantID, orgID, documentID, nil); err != nil {
+		return fmt.Errorf("failed to dismiss suggestion: %w", err)
+	}
+	return nil
+}
+
 // UpdateProcessingFieldsInput contains processing stage/suggestion update data.
 type UpdateProcessingFieldsInput struct {
 	TenantID   string

@@ -633,6 +633,171 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// AcceptSuggestion applies the document's pending folder suggestion: it
+// resolves the suggested nested path (find-or-creating folders), moves the
+// document into the resulting leaf folder, optionally retitles it to the
+// suggested filename, clears the suggestion columns, and marks processing
+// "completed".
+func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.CanWrite(role) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	documentID := r.PathValue("id")
+	if documentID == "" {
+		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocWritable(w, r, documentID) {
+		return
+	}
+
+	getOutput, err := h.documentSvc.Get(ctx, &usecase.GetDocumentInput{
+		TenantID:   tenantID,
+		OrgID:      orgID,
+		DocumentID: documentID,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+			return
+		}
+		slog.Error("accept suggestion: load document failed", "error", err, "document_id", documentID)
+		http.Error(w, `{"error":"failed to load document","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	doc := getOutput.Document
+	if doc.SuggestedFolderName == nil || *doc.SuggestedFolderName == "" {
+		http.Error(w, `{"error":"no folder suggestion to accept","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	segments := usecase.SplitFolderPath(*doc.SuggestedFolderName)
+	if len(segments) == 0 {
+		http.Error(w, `{"error":"suggested folder path is empty","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	leafID, err := h.folderSvc.EnsureFolderPath(ctx, tenantID, orgID, userID, segments)
+	if err != nil {
+		slog.Error("accept suggestion: ensure folder path failed", "error", err, "document_id", documentID)
+		http.Error(w, `{"error":"failed to create suggested folders","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	title := ""
+	if doc.SuggestedFilename != nil {
+		title = *doc.SuggestedFilename
+	}
+
+	output, err := h.documentSvc.AcceptSuggestion(ctx, &usecase.AcceptSuggestionInput{
+		TenantID:     tenantID,
+		OrgID:        orgID,
+		DocumentID:   documentID,
+		LeafFolderID: leafID,
+		Title:        title,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "idx_documents_unique_title") {
+			http.Error(w, `{"error":"a document with this title already exists in this folder","code":"CONFLICT"}`, http.StatusConflict)
+			return
+		}
+		slog.Error("accept suggestion failed", "error", err, "document_id", documentID)
+		http.Error(w, `{"error":"failed to accept suggestion","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+		TenantID:   tenantID,
+		ActorID:    &userID,
+		EntityType: "document",
+		EntityID:   documentID,
+		Action:     usecase.AuditActionUpdate,
+		Metadata: map[string]interface{}{
+			"action":      "accept_suggestion",
+			"folder_id":   leafID,
+			"folder_path": *doc.SuggestedFolderName,
+			"title":       title,
+		},
+	})
+
+	slog.Info("suggestion accepted", "document_id", documentID, "folder_id", leafID, "tenant_id", tenantID, "actor_id", userID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"document": output.Document,
+	})
+}
+
+// DismissSuggestion clears a document's pending folder suggestion without moving
+// or retitling it.
+func (h *Handler) DismissSuggestion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.CanWrite(role) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	documentID := r.PathValue("id")
+	if documentID == "" {
+		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocWritable(w, r, documentID) {
+		return
+	}
+
+	if err := h.documentSvc.DismissSuggestion(ctx, tenantID, orgID, documentID); err != nil {
+		slog.Error("dismiss suggestion failed", "error", err, "document_id", documentID)
+		http.Error(w, `{"error":"failed to dismiss suggestion","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+		TenantID:   tenantID,
+		ActorID:    &userID,
+		EntityType: "document",
+		EntityID:   documentID,
+		Action:     usecase.AuditActionUpdate,
+		Metadata: map[string]interface{}{
+			"action": "dismiss_suggestion",
+		},
+	})
+
+	slog.Info("suggestion dismissed", "document_id", documentID, "tenant_id", tenantID, "actor_id", userID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"id":      documentID,
+		"message": "suggestion dismissed",
+	})
+}
+
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := middleware.GetTenantID(ctx)

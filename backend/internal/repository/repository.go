@@ -31,6 +31,7 @@ type DocumentRepository interface {
 	UpdateMetadataField(ctx context.Context, tenantID, documentID, key, correctedValue, correctedBy string) error
 	GetFullDocument(ctx context.Context, tenantID, orgID, documentID string) (*document.Document, []document.DocumentVersion, []document.DocumentMetadata, error)
 	UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error
+	ClearSuggestion(ctx context.Context, tenantID, orgID, documentID string, stage *string) error
 	GetStats(ctx context.Context, tenantID, orgID string) (*document.DocumentStats, error)
 }
 
@@ -52,12 +53,21 @@ type ReminderRepository interface {
 type FolderRepository interface {
 	Create(ctx context.Context, folder *document.Folder) error
 	GetByID(ctx context.Context, tenantID, orgID, id string) (*document.Folder, error)
+	GetByParentName(ctx context.Context, tenantID, orgID string, parentID *string, name string) (*document.Folder, error)
 	ListByParent(ctx context.Context, tenantID, orgID, parentID string) ([]document.Folder, error)
 	ListRoot(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
 	ListAll(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
+	GetAncestorIDs(ctx context.Context, tenantID, orgID, folderID string) ([]string, error)
 	Update(ctx context.Context, folder *document.Folder) error
+	Move(ctx context.Context, tenantID, orgID, folderID string, parentID *string) (int64, error)
 	Delete(ctx context.Context, tenantID, orgID, id string) error
 }
+
+// ErrFolderNameExists is returned by folder Create-style operations when a
+// folder with the same (tenant, org, parent, name) already exists. Callers that
+// find-or-create (e.g. EnsureFolderPath) treat it as a signal to fetch the
+// existing folder rather than fail.
+var ErrFolderNameExists = errFolderNameExists
 
 // TagRepository provides tag data access.
 type TagRepository interface {

@@ -379,6 +379,21 @@ func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantI
 	return nil
 }
 
+// ClearSuggestion clears the four folder-suggestion columns and optionally sets
+// the processing_stage (e.g. "completed" on accept; nil leaves it unchanged).
+func (r *documentRepository) ClearSuggestion(ctx context.Context, tenantID, orgID, documentID string, stage *string) error {
+	err := r.queries.ClearDocumentSuggestion(ctx, sqldb.ClearDocumentSuggestionParams{
+		ProcessingStage: stage,
+		ID:              documentID,
+		TenantID:        tenantID,
+		OrgID:           orgID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clear document suggestion: %w", err)
+	}
+	return nil
+}
+
 func (r *documentRepository) GetStats(ctx context.Context, tenantID, orgID string) (*model.DocumentStats, error) {
 	stats, err := r.queries.GetDocumentStats(ctx, sqldb.GetDocumentStatsParams{TenantIDArg: tenantID, OrgIDArg: orgID})
 	if err != nil {
