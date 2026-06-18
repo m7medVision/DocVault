@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/docvault/backend/internal/migrate"
@@ -369,6 +370,99 @@ func TestReparent_RejectsUnknownTargetParent(t *testing.T) {
 		missing := "00000000-0000-0000-0000-000000000000"
 		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &missing); !errors.Is(err, usecase.ErrTargetParentNotFound) {
 			t.Fatalf("Reparent unknown target err = %v, want ErrTargetParentNotFound", err)
+		}
+	})
+}
+
+// TestReparent_ConcurrentOppositeMovesNeverCreateCycle is the regression test for
+// the cycle race. With two sibling root folders A and B, it launches two
+// goroutines that start together and call, respectively, Reparent(A under B) and
+// Reparent(B under A). Before the per-tenant advisory lock both calls could pass
+// their in-statement cycle check on a disjoint row and commit, leaving
+// A.parent==B AND B.parent==A — a cycle. After serialization exactly one
+// relationship is established and the other call is rejected with ErrFolderCycle.
+//
+// It runs several iterations to exercise the race. Because Reparent commits real
+// rows, A and B are recreated fresh at root each iteration under a throwaway
+// tenant that is deleted at the end.
+func TestReparent_ConcurrentOppositeMovesNeverCreateCycle(t *testing.T) {
+	withFolderPool(t, func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture) {
+		ctx := context.Background()
+
+		const iterations = 8
+		for i := 0; i < iterations; i++ {
+			// Fresh siblings at root for this iteration.
+			a := createFolderRow(t, pool, f, "A", nil)
+			b := createFolderRow(t, pool, f, "B", nil)
+
+			var wg sync.WaitGroup
+			start := make(chan struct{})
+			errs := make([]error, 2)
+
+			wg.Add(2)
+			// Goroutine 0: move A under B.
+			go func() {
+				defer wg.Done()
+				<-start
+				errs[0] = svc.Reparent(ctx, f.tenantID, f.orgID, a, &b)
+			}()
+			// Goroutine 1: move B under A.
+			go func() {
+				defer wg.Done()
+				<-start
+				errs[1] = svc.Reparent(ctx, f.tenantID, f.orgID, b, &a)
+			}()
+
+			close(start) // release both goroutines at once
+			wg.Wait()
+
+			aParent := folderParentPool(t, pool, a)
+			bParent := folderParentPool(t, pool, b)
+
+			// Core invariant: never a 2-cycle.
+			if aParent == b && bParent == a {
+				t.Fatalf("iteration %d: CYCLE created: A.parent==B and B.parent==A (A=%s B=%s)", i, a, b)
+			}
+
+			// Exactly one relationship established: one call succeeded, the other
+			// was rejected as a cycle (or both rejected, which is also acyclic).
+			rejected := 0
+			for _, e := range errs {
+				if e == nil {
+					continue
+				}
+				if !errors.Is(e, usecase.ErrFolderCycle) {
+					t.Fatalf("iteration %d: unexpected Reparent error = %v, want nil or ErrFolderCycle", i, e)
+				}
+				rejected++
+			}
+			if rejected == 0 {
+				t.Fatalf("iteration %d: both reparents succeeded; expected at least one ErrFolderCycle rejection (A.parent=%q B.parent=%q)", i, aParent, bParent)
+			}
+
+			// At most one parent link should exist between A and B.
+			links := 0
+			if aParent == b {
+				links++
+			}
+			if bParent == a {
+				links++
+			}
+			if links > 1 {
+				t.Fatalf("iteration %d: %d A<->B parent links, want <=1 (acyclic)", i, links)
+			}
+
+			// Reset for the next iteration: detach both to root, then delete.
+			if _, err := pool.Exec(ctx,
+				`UPDATE folders SET parent_id = NULL WHERE id = ANY($1)`,
+				[]string{a, b}); err != nil {
+				t.Fatalf("iteration %d: reset parents: %v", i, err)
+			}
+			if _, err := pool.Exec(ctx,
+				`DELETE FROM folders WHERE id = ANY($1)`,
+				[]string{a, b}); err != nil {
+				t.Fatalf("iteration %d: delete A,B: %v", i, err)
+			}
 		}
 	})
 }
