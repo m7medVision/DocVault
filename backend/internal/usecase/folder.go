@@ -295,11 +295,6 @@ func (s *FolderService) EnsureFolderPath(ctx context.Context, tenantID, orgID, u
 	return *parentID, nil
 }
 
-// maxFolderDepth caps how deeply folders may nest. The root level is depth 1;
-// a folder N levels below root has depth N+1. A reparent is rejected when the
-// moved folder's resulting depth would exceed this cap.
-const maxFolderDepth = 12
-
 // Reparent moves a folder under a new parent (or to root when parentID is nil)
 // while preserving the folder's name. It enforces three guards:
 //   - self-parent: parentID equals folderID,
@@ -345,7 +340,7 @@ func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID 
 	// Move to root: no cycle/depth concerns (depth 1). The locked move always
 	// succeeds for a NULL parent on an existing row.
 	if parentID == nil || *parentID == "" {
-		if err := s.repo.Reparent(ctx, tenantID, orgID, folderID, nil, maxFolderDepth); err != nil {
+		if err := s.repo.Reparent(ctx, tenantID, orgID, folderID, nil, model.MaxFolderDepth); err != nil {
 			return fmt.Errorf("failed to move folder: %w", err)
 		}
 		return nil
@@ -355,7 +350,7 @@ func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID 
 
 	// Self-parent: rejected explicitly for a precise error message. The locked
 	// cycle-checked UPDATE also rejects this case, so it is safe under a race.
-	if target == folderID {
+	if model.IsSelfParent(folderID, target) {
 		return ErrFolderSelfParent
 	}
 
@@ -368,7 +363,7 @@ func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID 
 	// tenant via an advisory lock and decides cycle (rows-affected==0) and depth
 	// inside that locked transaction. Map the repository sentinels to the
 	// usecase's domain errors.
-	if err := s.repo.Reparent(ctx, tenantID, orgID, folderID, &target, maxFolderDepth); err != nil {
+	if err := s.repo.Reparent(ctx, tenantID, orgID, folderID, &target, model.MaxFolderDepth); err != nil {
 		if errors.Is(err, repository.ErrFolderReparentCycle) {
 			return ErrFolderCycle
 		}
