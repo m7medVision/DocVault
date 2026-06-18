@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -128,9 +129,11 @@ func (c *QueueConsumer) handleMessage(ctx context.Context, delivery amqp.Deliver
 		)
 
 		msg.RetryCount++
-		time.Sleep(backoff)
-		if err := c.requeue(&msg); err != nil {
-			c.logger.Error("failed to requeue message", "error", err)
+		if err := c.scheduleRetry(&msg, backoff); err != nil {
+			// Could not hand the message to the delayed-retry queue; requeue the
+			// original immediately so it is not lost. It will be retried without
+			// the intended backoff, which is an acceptable degraded fallback.
+			c.logger.Error("failed to schedule delayed retry", "error", err)
 			delivery.Reject(true)
 		} else {
 			delivery.Ack(false)
@@ -142,13 +145,32 @@ func (c *QueueConsumer) handleMessage(ctx context.Context, delivery amqp.Deliver
 	c.logger.Info("message processed successfully", "job_id", msg.JobID)
 }
 
-func (c *QueueConsumer) requeue(msg *QueueMessage) error {
+// scheduleRetry republishes the message to the delayed-retry queue with a
+// per-message TTL equal to the backoff. That queue has no consumer and is
+// dead-lettered back to the main queue, so the message reappears for processing
+// only after the TTL expires — without blocking the consumer goroutine and
+// without losing the message if the worker restarts during the backoff.
+func (c *QueueConsumer) scheduleRetry(msg *QueueMessage, backoff time.Duration) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 
-	return c.publish(c.conn.config.Queue, body)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return c.conn.Channel().PublishWithContext(ctx,
+		"",
+		c.conn.config.Retry,
+		false,
+		false,
+		amqp.Publishing{
+			DeliveryMode: amqp.Persistent,
+			ContentType:  "application/json",
+			Body:         body,
+			Expiration:   strconv.FormatInt(backoff.Milliseconds(), 10),
+		},
+	)
 }
 
 func (c *QueueConsumer) sendToDLQ(msg *QueueMessage, errorMsg string) bool {
