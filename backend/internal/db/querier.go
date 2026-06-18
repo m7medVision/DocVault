@@ -112,6 +112,11 @@ type Querier interface {
 	MoveFolder(ctx context.Context, arg MoveFolderParams) (int64, error)
 	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	RemoveTagFromDocument(ctx context.Context, arg RemoveTagFromDocumentParams) error
+	// Build the keyword query ONCE: Postgres' english dictionary tokenizes, removes
+	// stopwords, and stems; flipping '&' to '|' turns the default AND into OR so any
+	// query keyword can match. No application-side word lists.
+	// High-confidence keyword/exact matches, surfaced even when they fall outside the
+	// vector top-K (0.55 is the floor a per-term keyword match produces).
 	SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error)
 	SearchTags(ctx context.Context, arg SearchTagsParams) ([]Tag, error)
 	SetDocumentMetadata(ctx context.Context, arg SetDocumentMetadataParams) error
