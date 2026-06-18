@@ -1,5 +1,6 @@
 """Document classification and metadata extraction service."""
 
+import asyncio
 import json
 import re
 from typing import Any, Optional
@@ -77,7 +78,8 @@ class OpenRouterDocumentClassifier:
             return fallback
 
         try:
-            response = self.client.chat.completions.create(
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": CLASSIFICATION_SYSTEM_PROMPT},

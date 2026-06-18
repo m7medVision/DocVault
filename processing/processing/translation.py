@@ -1,5 +1,7 @@
 """Translation service using OpenRouter LLM."""
 
+import asyncio
+
 import structlog
 
 import openai
@@ -101,7 +103,8 @@ class OpenRouterTranslationService:
         if not self.api_key:
             raise RuntimeError("OPENROUTER_API_KEY is required for translation")
 
-        response = self.client.chat.completions.create(
+        response = await asyncio.to_thread(
+            self.client.chat.completions.create,
             model=self.model_name,
             messages=[
                 {
@@ -125,19 +128,22 @@ class OpenRouterTranslationService:
         chunks: list,
         source_language: str,
     ) -> list[TranslationResult]:
-        """Translate multiple text chunks."""
-        results = []
-
-        for chunk in chunks:
-            result = await self.translate_text(
-                chunk.text if hasattr(chunk, "text") else str(chunk),
-                source_language,
+        """Translate multiple text chunks concurrently, preserving order."""
+        results = await asyncio.gather(
+            *(
+                self.translate_text(
+                    chunk.text if hasattr(chunk, "text") else str(chunk),
+                    source_language,
+                )
+                for chunk in chunks
             )
+        )
+
+        for chunk, result in zip(chunks, results):
             if hasattr(chunk, "chunk_index"):
                 result.chunk_index = chunk.chunk_index
             if hasattr(chunk, "page_id"):
                 result.page_id = chunk.page_id
-            results.append(result)
 
         logger.info(
             "chunks_translated",
@@ -145,7 +151,7 @@ class OpenRouterTranslationService:
             source_language=source_language,
         )
 
-        return results
+        return list(results)
 
 
 class DocumentTranslator:
@@ -177,17 +183,21 @@ class DocumentTranslator:
             source_language=source_language,
         )
 
-        translated_pages = {}
-
-        for page in pages:
-            page_text = page.text if hasattr(page, "text") else str(page)
-            page_number = page.page_number if hasattr(page, "page_number") else 0
-
-            result = await self.translation_service.translate_text(
-                page_text,
-                source_language,
+        page_numbers = [
+            page.page_number if hasattr(page, "page_number") else 0 for page in pages
+        ]
+        results = await asyncio.gather(
+            *(
+                self.translation_service.translate_text(
+                    page.text if hasattr(page, "text") else str(page),
+                    source_language,
+                )
+                for page in pages
             )
+        )
 
+        translated_pages = {}
+        for page_number, result in zip(page_numbers, results):
             translated_pages[page_number] = {
                 "original_text": result.original_text,
                 "translated_text": result.translated_text,

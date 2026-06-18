@@ -1,5 +1,6 @@
 """Database access for the Processing Service with pgvector support."""
 
+import asyncio
 import structlog
 import uuid
 from datetime import datetime
@@ -173,6 +174,16 @@ class PGVectorRepository:
         embedding: list[float],
     ) -> str:
         """Insert or update a text chunk with embedding."""
+        return await asyncio.to_thread(
+            self._upsert_chunk_sync, document_id, chunk, embedding
+        )
+
+    def _upsert_chunk_sync(
+        self,
+        document_id: str,
+        chunk: TextChunk,
+        embedding: list[float],
+    ) -> str:
         session = self.get_session()
         chunk_id_val = _chunk_id(document_id, chunk.page_id, chunk.chunk_index)
 
@@ -206,6 +217,16 @@ class PGVectorRepository:
         embeddings: list[list[float]],
     ) -> list[str]:
         """Save text chunks with embeddings to pgvector."""
+        return await asyncio.to_thread(
+            self._save_chunks_sync, document_id, chunks, embeddings
+        )
+
+    def _save_chunks_sync(
+        self,
+        document_id: str,
+        chunks: list[TextChunk],
+        embeddings: list[list[float]],
+    ) -> list[str]:
         session = self.get_session()
         chunk_ids = []
 
@@ -239,6 +260,9 @@ class PGVectorRepository:
 
     async def delete_by_document(self, doc_id: str) -> None:
         """Delete all chunks for a document."""
+        await asyncio.to_thread(self._delete_by_document_sync, doc_id)
+
+    def _delete_by_document_sync(self, doc_id: str) -> None:
         session = self.get_session()
 
         try:
@@ -262,6 +286,15 @@ class PGVectorRepository:
         translations: dict[int, str],
     ) -> None:
         """Update translated_text for document pages."""
+        await asyncio.to_thread(
+            self._update_page_translations_sync, document_id, translations
+        )
+
+    def _update_page_translations_sync(
+        self,
+        document_id: str,
+        translations: dict[int, str],
+    ) -> None:
         session = self.get_session()
 
         try:
@@ -298,6 +331,11 @@ class PGVectorRepository:
 
     async def get_document_pages(self, document_id: str, version_id: str) -> list[dict]:
         """Load persisted OCR pages for a document version."""
+        return await asyncio.to_thread(
+            self._get_document_pages_sync, document_id, version_id
+        )
+
+    def _get_document_pages_sync(self, document_id: str, version_id: str) -> list[dict]:
         session = self.get_session()
 
         try:
@@ -327,6 +365,9 @@ class PGVectorRepository:
 
     async def get_document_status(self, document_id: str) -> Optional[str]:
         """Get document status."""
+        return await asyncio.to_thread(self._get_document_status_sync, document_id)
+
+    def _get_document_status_sync(self, document_id: str) -> Optional[str]:
         session = self.get_session()
 
         try:
@@ -338,6 +379,9 @@ class PGVectorRepository:
 
     async def update_document_status(self, document_id: str, status: str) -> None:
         """Update document status."""
+        await asyncio.to_thread(self._update_document_status_sync, document_id, status)
+
+    def _update_document_status_sync(self, document_id: str, status: str) -> None:
         session = self.get_session()
 
         try:
@@ -364,6 +408,16 @@ class PGVectorRepository:
         language: Optional[str] = None,
     ) -> None:
         """Update classified document metadata in database."""
+        await asyncio.to_thread(
+            self._update_document_metadata_sync, document_id, doc_type, language
+        )
+
+    def _update_document_metadata_sync(
+        self,
+        document_id: str,
+        doc_type: Optional[str] = None,
+        language: Optional[str] = None,
+    ) -> None:
         session = self.get_session()
 
         try:
@@ -411,6 +465,16 @@ class PGVectorRepository:
         error_msg: Optional[str] = None,
     ) -> None:
         """Update processing_stage and optionally processing_error."""
+        await asyncio.to_thread(
+            self._update_processing_stage_sync, document_id, stage, error_msg
+        )
+
+    def _update_processing_stage_sync(
+        self,
+        document_id: str,
+        stage: str,
+        error_msg: Optional[str] = None,
+    ) -> None:
         session = self.get_session()
 
         try:
@@ -440,6 +504,15 @@ class PGVectorRepository:
         metadata: dict,
     ) -> None:
         """Insert or update metadata rows for a document."""
+        await asyncio.to_thread(
+            self._upsert_metadata_rows_sync, document_id, metadata
+        )
+
+    def _upsert_metadata_rows_sync(
+        self,
+        document_id: str,
+        metadata: dict,
+    ) -> None:
         allowed_keys = {
             "issuer",
             "amount",
@@ -488,6 +561,11 @@ class PGVectorRepository:
             session.close()
 
     async def ensure_folder(self, tenant_id: str, org_id: str, folder_name: str) -> str:
+        return await asyncio.to_thread(
+            self._ensure_folder_sync, tenant_id, org_id, folder_name
+        )
+
+    def _ensure_folder_sync(self, tenant_id: str, org_id: str, folder_name: str) -> str:
         session = self.get_session()
 
         try:
@@ -546,6 +624,23 @@ class PGVectorRepository:
         desired_title: str,
         exclude_document_id: str,
     ) -> str:
+        return await asyncio.to_thread(
+            self._resolve_unique_title_sync,
+            tenant_id,
+            org_id,
+            folder_id,
+            desired_title,
+            exclude_document_id,
+        )
+
+    def _resolve_unique_title_sync(
+        self,
+        tenant_id: str,
+        org_id: str,
+        folder_id: Optional[str],
+        desired_title: str,
+        exclude_document_id: str,
+    ) -> str:
         session = self.get_session()
 
         try:
@@ -589,6 +684,16 @@ class PGVectorRepository:
         if not leaf_name:
             return False
 
+        return await asyncio.to_thread(
+            self._leaf_folder_exists_sync, tenant_id, org_id, leaf_name
+        )
+
+    def _leaf_folder_exists_sync(
+        self,
+        tenant_id: str,
+        org_id: str,
+        leaf_name: str,
+    ) -> bool:
         session = self.get_session()
         try:
             existing = (
@@ -634,6 +739,23 @@ class PGVectorRepository:
         leaf_exists = await self.leaf_folder_exists(tenant_id, org_id, leaf_name)
         create_new = bool(leaf_name) and not leaf_exists
 
+        await asyncio.to_thread(
+            self._suggest_organization_sync,
+            document_id,
+            normalized_path,
+            suggested_filename,
+            suggestion_confidence,
+            create_new,
+        )
+
+    def _suggest_organization_sync(
+        self,
+        document_id: str,
+        normalized_path: str,
+        suggested_filename: str,
+        suggestion_confidence: float,
+        create_new: bool,
+    ) -> None:
         session = self.get_session()
 
         try:
@@ -673,6 +795,9 @@ class PGVectorRepository:
             session.close()
 
     async def get_document_title(self, document_id: str) -> Optional[str]:
+        return await asyncio.to_thread(self._get_document_title_sync, document_id)
+
+    def _get_document_title_sync(self, document_id: str) -> Optional[str]:
         session = self.get_session()
 
         try:
@@ -688,6 +813,9 @@ class PGVectorRepository:
 
     async def list_folders(self, tenant_id: str, org_id: str) -> list:
         """List all folders for a tenant/org."""
+        return await asyncio.to_thread(self._list_folders_sync, tenant_id, org_id)
+
+    def _list_folders_sync(self, tenant_id: str, org_id: str) -> list:
         session = self.get_session()
 
         try:
