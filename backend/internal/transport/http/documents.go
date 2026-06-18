@@ -2,14 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/docvault/backend/internal/domain/document"
 	"github.com/docvault/backend/internal/middleware"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/usecase"
 )
 
@@ -203,7 +204,7 @@ func (h *Handler) GetDocument(w http.ResponseWriter, r *http.Request) {
 
 	output, err := h.documentSvc.Get(ctx, input)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrDocumentNotFound) {
 			http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
 			return
 		}
@@ -608,7 +609,7 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.documentSvc.UpdateTitle(ctx, input); err != nil {
-		if strings.Contains(err.Error(), "idx_documents_unique_title") {
+		if errors.Is(err, repository.ErrDocumentTitleExists) {
 			http.Error(w, `{"error":"a document with this title already exists in this folder","code":"CONFLICT"}`, http.StatusConflict)
 			return
 		}
@@ -676,7 +677,7 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		DocumentID: documentID,
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrDocumentNotFound) {
 			http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
 			return
 		}
@@ -717,7 +718,7 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		Title:        title,
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "idx_documents_unique_title") {
+		if errors.Is(err, repository.ErrDocumentTitleExists) {
 			http.Error(w, `{"error":"a document with this title already exists in this folder","code":"CONFLICT"}`, http.StatusConflict)
 			return
 		}

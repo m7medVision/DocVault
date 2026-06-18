@@ -3,13 +3,31 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/document"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrDocumentNotFound is returned when no document matches the tenant/org/id.
+// Callers detect it via errors.Is rather than matching error-string substrings.
+var ErrDocumentNotFound = errors.New("document not found")
+
+// ErrDocumentTitleExists is returned when a write collides with the per-folder
+// unique document-title constraint (idx_documents_unique_title).
+var ErrDocumentTitleExists = errors.New("a document with this title already exists in the folder")
+
+// isTitleConflict reports whether err is specifically the per-folder unique
+// document-title violation, distinguishing it from any other unique-constraint
+// violation (SQLSTATE 23505).
+func isTitleConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "idx_documents_unique_title"
+}
 
 // documentRepository handles document data access.
 type documentRepository struct {
@@ -57,8 +75,8 @@ func (r *documentRepository) GetByID(ctx context.Context, tenantID, orgID, id st
 		OrgID:    orgID,
 	})
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("document not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrDocumentNotFound
 		}
 		return nil, fmt.Errorf("failed to get document: %w", err)
 	}
@@ -179,6 +197,9 @@ func (r *documentRepository) Update(ctx context.Context, doc *model.Document) er
 		OrgID:    doc.OrgID,
 	})
 	if err != nil {
+		if isTitleConflict(err) {
+			return ErrDocumentTitleExists
+		}
 		return fmt.Errorf("failed to update document: %w", err)
 	}
 	return nil
@@ -191,7 +212,7 @@ func (r *documentRepository) Delete(ctx context.Context, tenantID, orgID, id, ac
 		return fmt.Errorf("failed to delete document: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("document not found")
+		return ErrDocumentNotFound
 	}
 	return nil
 }
@@ -432,6 +453,9 @@ func (r *documentRepository) ApplySuggestion(ctx context.Context, doc *model.Doc
 		TenantID: doc.TenantID,
 		OrgID:    doc.OrgID,
 	}); err != nil {
+		if isTitleConflict(err) {
+			return ErrDocumentTitleExists
+		}
 		return fmt.Errorf("failed to apply suggestion update: %w", err)
 	}
 
