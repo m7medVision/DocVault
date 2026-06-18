@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -202,6 +203,81 @@ func (h *Handler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"id":   folderID,
 		"name": body.Name,
+	})
+}
+
+// MoveFolder reparents a folder, preserving its name. Body: {"parent_id":
+// "<uuid>"|null}. A null parent_id moves the folder to root. Self-parent,
+// cycle (moving under itself or a descendant), and depth-cap violations are
+// rejected with 400 BAD_REQUEST; a missing target parent yields 404.
+func (h *Handler) MoveFolder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.CanWrite(role) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	folderID := r.PathValue("id")
+	if folderID == "" {
+		http.Error(w, `{"error":"folder id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		ParentID *string `json:"parent_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON body","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.folderSvc.Reparent(ctx, tenantID, orgID, folderID, body.ParentID); err != nil {
+		switch {
+		case errors.Is(err, usecase.ErrFolderNotFound):
+			http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		case errors.Is(err, usecase.ErrTargetParentNotFound):
+			http.Error(w, `{"error":"target parent folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		case errors.Is(err, usecase.ErrFolderSelfParent):
+			http.Error(w, `{"error":"a folder cannot be its own parent","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		case errors.Is(err, usecase.ErrFolderCycle):
+			http.Error(w, `{"error":"cannot move a folder into itself or one of its descendants","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		case errors.Is(err, usecase.ErrFolderDepthExceeded):
+			http.Error(w, `{"error":"resulting folder depth exceeds the maximum allowed","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		default:
+			slog.Error("move folder failed", "error", err, "folder_id", folderID)
+			http.Error(w, `{"error":"failed to move folder","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		}
+		return
+	}
+
+	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+		TenantID:   tenantID,
+		ActorID:    &userID,
+		EntityType: "folder",
+		EntityID:   folderID,
+		Action:     usecase.AuditActionUpdate,
+		Metadata: map[string]interface{}{
+			"action":    "move",
+			"parent_id": body.ParentID,
+		},
+	})
+
+	slog.Info("folder moved", "folder_id", folderID, "parent_id", body.ParentID, "tenant_id", tenantID, "actor_id", userID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"id":        folderID,
+		"parent_id": body.ParentID,
 	})
 }
 

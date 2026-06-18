@@ -243,6 +243,83 @@ func (s *FolderService) EnsureFolderPath(ctx context.Context, tenantID, orgID, u
 	return *parentID, nil
 }
 
+// maxFolderDepth caps how deeply folders may nest. The root level is depth 1;
+// a folder N levels below root has depth N+1. A reparent is rejected when the
+// moved folder's resulting depth would exceed this cap.
+const maxFolderDepth = 12
+
+// Reparent moves a folder under a new parent (or to root when parentID is nil)
+// while preserving the folder's name. It enforces three guards:
+//   - self-parent: parentID equals folderID,
+//   - cycle: parentID is the folder itself or any descendant of it (detected by
+//     checking whether folderID appears among the target parent's ancestors),
+//   - depth: the resulting depth would exceed maxFolderDepth.
+//
+// When parentID is non-nil the target parent must exist in the same tenant/org.
+func (s *FolderService) Reparent(ctx context.Context, tenantID, orgID, folderID string, parentID *string) error {
+	if tenantID == "" {
+		return fmt.Errorf("tenant_id is required")
+	}
+	if orgID == "" {
+		return fmt.Errorf("org_id is required")
+	}
+	if folderID == "" {
+		return fmt.Errorf("folder_id is required")
+	}
+	if s.repo == nil {
+		return ErrFolderRepositoryNotConfigured
+	}
+
+	// The folder being moved must exist in this tenant/org.
+	if _, err := s.repo.GetByID(ctx, tenantID, orgID, folderID); err != nil {
+		return ErrFolderNotFound
+	}
+
+	// Move to root: no parent existence/cycle/depth checks needed (depth 1).
+	if parentID == nil || *parentID == "" {
+		if _, err := s.repo.Move(ctx, tenantID, orgID, folderID, nil); err != nil {
+			return fmt.Errorf("failed to move folder: %w", err)
+		}
+		return nil
+	}
+
+	target := *parentID
+
+	// Self-parent.
+	if target == folderID {
+		return ErrFolderSelfParent
+	}
+
+	// Target parent must exist in this tenant/org.
+	if _, err := s.repo.GetByID(ctx, tenantID, orgID, target); err != nil {
+		return ErrTargetParentNotFound
+	}
+
+	// Cycle + depth: gather the target parent's ancestors (inclusive of itself).
+	// If the moved folder is among them, moving under the target would create a
+	// cycle. The number of ancestors is the target parent's depth.
+	ancestors, err := s.repo.GetAncestorIDs(ctx, tenantID, orgID, target)
+	if err != nil {
+		return fmt.Errorf("failed to compute target ancestors: %w", err)
+	}
+	for _, id := range ancestors {
+		if id == folderID {
+			return ErrFolderCycle
+		}
+	}
+
+	// Depth of target parent = number of its ancestors (inclusive). The moved
+	// folder sits one level below, so its resulting depth is len(ancestors)+1.
+	if len(ancestors)+1 > maxFolderDepth {
+		return ErrFolderDepthExceeded
+	}
+
+	if _, err := s.repo.Move(ctx, tenantID, orgID, folderID, &target); err != nil {
+		return fmt.Errorf("failed to move folder: %w", err)
+	}
+	return nil
+}
+
 func (s *FolderService) Delete(ctx context.Context, tenantID, orgID, folderID string) error {
 	if tenantID == "" {
 		return fmt.Errorf("tenant_id is required")

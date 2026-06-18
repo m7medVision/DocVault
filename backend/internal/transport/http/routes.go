@@ -52,6 +52,7 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("GET /api/v1/folders", h.ListFolders, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionRead))
 	handle("GET /api/v1/folders/all", h.ListAllFolders, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionRead))
 	handle("PATCH /api/v1/folders/{id}", h.RenameFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))
+	handle("PATCH /api/v1/folders/{id}/move", h.MoveFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))
 	handle("DELETE /api/v1/folders/{id}", h.DeleteFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionDelete))
 
 	handle("GET /api/v1/tags", h.ListTags, middleware.Authorize(authzEnforcer, authz.ResourceTags, authz.ActionRead))
