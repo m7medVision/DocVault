@@ -32,6 +32,7 @@ type DocumentRepository interface {
 	GetFullDocument(ctx context.Context, tenantID, orgID, documentID string) (*document.Document, []document.DocumentVersion, []document.DocumentMetadata, error)
 	UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error
 	ClearSuggestion(ctx context.Context, tenantID, orgID, documentID string, stage *string) error
+	ApplySuggestion(ctx context.Context, doc *document.Document, stage *string) error
 	GetStats(ctx context.Context, tenantID, orgID string) (*document.DocumentStats, error)
 }
 

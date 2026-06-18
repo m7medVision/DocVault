@@ -533,6 +533,12 @@ type AcceptSuggestionOutput struct {
 // "completed". The folder path resolution (find-or-create) is performed by the
 // caller via FolderService.EnsureFolderPath; this method only commits the
 // document-side effects.
+//
+// The move/retitle and the suggestion clear run inside a single transaction
+// (repo.ApplySuggestion) so the two can never diverge: previously they were two
+// separate writes and a failure of the second left the document filed but with
+// a stale, uncleared suggestion. EnsureFolderPath remains idempotent, so the
+// folder resolution performed before this call is safe to retry.
 func (s *DocumentService) AcceptSuggestion(ctx context.Context, input *AcceptSuggestionInput) (*AcceptSuggestionOutput, error) {
 	if input.TenantID == "" || input.OrgID == "" || input.DocumentID == "" {
 		return nil, fmt.Errorf("tenant_id, org_id, and document_id are required")
@@ -551,13 +557,10 @@ func (s *DocumentService) AcceptSuggestion(ctx context.Context, input *AcceptSug
 	if input.Title != "" {
 		doc.Title = input.Title
 	}
-	if err := s.repo.Update(ctx, doc); err != nil {
-		return nil, fmt.Errorf("failed to apply suggestion: %w", err)
-	}
 
 	completed := string(model.StageCompleted)
-	if err := s.repo.ClearSuggestion(ctx, input.TenantID, input.OrgID, input.DocumentID, &completed); err != nil {
-		return nil, fmt.Errorf("failed to clear suggestion: %w", err)
+	if err := s.repo.ApplySuggestion(ctx, doc, &completed); err != nil {
+		return nil, fmt.Errorf("failed to apply suggestion: %w", err)
 	}
 
 	updated, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)

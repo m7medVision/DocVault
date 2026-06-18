@@ -14,11 +14,16 @@ import (
 // documentRepository handles document data access.
 type documentRepository struct {
 	queries sqldb.Querier
+	// pool is retained so operations that must be atomic (e.g. ApplySuggestion)
+	// can open a transaction and run several statements through tx-scoped
+	// queries. It is nil when the repository is constructed from a bare DBTX
+	// (integration tests), in which case transactional methods are unsupported.
+	pool *pgxpool.Pool
 }
 
 // NewDocumentRepository creates a new DocumentRepository.
 func NewDocumentRepository(db *pgxpool.Pool) DocumentRepository {
-	return &documentRepository{queries: sqldb.New(db)}
+	return &documentRepository{queries: sqldb.New(db), pool: db}
 }
 
 // Create creates a new document.
@@ -390,6 +395,57 @@ func (r *documentRepository) ClearSuggestion(ctx context.Context, tenantID, orgI
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clear document suggestion: %w", err)
+	}
+	return nil
+}
+
+// ApplySuggestion files a document and clears its suggestion atomically: the
+// folder/title update and the suggestion-column clear (with the given stage)
+// run inside a single transaction so the document can never be left filed but
+// with a stale, uncleared suggestion (or vice versa) if one statement fails.
+// The caller passes the already-resolved document (with FolderID/Title set to
+// their accepted values); only the columns written by UpdateDocument are
+// modified. On any error the transaction is rolled back.
+func (r *documentRepository) ApplySuggestion(ctx context.Context, doc *model.Document, stage *string) error {
+	if doc == nil {
+		return fmt.Errorf("document is nil")
+	}
+	if r.pool == nil {
+		return fmt.Errorf("apply suggestion requires a transactional repository")
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	q := sqldb.New(tx)
+
+	if err := q.UpdateDocument(ctx, sqldb.UpdateDocumentParams{
+		Title:    doc.Title,
+		DocType:  sqldb.DocumentType(doc.DocType),
+		Status:   sqldb.DocumentStatus(doc.Status),
+		Language: doc.Language,
+		FolderID: doc.FolderID,
+		ID:       doc.ID,
+		TenantID: doc.TenantID,
+		OrgID:    doc.OrgID,
+	}); err != nil {
+		return fmt.Errorf("failed to apply suggestion update: %w", err)
+	}
+
+	if err := q.ClearDocumentSuggestion(ctx, sqldb.ClearDocumentSuggestionParams{
+		ProcessingStage: stage,
+		ID:              doc.ID,
+		TenantID:        doc.TenantID,
+		OrgID:           doc.OrgID,
+	}); err != nil {
+		return fmt.Errorf("failed to clear suggestion in transaction: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit suggestion transaction: %w", err)
 	}
 	return nil
 }

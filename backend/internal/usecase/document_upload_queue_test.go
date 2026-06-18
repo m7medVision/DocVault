@@ -81,6 +81,10 @@ func (s *stubDocumentRepository) ClearSuggestion(context.Context, string, string
 	return nil
 }
 
+func (s *stubDocumentRepository) ApplySuggestion(context.Context, *model.Document, *string) error {
+	return nil
+}
+
 type stubOCRDispatcher struct {
 	job *usecase.OCRJob
 }
