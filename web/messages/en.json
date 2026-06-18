@@ -43,6 +43,7 @@
     "documents": "Documents",
     "upload": "Upload",
     "search": "Search",
+    "ask": "Ask",
     "reminders": "Reminders",
     "settings": "Settings",
     "profile": "Account",
@@ -207,7 +208,15 @@
     "placeholder": "Ask a question about this document...",
     "emptyState": "Ask questions about this document to get started.",
     "thinking": "Thinking...",
-    "error": "Something went wrong. Please try again."
+    "error": "Something went wrong. Please try again.",
+    "sources": "Sources",
+    "sourcesTitle": "Sources",
+    "untitledSource": "Untitled document",
+    "pageShort": "p.{page}"
+  },
+  "ask": {
+    "title": "Ask",
+    "description": "Ask a question across all of your organization's documents."
   },
   "folder": {
     "newSubfolder": "New Subfolder",
