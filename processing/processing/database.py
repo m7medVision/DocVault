@@ -715,7 +715,3 @@ class PGVectorRepository:
 
         finally:
             session.close()
-
-
-db = PGVectorRepository()
-chunk_persistence = db

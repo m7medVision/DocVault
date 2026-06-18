@@ -124,6 +124,3 @@ class ReminderPublisher:
             return "medium"
         else:
             return "low"
-
-
-reminder_publisher = ReminderPublisher()

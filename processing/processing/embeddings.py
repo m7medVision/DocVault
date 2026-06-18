@@ -83,10 +83,7 @@ class EmbeddingService:
 
         return results
 
-
-embedding_service = EmbeddingService()
-
-
-async def generate_chunk_embeddings(chunks: list) -> list[list[float]]:
-    texts = [chunk.text for chunk in chunks]
-    return embedding_service.generate_embeddings_batch(texts)
+    async def generate_chunk_embeddings(self, chunks: list) -> list[list[float]]:
+        """Embed a list of chunks (the EmbedderPort entry point)."""
+        texts = [chunk.text for chunk in chunks]
+        return self.generate_embeddings_batch(texts)

@@ -206,7 +206,3 @@ class DocumentTranslator:
             "target_language": "en",
             "pages": translated_pages,
         }
-
-
-translation_service = OpenRouterTranslationService()
-document_translator = DocumentTranslator()

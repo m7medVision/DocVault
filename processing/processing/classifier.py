@@ -176,9 +176,6 @@ class MetadataExtractor:
         return metadata
 
 
-metadata_extractor = MetadataExtractor()
-
-
 TYPE_LABELS = {
     "invoice": "Invoice",
     "contract": "Contract",

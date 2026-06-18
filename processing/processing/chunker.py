@@ -225,7 +225,3 @@ class ProcessingChunker(ChunkingService):
         )
 
         return result
-
-
-chunking_service = ChunkingService()
-processing_chunker = ProcessingChunker()
