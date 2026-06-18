@@ -60,3 +60,75 @@ WHERE d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::u
              OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[])))))
   ORDER BY d.created_at DESC
   LIMIT sqlc.arg(limit_count);
+
+-- name: CreateGroup :one
+INSERT INTO groups (tenant_id, org_id, name, created_by)
+VALUES (sqlc.arg(tenant_id)::uuid, sqlc.arg(org_id)::uuid, sqlc.arg(name), sqlc.narg(created_by)::uuid)
+RETURNING id, tenant_id, org_id, name, created_by, created_at;
+
+-- name: DeleteGroup :execrows
+DELETE FROM groups
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+
+-- name: ListGroups :many
+SELECT id, tenant_id, org_id, name, created_by, created_at
+FROM groups
+WHERE tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid
+ORDER BY name ASC;
+
+-- name: AddGroupMember :exec
+INSERT INTO group_members (group_id, user_id)
+SELECT sqlc.arg(group_id)::uuid, sqlc.arg(user_id)::uuid
+FROM groups g
+WHERE g.id = sqlc.arg(group_id)::uuid
+  AND g.tenant_id = sqlc.arg(tenant_id)::uuid AND g.org_id = sqlc.arg(org_id)::uuid
+ON CONFLICT (group_id, user_id) DO NOTHING;
+
+-- name: RemoveGroupMember :execrows
+DELETE FROM group_members gm
+USING groups g
+WHERE gm.group_id = g.id
+  AND gm.group_id = sqlc.arg(group_id)::uuid AND gm.user_id = sqlc.arg(user_id)::uuid
+  AND g.tenant_id = sqlc.arg(tenant_id)::uuid AND g.org_id = sqlc.arg(org_id)::uuid;
+
+-- name: CreateGrant :one
+INSERT INTO acl_grants (tenant_id, org_id, resource_type, resource_id, principal_type, principal_id, permission, granted_by)
+VALUES (
+  sqlc.arg(tenant_id)::uuid, sqlc.arg(org_id)::uuid,
+  sqlc.arg(resource_type)::acl_resource_type, sqlc.arg(resource_id)::uuid,
+  sqlc.arg(principal_type)::acl_principal_type, sqlc.arg(principal_id)::uuid,
+  sqlc.arg(permission)::acl_permission, sqlc.narg(granted_by)::uuid)
+ON CONFLICT (resource_type, resource_id, principal_type, principal_id, permission) DO NOTHING
+RETURNING id;
+
+-- name: DeleteGrant :execrows
+DELETE FROM acl_grants
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+
+-- name: ListGrantsByResource :many
+SELECT id, tenant_id, org_id, resource_type, resource_id, principal_type, principal_id, permission, granted_by, created_at
+FROM acl_grants
+WHERE tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid
+  AND resource_type = sqlc.arg(resource_type)::acl_resource_type
+  AND resource_id = sqlc.arg(resource_id)::uuid
+ORDER BY created_at ASC;
+
+-- name: DeleteGrantsForResource :execrows
+DELETE FROM acl_grants
+WHERE tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid
+  AND resource_type = sqlc.arg(resource_type)::acl_resource_type
+  AND resource_id = sqlc.arg(resource_id)::uuid;
+
+-- name: SetDocumentRestricted :execrows
+UPDATE documents
+SET is_restricted = sqlc.arg(is_restricted)::boolean
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+
+-- name: SetFolderRestricted :execrows
+UPDATE folders
+SET is_restricted = sqlc.arg(is_restricted)::boolean
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;

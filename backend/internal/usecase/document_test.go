@@ -238,7 +238,7 @@ func TestDocumentServiceGetValidation(t *testing.T) {
 
 // TestFolderServiceCreateValidation tests validation in folder creation.
 func TestFolderServiceCreateValidation(t *testing.T) {
-	svc := usecase.NewFolderService(nil)
+	svc := usecase.NewFolderService(nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {

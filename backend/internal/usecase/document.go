@@ -327,6 +327,17 @@ func (s *DocumentService) Delete(ctx context.Context, input *DeleteDocumentInput
 		return nil, fmt.Errorf("failed to delete document: %w", err)
 	}
 
+	if s.aclRepo != nil {
+		if _, err := s.aclRepo.DeleteGrantsForResource(ctx, repository.ResourceRef{
+			TenantID:     input.TenantID,
+			OrgID:        input.OrgID,
+			ResourceType: "document",
+			ResourceID:   input.DocumentID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to clean up document grants: %w", err)
+		}
+	}
+
 	return &DeleteDocumentOutput{
 		Message: "Document deleted successfully",
 	}, nil

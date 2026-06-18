@@ -9,12 +9,15 @@ import (
 )
 
 type Querier interface {
+	AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error
 	AddTagToDocument(ctx context.Context, arg AddTagToDocumentParams) error
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) error
 	CreateDocumentPage(ctx context.Context, arg CreateDocumentPageParams) error
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) error
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
+	CreateGrant(ctx context.Context, arg CreateGrantParams) (string, error)
+	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateMembership(ctx context.Context, arg CreateMembershipParams) error
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) error
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) error
@@ -25,6 +28,9 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) error
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) (int64, error)
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) (int64, error)
+	DeleteGrant(ctx context.Context, arg DeleteGrantParams) (int64, error)
+	DeleteGrantsForResource(ctx context.Context, arg DeleteGrantsForResourceParams) (int64, error)
+	DeleteGroup(ctx context.Context, arg DeleteGroupParams) (int64, error)
 	DeleteReminderRule(ctx context.Context, arg DeleteReminderRuleParams) (int64, error)
 	DeleteTag(ctx context.Context, arg DeleteTagParams) (int64, error)
 	FindUserByEmail(ctx context.Context, arg FindUserByEmailParams) (FindUserByEmailRow, error)
@@ -51,7 +57,9 @@ type Querier interface {
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
 	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]ListDocumentsRow, error)
 	ListFoldersByParent(ctx context.Context, arg ListFoldersByParentParams) ([]Folder, error)
+	ListGrantsByResource(ctx context.Context, arg ListGrantsByResourceParams) ([]AclGrant, error)
 	ListGroupIDsForUser(ctx context.Context, arg ListGroupIDsForUserParams) ([]string, error)
+	ListGroups(ctx context.Context, arg ListGroupsParams) ([]Group, error)
 	ListMembershipsByOrg(ctx context.Context, arg ListMembershipsByOrgParams) ([]ListMembershipsByOrgRow, error)
 	ListMembershipsByTenant(ctx context.Context, arg ListMembershipsByTenantParams) ([]ListMembershipsByTenantRow, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
@@ -61,10 +69,13 @@ type Querier interface {
 	ListUpcomingReminderRules(ctx context.Context, arg ListUpcomingReminderRulesParams) ([]ReminderRule, error)
 	ListVisibleDocuments(ctx context.Context, arg ListVisibleDocumentsParams) ([]ListVisibleDocumentsRow, error)
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error)
+	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	RemoveTagFromDocument(ctx context.Context, arg RemoveTagFromDocumentParams) error
 	SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error)
 	SearchTags(ctx context.Context, arg SearchTagsParams) ([]Tag, error)
 	SetDocumentMetadata(ctx context.Context, arg SetDocumentMetadataParams) error
+	SetDocumentRestricted(ctx context.Context, arg SetDocumentRestrictedParams) (int64, error)
+	SetFolderRestricted(ctx context.Context, arg SetFolderRestrictedParams) (int64, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) error
 	UpdateDocumentMetadataField(ctx context.Context, arg UpdateDocumentMetadataFieldParams) (int64, error)
 	UpdateDocumentProcessingFields(ctx context.Context, arg UpdateDocumentProcessingFieldsParams) error

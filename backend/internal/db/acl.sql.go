@@ -11,6 +11,169 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addGroupMember = `-- name: AddGroupMember :exec
+INSERT INTO group_members (group_id, user_id)
+SELECT $1::uuid, $2::uuid
+FROM groups g
+WHERE g.id = $1::uuid
+  AND g.tenant_id = $3::uuid AND g.org_id = $4::uuid
+ON CONFLICT (group_id, user_id) DO NOTHING
+`
+
+type AddGroupMemberParams struct {
+	GroupID  string `json:"group_id"`
+	UserID   string `json:"user_id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error {
+	_, err := q.db.Exec(ctx, addGroupMember,
+		arg.GroupID,
+		arg.UserID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	return err
+}
+
+const createGrant = `-- name: CreateGrant :one
+INSERT INTO acl_grants (tenant_id, org_id, resource_type, resource_id, principal_type, principal_id, permission, granted_by)
+VALUES (
+  $1::uuid, $2::uuid,
+  $3::acl_resource_type, $4::uuid,
+  $5::acl_principal_type, $6::uuid,
+  $7::acl_permission, $8::uuid)
+ON CONFLICT (resource_type, resource_id, principal_type, principal_id, permission) DO NOTHING
+RETURNING id
+`
+
+type CreateGrantParams struct {
+	TenantID      string           `json:"tenant_id"`
+	OrgID         string           `json:"org_id"`
+	ResourceType  AclResourceType  `json:"resource_type"`
+	ResourceID    string           `json:"resource_id"`
+	PrincipalType AclPrincipalType `json:"principal_type"`
+	PrincipalID   string           `json:"principal_id"`
+	Permission    AclPermission    `json:"permission"`
+	GrantedBy     *string          `json:"granted_by"`
+}
+
+func (q *Queries) CreateGrant(ctx context.Context, arg CreateGrantParams) (string, error) {
+	row := q.db.QueryRow(ctx, createGrant,
+		arg.TenantID,
+		arg.OrgID,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.PrincipalType,
+		arg.PrincipalID,
+		arg.Permission,
+		arg.GrantedBy,
+	)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
+const createGroup = `-- name: CreateGroup :one
+INSERT INTO groups (tenant_id, org_id, name, created_by)
+VALUES ($1::uuid, $2::uuid, $3, $4::uuid)
+RETURNING id, tenant_id, org_id, name, created_by, created_at
+`
+
+type CreateGroupParams struct {
+	TenantID  string  `json:"tenant_id"`
+	OrgID     string  `json:"org_id"`
+	Name      string  `json:"name"`
+	CreatedBy *string `json:"created_by"`
+}
+
+func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error) {
+	row := q.db.QueryRow(ctx, createGroup,
+		arg.TenantID,
+		arg.OrgID,
+		arg.Name,
+		arg.CreatedBy,
+	)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.OrgID,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const deleteGrant = `-- name: DeleteGrant :execrows
+DELETE FROM acl_grants
+WHERE id = $1::uuid
+  AND tenant_id = $2::uuid AND org_id = $3::uuid
+`
+
+type DeleteGrantParams struct {
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) DeleteGrant(ctx context.Context, arg DeleteGrantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteGrant, arg.ID, arg.TenantID, arg.OrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteGrantsForResource = `-- name: DeleteGrantsForResource :execrows
+DELETE FROM acl_grants
+WHERE tenant_id = $1::uuid AND org_id = $2::uuid
+  AND resource_type = $3::acl_resource_type
+  AND resource_id = $4::uuid
+`
+
+type DeleteGrantsForResourceParams struct {
+	TenantID     string          `json:"tenant_id"`
+	OrgID        string          `json:"org_id"`
+	ResourceType AclResourceType `json:"resource_type"`
+	ResourceID   string          `json:"resource_id"`
+}
+
+func (q *Queries) DeleteGrantsForResource(ctx context.Context, arg DeleteGrantsForResourceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteGrantsForResource,
+		arg.TenantID,
+		arg.OrgID,
+		arg.ResourceType,
+		arg.ResourceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteGroup = `-- name: DeleteGroup :execrows
+DELETE FROM groups
+WHERE id = $1::uuid
+  AND tenant_id = $2::uuid AND org_id = $3::uuid
+`
+
+type DeleteGroupParams struct {
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) DeleteGroup(ctx context.Context, arg DeleteGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteGroup, arg.ID, arg.TenantID, arg.OrgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const isDocumentVisibleToUser = `-- name: IsDocumentVisibleToUser :one
 WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted) AS (
   SELECT f.id, f.parent_id, f.is_restricted
@@ -62,6 +225,58 @@ func (q *Queries) IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVis
 	return visible, err
 }
 
+const listGrantsByResource = `-- name: ListGrantsByResource :many
+SELECT id, tenant_id, org_id, resource_type, resource_id, principal_type, principal_id, permission, granted_by, created_at
+FROM acl_grants
+WHERE tenant_id = $1::uuid AND org_id = $2::uuid
+  AND resource_type = $3::acl_resource_type
+  AND resource_id = $4::uuid
+ORDER BY created_at ASC
+`
+
+type ListGrantsByResourceParams struct {
+	TenantID     string          `json:"tenant_id"`
+	OrgID        string          `json:"org_id"`
+	ResourceType AclResourceType `json:"resource_type"`
+	ResourceID   string          `json:"resource_id"`
+}
+
+func (q *Queries) ListGrantsByResource(ctx context.Context, arg ListGrantsByResourceParams) ([]AclGrant, error) {
+	rows, err := q.db.Query(ctx, listGrantsByResource,
+		arg.TenantID,
+		arg.OrgID,
+		arg.ResourceType,
+		arg.ResourceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AclGrant{}
+	for rows.Next() {
+		var i AclGrant
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrgID,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.Permission,
+			&i.GrantedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGroupIDsForUser = `-- name: ListGroupIDsForUser :many
 SELECT gm.group_id FROM group_members gm JOIN groups g ON g.id = gm.group_id
 WHERE gm.user_id = $1::uuid AND g.org_id = $2::uuid
@@ -85,6 +300,45 @@ func (q *Queries) ListGroupIDsForUser(ctx context.Context, arg ListGroupIDsForUs
 			return nil, err
 		}
 		items = append(items, group_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGroups = `-- name: ListGroups :many
+SELECT id, tenant_id, org_id, name, created_by, created_at
+FROM groups
+WHERE tenant_id = $1::uuid AND org_id = $2::uuid
+ORDER BY name ASC
+`
+
+type ListGroupsParams struct {
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]Group, error) {
+	rows, err := q.db.Query(ctx, listGroups, arg.TenantID, arg.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Group{}
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OrgID,
+			&i.Name,
+			&i.CreatedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -189,4 +443,86 @@ func (q *Queries) ListVisibleDocuments(ctx context.Context, arg ListVisibleDocum
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeGroupMember = `-- name: RemoveGroupMember :execrows
+DELETE FROM group_members gm
+USING groups g
+WHERE gm.group_id = g.id
+  AND gm.group_id = $1::uuid AND gm.user_id = $2::uuid
+  AND g.tenant_id = $3::uuid AND g.org_id = $4::uuid
+`
+
+type RemoveGroupMemberParams struct {
+	GroupID  string `json:"group_id"`
+	UserID   string `json:"user_id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeGroupMember,
+		arg.GroupID,
+		arg.UserID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setDocumentRestricted = `-- name: SetDocumentRestricted :execrows
+UPDATE documents
+SET is_restricted = $1::boolean
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+`
+
+type SetDocumentRestrictedParams struct {
+	IsRestricted bool   `json:"is_restricted"`
+	ID           string `json:"id"`
+	TenantID     string `json:"tenant_id"`
+	OrgID        string `json:"org_id"`
+}
+
+func (q *Queries) SetDocumentRestricted(ctx context.Context, arg SetDocumentRestrictedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDocumentRestricted,
+		arg.IsRestricted,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setFolderRestricted = `-- name: SetFolderRestricted :execrows
+UPDATE folders
+SET is_restricted = $1::boolean
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+`
+
+type SetFolderRestrictedParams struct {
+	IsRestricted bool   `json:"is_restricted"`
+	ID           string `json:"id"`
+	TenantID     string `json:"tenant_id"`
+	OrgID        string `json:"org_id"`
+}
+
+func (q *Queries) SetFolderRestricted(ctx context.Context, arg SetFolderRestrictedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setFolderRestricted,
+		arg.IsRestricted,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

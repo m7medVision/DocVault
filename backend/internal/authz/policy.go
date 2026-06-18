@@ -17,6 +17,8 @@ const (
 	ResourceAdminAudit    = "admin.audit"
 	ResourceAdminMembers  = "admin.members"
 	ResourceAdminPolicies = "admin.policies"
+	ResourceACL           = "admin.acl"
+	ResourceGroups        = "groups"
 )
 
 const (
@@ -59,6 +61,12 @@ var defaultPermissions = []Permission{
 	{RoleAdmin, ResourceAdminPolicies, ActionRead},
 	{RoleAdmin, ResourceAdminPolicies, ActionWrite},
 	{RoleAdmin, ResourceAdminPolicies, ActionDelete},
+	{RoleAdmin, ResourceACL, ActionRead},
+	{RoleAdmin, ResourceACL, ActionWrite},
+	{RoleAdmin, ResourceACL, ActionDelete},
+	{RoleAdmin, ResourceGroups, ActionRead},
+	{RoleAdmin, ResourceGroups, ActionWrite},
+	{RoleAdmin, ResourceGroups, ActionDelete},
 
 	{RoleOwner, ResourceAdminMembers, ActionUpdateRole},
 }

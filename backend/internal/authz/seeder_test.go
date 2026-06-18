@@ -59,7 +59,7 @@ func TestSeedTenantPoliciesIsIdempotent(t *testing.T) {
 
 	policies, err := enforcer.GetPolicy()
 	require.NoError(t, err)
-	assert.Len(t, policies, 18)
+	assert.Len(t, policies, 24)
 
 	groupingPolicies, err := enforcer.GetGroupingPolicy()
 	require.NoError(t, err)

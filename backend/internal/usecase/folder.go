@@ -11,11 +11,12 @@ import (
 )
 
 type FolderService struct {
-	repo repository.FolderRepository
+	repo    repository.FolderRepository
+	aclRepo repository.ACLRepository
 }
 
-func NewFolderService(repo repository.FolderRepository) *FolderService {
-	return &FolderService{repo: repo}
+func NewFolderService(repo repository.FolderRepository, aclRepo repository.ACLRepository) *FolderService {
+	return &FolderService{repo: repo, aclRepo: aclRepo}
 }
 
 type CreateFolderInput struct {
@@ -160,5 +161,20 @@ func (s *FolderService) Delete(ctx context.Context, tenantID, orgID, folderID st
 		return fmt.Errorf("folder_id is required")
 	}
 
-	return s.repo.Delete(ctx, tenantID, orgID, folderID)
+	if err := s.repo.Delete(ctx, tenantID, orgID, folderID); err != nil {
+		return err
+	}
+
+	if s.aclRepo != nil {
+		if _, err := s.aclRepo.DeleteGrantsForResource(ctx, repository.ResourceRef{
+			TenantID:     tenantID,
+			OrgID:        orgID,
+			ResourceType: "folder",
+			ResourceID:   folderID,
+		}); err != nil {
+			return fmt.Errorf("failed to clean up folder grants: %w", err)
+		}
+	}
+
+	return nil
 }
