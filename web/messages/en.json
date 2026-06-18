@@ -228,7 +228,9 @@
   },
   "ask": {
     "title": "Ask",
-    "description": "Ask a question across all of your organization's documents."
+    "description": "Ask a question across all of your organization's documents.",
+    "placeholder": "Ask a question about your documents...",
+    "emptyState": "Ask a question across your organization's documents to get started."
   },
   "folder": {
     "newSubfolder": "New Subfolder",

@@ -29,6 +29,11 @@ interface ChatPanelProps {
 
 export function ChatPanel({ documentId }: ChatPanelProps) {
   const t = useTranslations("chat");
+  const tAsk = useTranslations("ask");
+  // Global Ask (no documentId) speaks about "your documents"; the per-document
+  // panel speaks about "this document".
+  const placeholderText = documentId ? t("placeholder") : tAsk("placeholder");
+  const emptyStateText = documentId ? t("emptyState") : tAsk("emptyState");
   const pathname = usePathname();
   const [input, setInput] = useState("");
   // Citations keyed by the assistant messageId they belong to. The backend
@@ -78,7 +83,7 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">{t("emptyState")}</p>
+            <p className="text-sm text-muted-foreground">{emptyStateText}</p>
           </div>
         )}
 
@@ -190,7 +195,7 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={t("placeholder")}
+            placeholder={placeholderText}
             disabled={isLoading}
             className="flex-1"
           />
