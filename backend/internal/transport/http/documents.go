@@ -106,6 +106,7 @@ func (h *Handler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := middleware.GetTenantID(ctx)
 	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
 	role := middleware.GetUserRole(ctx)
 
 	if !middleware.HasMinRole(role, middleware.RoleViewer) {
@@ -117,6 +118,9 @@ func (h *Handler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
 		return
 	}
+
+	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
+	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
 
 	docType := r.URL.Query().Get("type")
 	folderID := r.URL.Query().Get("folder_id")
@@ -135,6 +139,9 @@ func (h *Handler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 	input := &usecase.ListDocumentsInput{
 		TenantID: tenantID,
 		OrgID:    orgID,
+		UserID:   userID,
+		GroupIDs: groupIDs,
+		IsAdmin:  isAdmin,
 		DocType:  docType,
 		FolderID: folderID,
 		Status:   document.DocumentStatus(status),
@@ -177,6 +184,10 @@ func (h *Handler) GetDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := r.PathValue("id")
 	if documentID == "" {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocVisible(w, r, documentID) {
 		return
 	}
 
@@ -225,6 +236,10 @@ func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := r.PathValue("id")
 	if documentID == "" {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocVisible(w, r, documentID) {
 		return
 	}
 
@@ -279,6 +294,10 @@ func (h *Handler) DownloadDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := r.PathValue("id")
 	if documentID == "" {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocVisible(w, r, documentID) {
 		return
 	}
 
@@ -337,6 +356,10 @@ func (h *Handler) ListDocumentVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.requireDocVisible(w, r, documentID) {
+		return
+	}
+
 	versions, err := h.documentSvc.ListVersions(ctx, tenantID, orgID, documentID)
 	if err != nil {
 		slog.Error("list versions failed", "error", err, "document_id", documentID)
@@ -371,6 +394,10 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	documentID := r.PathValue("id")
 	if documentID == "" {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocVisible(w, r, documentID) {
 		return
 	}
 
@@ -438,6 +465,10 @@ func (h *Handler) GetDocumentPages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.requireDocVisible(w, r, documentID) {
+		return
+	}
+
 	pages, err := h.documentSvc.GetPages(ctx, tenantID, orgID, documentID)
 	if err != nil {
 		slog.Error("get pages failed", "error", err, "document_id", documentID)
@@ -472,6 +503,10 @@ func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 	documentID := r.PathValue("id")
 	if documentID == "" {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocVisible(w, r, documentID) {
 		return
 	}
 
@@ -540,6 +575,10 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 	documentID := r.PathValue("id")
 	if documentID == "" {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireDocVisible(w, r, documentID) {
 		return
 	}
 

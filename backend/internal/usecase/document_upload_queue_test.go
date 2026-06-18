@@ -89,7 +89,7 @@ func (s *stubOCRDispatcher) DispatchOCR(_ context.Context, job usecase.OCRJob) e
 func TestUploadPublishesOCRJobContract(t *testing.T) {
 	repo := &stubDocumentRepository{}
 	dispatcher := &stubOCRDispatcher{}
-	svc := usecase.NewDocumentService(repo, nil, dispatcher)
+	svc := usecase.NewDocumentService(repo, nil, nil, dispatcher)
 
 	output, err := svc.Upload(context.Background(), &usecase.UploadDocumentInput{
 		TenantID: "tenant-1",

@@ -16,6 +16,9 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
 		return
 	}
+	if h.requireDocVisible(w, r, documentID) {
+		return
+	}
 	h.streamChat(w, r, documentID)
 }
 

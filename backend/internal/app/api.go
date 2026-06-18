@@ -144,7 +144,7 @@ func Run() error {
 	h := handler.New(cfg, handler.Dependencies{
 		DB:              dbPool,
 		AuthzEnforcer:   authzEnforcer,
-		DocumentSvc:     usecase.NewDocumentService(repos.Document, objectStore, ocrDispatcher),
+		DocumentSvc:     usecase.NewDocumentService(repos.Document, repos.ACL, objectStore, ocrDispatcher),
 		FolderSvc:       usecase.NewFolderService(repos.Folder),
 		TagSvc:          usecase.NewTagService(repos.Tag),
 		AuditSvc:        usecase.NewAuditService(repos.Audit),

@@ -17,6 +17,7 @@ import (
 // DocumentService handles document operations.
 type DocumentService struct {
 	repo          repository.DocumentRepository
+	aclRepo       repository.ACLRepository
 	objectStore   ObjectStore
 	ocrDispatcher OCRDispatcher
 }
@@ -33,9 +34,10 @@ type OCRDispatcher interface {
 }
 
 // NewDocumentService creates a new DocumentService.
-func NewDocumentService(repo repository.DocumentRepository, objectStore ObjectStore, ocrDispatcher OCRDispatcher) *DocumentService {
+func NewDocumentService(repo repository.DocumentRepository, aclRepo repository.ACLRepository, objectStore ObjectStore, ocrDispatcher OCRDispatcher) *DocumentService {
 	return &DocumentService{
 		repo:          repo,
+		aclRepo:       aclRepo,
 		objectStore:   objectStore,
 		ocrDispatcher: ocrDispatcher,
 	}
@@ -75,6 +77,9 @@ type UploadDocumentOutput struct {
 type ListDocumentsInput struct {
 	TenantID string
 	OrgID    string
+	UserID   string
+	GroupIDs []string
+	IsAdmin  bool
 	DocType  string
 	FolderID string
 	Status   model.DocumentStatus
@@ -249,25 +254,24 @@ func (s *DocumentService) List(ctx context.Context, input *ListDocumentsInput) (
 		input.Limit = 20
 	}
 
-	query := &repository.ListDocumentsQuery{
+	docs, err := s.aclRepo.ListVisibleDocuments(ctx, repository.ListVisibleParams{
 		TenantID: input.TenantID,
 		OrgID:    input.OrgID,
+		UserID:   input.UserID,
+		GroupIDs: input.GroupIDs,
+		IsAdmin:  input.IsAdmin,
 		DocType:  input.DocType,
 		FolderID: input.FolderID,
-		Status:   input.Status,
-		Language: input.Language,
-		Cursor:   input.Cursor,
+		Status:   string(input.Status),
 		Limit:    input.Limit,
-	}
-
-	docs, cursor, err := s.repo.List(ctx, query)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list documents: %w", err)
 	}
 
 	return &ListDocumentsOutput{
 		Documents: docs,
-		Cursor:    cursor,
+		Cursor:    nil,
 		Total:     len(docs),
 	}, nil
 }
