@@ -254,7 +254,7 @@ func (s *DocumentService) List(ctx context.Context, input *ListDocumentsInput) (
 		input.Limit = 20
 	}
 
-	docs, err := s.aclRepo.ListVisibleDocuments(ctx, repository.ListVisibleParams{
+	docs, cursor, err := s.aclRepo.ListVisibleDocuments(ctx, repository.ListVisibleParams{
 		TenantID: input.TenantID,
 		OrgID:    input.OrgID,
 		UserID:   input.UserID,
@@ -263,6 +263,8 @@ func (s *DocumentService) List(ctx context.Context, input *ListDocumentsInput) (
 		DocType:  input.DocType,
 		FolderID: input.FolderID,
 		Status:   string(input.Status),
+		Language: input.Language,
+		Cursor:   input.Cursor,
 		Limit:    input.Limit,
 	})
 	if err != nil {
@@ -271,7 +273,7 @@ func (s *DocumentService) List(ctx context.Context, input *ListDocumentsInput) (
 
 	return &ListDocumentsOutput{
 		Documents: docs,
-		Cursor:    nil,
+		Cursor:    cursor,
 		Total:     len(docs),
 	}, nil
 }

@@ -78,6 +78,8 @@ WHERE d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::u
   AND (sqlc.narg(doc_type)::text IS NULL OR d.doc_type::text = sqlc.narg(doc_type)::text)
   AND (sqlc.narg(folder_id)::uuid IS NULL OR d.folder_id = sqlc.narg(folder_id)::uuid)
   AND (sqlc.narg(status)::text IS NULL OR d.status::text = sqlc.narg(status)::text)
+  AND (sqlc.narg(language)::text IS NULL OR d.language = sqlc.narg(language)::text)
+  AND (sqlc.narg(cursor_id)::uuid IS NULL OR d.created_at < (SELECT created_at FROM documents WHERE id = sqlc.narg(cursor_id)::uuid))
   AND (
     sqlc.arg(is_admin)::boolean
     OR d.owner_id = sqlc.arg(user_id)::uuid

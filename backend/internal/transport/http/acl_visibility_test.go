@@ -51,8 +51,8 @@ func (f *fakeACLRepository) ListUserGroupIDs(ctx context.Context, userID, orgID 
 	return []string{}, nil
 }
 
-func (f *fakeACLRepository) ListVisibleDocuments(ctx context.Context, params repository.ListVisibleParams) ([]model.Document, error) {
-	return []model.Document{}, nil
+func (f *fakeACLRepository) ListVisibleDocuments(ctx context.Context, params repository.ListVisibleParams) ([]model.Document, *string, error) {
+	return []model.Document{}, nil, nil
 }
 
 func (f *fakeACLRepository) CreateGroup(ctx context.Context, params repository.CreateGroupParams) (repository.Group, error) {

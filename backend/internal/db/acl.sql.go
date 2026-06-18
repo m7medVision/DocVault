@@ -454,24 +454,26 @@ WHERE d.tenant_id = $1::uuid AND d.org_id = $2::uuid
   AND ($3::text IS NULL OR d.doc_type::text = $3::text)
   AND ($4::uuid IS NULL OR d.folder_id = $4::uuid)
   AND ($5::text IS NULL OR d.status::text = $5::text)
+  AND ($6::text IS NULL OR d.language = $6::text)
+  AND ($7::uuid IS NULL OR d.created_at < (SELECT created_at FROM documents WHERE id = $7::uuid))
   AND (
-    $6::boolean
-    OR d.owner_id = $7::uuid
+    $8::boolean
+    OR d.owner_id = $9::uuid
     OR (NOT d.is_restricted AND NOT EXISTS (
          SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
     OR EXISTS (SELECT 1 FROM acl_grants g
          WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
            AND g.org_id = $2::uuid
-           AND ((g.principal_type='user' AND g.principal_id=$7::uuid)
-             OR (g.principal_type='group' AND g.principal_id = ANY($8::uuid[]))))
+           AND ((g.principal_type='user' AND g.principal_id=$9::uuid)
+             OR (g.principal_type='group' AND g.principal_id = ANY($10::uuid[]))))
     OR EXISTS (SELECT 1 FROM folder_ancestors fa
          JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
            AND g.org_id = $2::uuid
          WHERE fa.origin_folder_id=d.folder_id
-           AND ((g.principal_type='user' AND g.principal_id=$7::uuid)
-             OR (g.principal_type='group' AND g.principal_id = ANY($8::uuid[])))))
+           AND ((g.principal_type='user' AND g.principal_id=$9::uuid)
+             OR (g.principal_type='group' AND g.principal_id = ANY($10::uuid[])))))
   ORDER BY d.created_at DESC
-  LIMIT $9
+  LIMIT $11
 `
 
 type ListVisibleDocumentsParams struct {
@@ -480,6 +482,8 @@ type ListVisibleDocumentsParams struct {
 	DocType    *string  `json:"doc_type"`
 	FolderID   *string  `json:"folder_id"`
 	Status     *string  `json:"status"`
+	Language   *string  `json:"language"`
+	CursorID   *string  `json:"cursor_id"`
 	IsAdmin    bool     `json:"is_admin"`
 	UserID     string   `json:"user_id"`
 	GroupIds   []string `json:"group_ids"`
@@ -506,6 +510,8 @@ func (q *Queries) ListVisibleDocuments(ctx context.Context, arg ListVisibleDocum
 		arg.DocType,
 		arg.FolderID,
 		arg.Status,
+		arg.Language,
+		arg.CursorID,
 		arg.IsAdmin,
 		arg.UserID,
 		arg.GroupIds,

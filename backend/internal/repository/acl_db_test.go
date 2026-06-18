@@ -336,7 +336,7 @@ func TestVisibility_ListVisibleDocumentsFiltersRestricted(t *testing.T) {
 			 VALUES ($1, $2, $3, 'Restricted Doc', true) RETURNING id`, f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
-		docs, err := repo.ListVisibleDocuments(context.Background(), ListVisibleParams{
+		docs, _, err := repo.ListVisibleDocuments(context.Background(), ListVisibleParams{
 			TenantID: f.tenantID, OrgID: f.orgID, UserID: f.userB, Limit: 50,
 		})
 		if err != nil {

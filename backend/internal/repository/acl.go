@@ -33,6 +33,8 @@ type ListVisibleParams struct {
 	DocType  string
 	FolderID string
 	Status   string
+	Language string
+	Cursor   string
 	Limit    int
 }
 
@@ -102,7 +104,7 @@ type ACLRepository interface {
 	IsDocumentVisible(ctx context.Context, params VisibilityParams) (bool, error)
 	IsDocumentWritable(ctx context.Context, params VisibilityParams) (bool, error)
 	ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error)
-	ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, error)
+	ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, *string, error)
 
 	CreateGroup(ctx context.Context, params CreateGroupParams) (Group, error)
 	DeleteGroup(ctx context.Context, tenantID, orgID, groupID string) (int64, error)
@@ -202,8 +204,9 @@ func (r *aclRepository) ListUserGroupIDs(ctx context.Context, userID, orgID stri
 }
 
 // ListVisibleDocuments lists documents the principal may read, applying the
-// optional doc_type/folder/status filters.
-func (r *aclRepository) ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, error) {
+// optional doc_type/folder/status/language filters and keyset (cursor)
+// pagination. It returns the next-page cursor when more rows remain.
+func (r *aclRepository) ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, *string, error) {
 	limit := params.Limit
 	if limit <= 0 {
 		limit = 20
@@ -220,13 +223,15 @@ func (r *aclRepository) ListVisibleDocuments(ctx context.Context, params ListVis
 		DocType:    optionalString(params.DocType),
 		FolderID:   optionalString(params.FolderID),
 		Status:     optionalString(params.Status),
+		Language:   optionalString(params.Language),
+		CursorID:   optionalString(params.Cursor),
 		IsAdmin:    params.IsAdmin,
 		UserID:     params.UserID,
 		GroupIds:   groupIDs,
-		LimitCount: int32(limit),
+		LimitCount: int32(limit + 1),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list visible documents: %w", err)
+		return nil, nil, fmt.Errorf("failed to list visible documents: %w", err)
 	}
 
 	docs := make([]model.Document, 0, len(rows))
@@ -245,7 +250,14 @@ func (r *aclRepository) ListVisibleDocuments(ctx context.Context, params ListVis
 		})
 	}
 
-	return docs, nil
+	var cursor *string
+	if len(docs) > limit {
+		docs = docs[:limit]
+		c := docs[len(docs)-1].ID
+		cursor = &c
+	}
+
+	return docs, cursor, nil
 }
 
 // CreateGroup creates an org-scoped group and returns the persisted row.
