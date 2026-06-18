@@ -583,6 +583,6 @@ func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, org
 	}
 }
 
-func (s *DocumentService) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
-	return s.repo.GetStats(ctx, tenantID)
+func (s *DocumentService) GetStats(ctx context.Context, tenantID, orgID string) (*model.DocumentStats, error) {
+	return s.repo.GetStats(ctx, tenantID, orgID)
 }

@@ -88,12 +88,14 @@ WITH doc_stats AS (
     COUNT(*) FILTER (WHERE status = 'processed' AND created_at >= NOW() - INTERVAL '7 days') as completed_this_week
   FROM documents d
   WHERE d.tenant_id = sqlc.arg(tenant_id_arg)
+    AND d.org_id = sqlc.arg(org_id_arg)
 ),
 storage_stats AS (
   SELECT COALESCE(SUM(v.file_size), 0)::bigint as storage_used_bytes
   FROM documents d
   JOIN document_versions v ON d.id = v.document_id
   WHERE d.tenant_id = sqlc.arg(tenant_id_arg)
+    AND d.org_id = sqlc.arg(org_id_arg)
 )
 SELECT d.total_documents, d.pending_documents, d.completed_this_week, s.storage_used_bytes
 FROM doc_stats d, storage_stats s;

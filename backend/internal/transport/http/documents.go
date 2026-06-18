@@ -636,14 +636,15 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tenantID := middleware.GetTenantID(ctx)
-	if tenantID == "" {
+	orgID := middleware.GetOrgID(ctx)
+	if tenantID == "" || orgID == "" {
 		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
 		return
 	}
 
-	stats, err := h.documentSvc.GetStats(ctx, tenantID)
+	stats, err := h.documentSvc.GetStats(ctx, tenantID, orgID)
 	if err != nil {
-		slog.Error("failed to get stats", "error", err, "tenant_id", tenantID)
+		slog.Error("failed to get stats", "error", err, "tenant_id", tenantID, "org_id", orgID)
 		respondError(w, http.StatusInternalServerError, "failed to get stats")
 		return
 	}

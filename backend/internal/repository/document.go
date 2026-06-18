@@ -375,8 +375,8 @@ func (r *documentRepository) UpdateProcessingFields(ctx context.Context, tenantI
 	return nil
 }
 
-func (r *documentRepository) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
-	stats, err := r.queries.GetDocumentStats(ctx, sqldb.GetDocumentStatsParams{TenantIDArg: tenantID})
+func (r *documentRepository) GetStats(ctx context.Context, tenantID, orgID string) (*model.DocumentStats, error) {
+	stats, err := r.queries.GetDocumentStats(ctx, sqldb.GetDocumentStatsParams{TenantIDArg: tenantID, OrgIDArg: orgID})
 	if err != nil {
 		return nil, fmt.Errorf("getting document stats: %w", err)
 	}

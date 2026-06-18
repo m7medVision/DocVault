@@ -69,6 +69,10 @@ func (h *Handler) CreateReminder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.requireDocVisible(w, r, documentID) {
+		return
+	}
+
 	var input struct {
 		RuleType         string `json:"rule_type"`
 		TriggerDate      string `json:"trigger_date"`

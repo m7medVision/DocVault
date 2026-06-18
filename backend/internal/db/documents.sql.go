@@ -275,12 +275,14 @@ WITH doc_stats AS (
     COUNT(*) FILTER (WHERE status = 'processed' AND created_at >= NOW() - INTERVAL '7 days') as completed_this_week
   FROM documents d
   WHERE d.tenant_id = $1
+    AND d.org_id = $2
 ),
 storage_stats AS (
   SELECT COALESCE(SUM(v.file_size), 0)::bigint as storage_used_bytes
   FROM documents d
   JOIN document_versions v ON d.id = v.document_id
   WHERE d.tenant_id = $1
+    AND d.org_id = $2
 )
 SELECT d.total_documents, d.pending_documents, d.completed_this_week, s.storage_used_bytes
 FROM doc_stats d, storage_stats s
@@ -288,6 +290,7 @@ FROM doc_stats d, storage_stats s
 
 type GetDocumentStatsParams struct {
 	TenantIDArg string `json:"tenant_id_arg"`
+	OrgIDArg    string `json:"org_id_arg"`
 }
 
 type GetDocumentStatsRow struct {
@@ -298,7 +301,7 @@ type GetDocumentStatsRow struct {
 }
 
 func (q *Queries) GetDocumentStats(ctx context.Context, arg GetDocumentStatsParams) (GetDocumentStatsRow, error) {
-	row := q.db.QueryRow(ctx, getDocumentStats, arg.TenantIDArg)
+	row := q.db.QueryRow(ctx, getDocumentStats, arg.TenantIDArg, arg.OrgIDArg)
 	var i GetDocumentStatsRow
 	err := row.Scan(
 		&i.TotalDocuments,
