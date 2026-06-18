@@ -55,6 +55,7 @@ type Querier interface {
 	// matches root-level folders. Name matching is case-insensitive to mirror the
 	// unique-name indexes (lower(name)).
 	GetFolderByParentName(ctx context.Context, arg GetFolderByParentNameParams) (Folder, error)
+	GetFolderIndex(ctx context.Context, arg GetFolderIndexParams) (*string, error)
 	// Returns the height of the subtree rooted at folder_id, i.e. the number of
 	// folder levels from the folder itself down to its deepest descendant. The
 	// folder alone is height 1. Used as a soft depth guard so a reparent that would
@@ -107,6 +108,7 @@ type Querier interface {
 	SearchTags(ctx context.Context, arg SearchTagsParams) ([]Tag, error)
 	SetDocumentMetadata(ctx context.Context, arg SetDocumentMetadataParams) error
 	SetDocumentRestricted(ctx context.Context, arg SetDocumentRestrictedParams) (int64, error)
+	SetFolderIndex(ctx context.Context, arg SetFolderIndexParams) (int64, error)
 	SetFolderRestricted(ctx context.Context, arg SetFolderRestrictedParams) (int64, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) error
 	UpdateDocumentMetadataField(ctx context.Context, arg UpdateDocumentMetadataFieldParams) (int64, error)

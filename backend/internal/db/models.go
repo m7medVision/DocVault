@@ -478,6 +478,7 @@ type Folder struct {
 	CreatedBy    *string            `json:"created_by"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	IsRestricted bool               `json:"is_restricted"`
+	IndexContent *string            `json:"index_content"`
 }
 
 type Group struct {

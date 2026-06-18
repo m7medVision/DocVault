@@ -275,12 +275,13 @@ func toModelFolders(folders []sqldb.Folder) []model.Folder {
 
 func toModelFolder(folder sqldb.Folder) model.Folder {
 	return model.Folder{
-		ID:        folder.ID,
-		TenantID:  folder.TenantID,
-		OrgID:     folder.OrgID,
-		ParentID:  folder.ParentID,
-		Name:      folder.Name,
-		CreatedBy: folder.CreatedBy,
-		CreatedAt: folder.CreatedAt.Time,
+		ID:           folder.ID,
+		TenantID:     folder.TenantID,
+		OrgID:        folder.OrgID,
+		ParentID:     folder.ParentID,
+		Name:         folder.Name,
+		CreatedBy:    folder.CreatedBy,
+		CreatedAt:    folder.CreatedAt.Time,
+		IndexContent: folder.IndexContent,
 	}
 }

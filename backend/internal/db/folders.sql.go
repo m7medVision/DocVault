@@ -101,7 +101,7 @@ func (q *Queries) GetFolderAncestorIDs(ctx context.Context, arg GetFolderAncesto
 }
 
 const getFolderByID = `-- name: GetFolderByID :one
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3
 `
@@ -124,12 +124,13 @@ func (q *Queries) GetFolderByID(ctx context.Context, arg GetFolderByIDParams) (F
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.IsRestricted,
+		&i.IndexContent,
 	)
 	return i, err
 }
 
 const getFolderByParentName = `-- name: GetFolderByParentName :one
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
   AND parent_id IS NOT DISTINCT FROM $3::uuid
@@ -164,8 +165,29 @@ func (q *Queries) GetFolderByParentName(ctx context.Context, arg GetFolderByPare
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.IsRestricted,
+		&i.IndexContent,
 	)
 	return i, err
+}
+
+const getFolderIndex = `-- name: GetFolderIndex :one
+SELECT index_content
+FROM folders
+WHERE id = $1::uuid
+  AND tenant_id = $2::uuid AND org_id = $3::uuid
+`
+
+type GetFolderIndexParams struct {
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) GetFolderIndex(ctx context.Context, arg GetFolderIndexParams) (*string, error) {
+	row := q.db.QueryRow(ctx, getFolderIndex, arg.ID, arg.TenantID, arg.OrgID)
+	var index_content *string
+	err := row.Scan(&index_content)
+	return index_content, err
 }
 
 const getFolderSubtreeHeight = `-- name: GetFolderSubtreeHeight :one
@@ -202,7 +224,7 @@ func (q *Queries) GetFolderSubtreeHeight(ctx context.Context, arg GetFolderSubtr
 }
 
 const listAllFolders = `-- name: ListAllFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
 ORDER BY name ASC
@@ -231,6 +253,7 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.IsRestricted,
+			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -243,7 +266,7 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 }
 
 const listFoldersByParent = `-- name: ListFoldersByParent :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id = $3
 ORDER BY name ASC
@@ -273,6 +296,7 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.IsRestricted,
+			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -285,7 +309,7 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 }
 
 const listRootFolders = `-- name: ListRootFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id IS NULL
 ORDER BY name ASC
@@ -314,6 +338,7 @@ func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.IsRestricted,
+			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -368,6 +393,33 @@ type MoveFolderParams struct {
 func (q *Queries) MoveFolder(ctx context.Context, arg MoveFolderParams) (int64, error) {
 	result, err := q.db.Exec(ctx, moveFolder,
 		arg.NewParent,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setFolderIndex = `-- name: SetFolderIndex :execrows
+UPDATE folders
+SET index_content = $1::text
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+`
+
+type SetFolderIndexParams struct {
+	IndexContent *string `json:"index_content"`
+	ID           string  `json:"id"`
+	TenantID     string  `json:"tenant_id"`
+	OrgID        string  `json:"org_id"`
+}
+
+func (q *Queries) SetFolderIndex(ctx context.Context, arg SetFolderIndexParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setFolderIndex,
+		arg.IndexContent,
 		arg.ID,
 		arg.TenantID,
 		arg.OrgID,

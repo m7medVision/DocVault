@@ -97,14 +97,21 @@ type ExtractedTextChunk struct {
 }
 
 // Folder represents a nested folder tree node.
+//
+// IndexContent carries the folder's optional markdown "About this folder"
+// overview. It is intentionally NOT serialized here (no json tag is emitted
+// because of the json:"-" below): the folder LIST endpoints must never leak a
+// restricted folder's overview to users who cannot see it. The index content is
+// exposed only through the dedicated, visibility-checked folder index endpoints.
 type Folder struct {
-	ID        string    `json:"id"`
-	TenantID  string    `json:"tenant_id"`
-	OrgID     string    `json:"org_id"`
-	ParentID  *string   `json:"parent_id,omitempty"`
-	Name      string    `json:"name"`
-	CreatedBy *string   `json:"created_by,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	TenantID     string    `json:"tenant_id"`
+	OrgID        string    `json:"org_id"`
+	ParentID     *string   `json:"parent_id,omitempty"`
+	Name         string    `json:"name"`
+	CreatedBy    *string   `json:"created_by,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	IndexContent *string   `json:"-"`
 }
 
 // Tag represents a free-form label.

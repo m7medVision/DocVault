@@ -536,3 +536,7 @@ CREATE INDEX idx_documents_restricted ON documents(id) WHERE is_restricted;
 CREATE INDEX idx_folders_restricted   ON folders(id)   WHERE is_restricted;
 
 
+-- Source: internal/migrate/sql/014_folder_index.sql
+ALTER TABLE folders ADD COLUMN index_content TEXT;
+
+

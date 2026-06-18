@@ -3,24 +3,24 @@ INSERT INTO folders (id, tenant_id, org_id, parent_id, name, created_by, created
 VALUES ($1, $2, $3, $4, $5, $6, NOW());
 
 -- name: GetFolderByID :one
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3;
 
 -- name: ListFoldersByParent :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id = $3
 ORDER BY name ASC;
 
 -- name: ListRootFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id IS NULL
 ORDER BY name ASC;
 
 -- name: ListAllFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
 ORDER BY name ASC;
@@ -34,7 +34,7 @@ WHERE id = $3 AND tenant_id = $4 AND org_id = $5;
 -- Finds a folder by its (tenant, org, parent, name) tuple. A NULL parent_id
 -- matches root-level folders. Name matching is case-insensitive to mirror the
 -- unique-name indexes (lower(name)).
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
@@ -114,3 +114,15 @@ SELECT id FROM ancestors;
 -- name: DeleteFolder :execrows
 DELETE FROM folders
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3;
+
+-- name: SetFolderIndex :execrows
+UPDATE folders
+SET index_content = sqlc.narg(index_content)::text
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+
+-- name: GetFolderIndex :one
+SELECT index_content
+FROM folders
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
