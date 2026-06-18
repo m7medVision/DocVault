@@ -43,6 +43,7 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("GET /api/v1/documents/{id}/progress/ws", h.DocumentProgressWS)
 
 	handle("POST /api/v1/search", h.Search, middleware.Authorize(authzEnforcer, authz.ResourceSearch, authz.ActionRead))
+	handle("POST /api/v1/chat", h.ChatGlobal, middleware.Authorize(authzEnforcer, authz.ResourceSearch, authz.ActionRead))
 	handle("POST /api/v1/documents/{id}/chat", h.Chat, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 
 	handle("POST /api/v1/folders", h.CreateFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))

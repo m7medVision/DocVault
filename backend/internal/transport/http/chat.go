@@ -9,7 +9,25 @@ import (
 	"github.com/docvault/backend/internal/usecase"
 )
 
+// Chat answers questions grounded in a single document's retrieved chunks.
 func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
+	documentID := r.PathValue("id")
+	if documentID == "" {
+		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+	h.streamChat(w, r, documentID)
+}
+
+// ChatGlobal answers questions grounded in retrieval across all of the caller's
+// tenant/org documents (no document scope).
+func (h *Handler) ChatGlobal(w http.ResponseWriter, r *http.Request) {
+	h.streamChat(w, r, "")
+}
+
+// streamChat is the shared implementation for both scoped and global chat.
+// documentID is empty for global chat and set for per-document chat.
+func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID string) {
 	ctx := r.Context()
 
 	tenantID := middleware.GetTenantID(ctx)
@@ -23,12 +41,6 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	if tenantID == "" || orgID == "" {
 		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
-		return
-	}
-
-	documentID := r.PathValue("id")
-	if documentID == "" {
-		http.Error(w, `{"error":"document id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
 		return
 	}
 
