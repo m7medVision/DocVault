@@ -57,6 +57,22 @@ export async function deleteFolder(id: string): Promise<void> {
   await apiFetch(`/folders/${id}`, { method: 'DELETE' });
 }
 
+export async function getFolderIndex(
+  id: string
+): Promise<{ index_content: string | null }> {
+  return apiFetch<{ index_content: string | null }>(`/folders/${id}/index`);
+}
+
+export async function updateFolderIndex(
+  id: string,
+  content: string
+): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(`/folders/${id}/index`, {
+    method: 'PUT',
+    body: JSON.stringify({ index_content: content }),
+  });
+}
+
 export async function moveDocument(
   id: string,
   folderId?: string
