@@ -189,6 +189,76 @@ TYPE_LABELS = {
 }
 
 
+PATH_SEPARATOR = "/"
+
+# Doc types whose suggested path nests under an issuer-named subfolder.
+_ISSUER_NESTED_ROOTS = {
+    "invoice": "Invoices",
+    "receipt": "Invoices",
+    "contract": "Contracts",
+    "warranty": "Warranties",
+}
+# Doc types with a fixed single-segment path (no issuer nesting).
+_FLAT_ROOTS = {
+    "identity": "Identity",
+}
+_DEFAULT_ROOT = "Documents"
+
+
+def _sanitize_segment(value: Any) -> str:
+    """Normalize a single path segment.
+
+    Trims, collapses internal whitespace, and strips path separators so a
+    free-text issuer can never inject extra nesting levels.
+    """
+    text = str(value or "").replace("/", " ").replace("\\", " ")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def suggest_folder_path(metadata: dict) -> str:
+    """Build a deterministic nested folder path from classifier metadata.
+
+    Segments are joined by ``/`` per the suggested_folder_name contract:
+      - invoice/receipt -> "Invoices/{issuer}" (or "Invoices" when unknown)
+      - contract        -> "Contracts/{issuer}"
+      - warranty        -> "Warranties/{issuer}"
+      - identity        -> "Identity"
+      - else            -> "Documents"
+    """
+    doc_type = str(metadata.get("doc_type") or "").strip().lower()
+    issuer = _sanitize_segment(metadata.get("issuer"))
+
+    if doc_type in _ISSUER_NESTED_ROOTS:
+        root = _ISSUER_NESTED_ROOTS[doc_type]
+        segments = [root, issuer] if issuer else [root]
+    elif doc_type in _FLAT_ROOTS:
+        segments = [_FLAT_ROOTS[doc_type]]
+    else:
+        segments = [_DEFAULT_ROOT]
+
+    segments = [s for s in (seg.strip() for seg in segments) if s]
+    return PATH_SEPARATOR.join(segments)
+
+
+def suggestion_confidence(metadata: dict) -> float:
+    """Derive a [0,1] confidence for the folder/filename suggestion.
+
+    Deterministic and sourced from the classifier output: a recognized doc_type
+    scores higher, and a known issuer (which enables nesting) adds confidence.
+    An unrecognized doc_type ("other"/unknown) scores low.
+    """
+    doc_type = str(metadata.get("doc_type") or "").strip().lower()
+    issuer = _sanitize_segment(metadata.get("issuer"))
+
+    if doc_type not in ALLOWED_DOC_TYPES or doc_type == "other":
+        return 0.3
+
+    score = 0.7
+    if issuer:
+        score += 0.2
+    return round(score, 2)
+
+
 def generate_display_title(metadata: dict, original_title: str) -> str:
     _, _, ext = original_title.rpartition(".")
     if ext and "." in ext:

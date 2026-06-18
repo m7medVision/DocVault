@@ -18,7 +18,7 @@ async def test_processing_job_loads_pages_from_storage_for_legacy_message() -> N
     pg_repo.delete_by_document = AsyncMock()
     pg_repo.save_chunks = AsyncMock()
     pg_repo.upsert_metadata_rows = AsyncMock()
-    pg_repo.auto_organize = AsyncMock()
+    pg_repo.suggest_organization = AsyncMock()
     pg_repo.get_document_title = AsyncMock(return_value="test.pdf")
     ocr_repo = Mock()
     ocr_repo.get_document_pages = AsyncMock(
@@ -64,6 +64,13 @@ async def test_processing_job_loads_pages_from_storage_for_legacy_message() -> N
     assert chunk_kwargs["page_ids"] == {1: "page-1"}
     assert chunk_args[1][0].page_number == 1
     assert chunk_args[1][0].text == "hello world"
+
+    pg_repo.suggest_organization.assert_awaited_once()
+    _, suggest_kwargs = pg_repo.suggest_organization.call_args
+    assert suggest_kwargs["document_id"] == "doc-1"
+    assert suggest_kwargs["suggested_folder_name"] == "Invoices"
+    assert suggest_kwargs["suggested_filename"] == "test.pdf"
+    assert suggest_kwargs["suggestion_confidence"] == 0.7
 
 
 @pytest.mark.asyncio

@@ -110,3 +110,37 @@ async def test_classifier_falls_back_when_api_fails(monkeypatch) -> None:
     metadata = await service.extract_metadata("doc-1", "مرحبا")
 
     assert metadata == {"doc_type": "other", "language": "ar"}
+
+
+@pytest.mark.parametrize(
+    ("metadata", "expected"),
+    [
+        ({"doc_type": "invoice", "issuer": "Acme Corp"}, "Invoices/Acme Corp"),
+        ({"doc_type": "receipt", "issuer": "Acme Corp"}, "Invoices/Acme Corp"),
+        ({"doc_type": "invoice"}, "Invoices"),
+        ({"doc_type": "contract", "issuer": "Globex"}, "Contracts/Globex"),
+        ({"doc_type": "warranty", "issuer": "Globex"}, "Warranties/Globex"),
+        ({"doc_type": "identity", "issuer": "Passport Office"}, "Identity"),
+        ({"doc_type": "other"}, "Documents"),
+        ({}, "Documents"),
+        # Issuer sanitization: path separators stripped, whitespace collapsed.
+        ({"doc_type": "invoice", "issuer": "  Acme / Co\\rp  "}, "Invoices/Acme Co rp"),
+        ({"doc_type": "invoice", "issuer": "   "}, "Invoices"),
+    ],
+)
+def test_suggest_folder_path(metadata, expected) -> None:
+    assert classifier.suggest_folder_path(metadata) == expected
+
+
+@pytest.mark.parametrize(
+    ("metadata", "expected"),
+    [
+        ({"doc_type": "invoice", "issuer": "Acme"}, 0.9),
+        ({"doc_type": "invoice"}, 0.7),
+        ({"doc_type": "other"}, 0.3),
+        ({}, 0.3),
+        ({"doc_type": "bank_statement"}, 0.3),
+    ],
+)
+def test_suggestion_confidence(metadata, expected) -> None:
+    assert classifier.suggestion_confidence(metadata) == expected
