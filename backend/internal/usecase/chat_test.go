@@ -148,8 +148,8 @@ func TestStreamChat_EmitsContentAndSourcesAndFinishes(t *testing.T) {
 	if repo.lastReq.DocumentID != "" {
 		t.Fatalf("global chat DocumentID = %q, want empty", repo.lastReq.DocumentID)
 	}
-	if repo.lastReq.MinScore != minimumChatGroundingScore {
-		t.Fatalf("retrieval MinScore = %v, want %v", repo.lastReq.MinScore, minimumChatGroundingScore)
+	if repo.lastReq.MinScore != minimumSearchScore {
+		t.Fatalf("retrieval MinScore = %v, want %v", repo.lastReq.MinScore, minimumSearchScore)
 	}
 
 	out := buf.String()
