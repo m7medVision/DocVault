@@ -1,8 +1,6 @@
 """MinIO/S3 storage client for document binary access."""
 
-import io
 import structlog
-from typing import Optional
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -128,6 +126,3 @@ class MinIOClient:
             return True
         except ClientError:
             return False
-
-
-minio_client = MinIOClient()

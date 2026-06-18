@@ -1,8 +1,6 @@
 """Main entry point for the OCR Service."""
 
 import sys
-import threading
-from typing import Callable
 
 import structlog
 import structlog.stdlib
@@ -28,30 +26,18 @@ structlog.configure(
 logger = structlog.get_logger(__name__)
 
 
-class ConsumerThread(threading.Thread):
-    """Run a blocking consumer in a background thread."""
-
-    def __init__(self, name: str, starter: Callable[[], None]) -> None:
-        super().__init__(name=f"{name}-consumer", daemon=True)
-        self._starter = starter
-        self.error: Exception | None = None
-
-    def run(self) -> None:
-        try:
-            self._starter()
-        except Exception as exc:
-            self.error = exc
-
-
 def main() -> None:
-    """Main entry point for OCR Service."""
+    """Main entry point for OCR Service (composition root)."""
     from docvault_shared.config import config
     from docvault_shared import telemetry
     from docvault_shared.transport.connection import RabbitMQConnection
     from docvault_shared.transport.consumer import QueueConsumer
+    from docvault_shared.transport.publisher import QueuePublisher
     from docvault_shared.database import get_ocr_persistence
+
     from .application.ocr_job import OCRJobHandler
-    from . import ocr as ocr_module
+    from .ocr import MistralOCRClient
+    from .storage import MinIOClient
 
     telemetry.init_telemetry("docvault-ocr")
 
@@ -67,7 +53,17 @@ def main() -> None:
             queues=[config.rabbitmq_queue_ocr, config.rabbitmq_queue_processing]
         )
         connections.append(conn)
-        handler = OCRJobHandler(ocr_module.ocr_client, get_ocr_persistence(), conn)
+
+        storage = MinIOClient()
+        ocr_client = MistralOCRClient(storage)
+        publisher = QueuePublisher(connection=conn)
+        handler = OCRJobHandler(
+            ocr_client,
+            get_ocr_persistence(),
+            publisher,
+            config.rabbitmq_queue_processing,
+        )
+
         consumer = QueueConsumer(
             conn, config.rabbitmq_queue_ocr, f"{config.rabbitmq_queue_ocr}.dlq"
         )
