@@ -91,10 +91,6 @@ export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const documentId = searchParams.get("documentId");
 
-  if (!documentId) {
-    return new Response("Missing documentId", { status: 400 });
-  }
-
   const body = await req.json();
   const { messages } = body as {
     messages: Array<{
@@ -120,7 +116,13 @@ export async function POST(req: NextRequest) {
     return { role: msg.role, content: msg.content ?? "" };
   });
 
-  const backendRes = await fetch(`${SERVER_API_BASE_URL}/documents/${documentId}/chat`, {
+  // Per-document chat is scoped to a single document; without a documentId we
+  // fall back to the org-wide global chat endpoint.
+  const backendUrl = documentId
+    ? `${SERVER_API_BASE_URL}/documents/${documentId}/chat`
+    : `${SERVER_API_BASE_URL}/chat`;
+
+  const backendRes = await fetch(backendUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
