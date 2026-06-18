@@ -206,6 +206,121 @@ func (h *Handler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetFolderIndex returns a folder's optional markdown "About this folder"
+// overview. Beyond the route-level Casbin folders/read check it enforces
+// per-folder read visibility via requireFolderVisible: a restricted folder a
+// caller cannot see returns 404 (never leaking the overview). Response:
+// {"index_content": <string|null>}.
+func (h *Handler) GetFolderIndex(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.HasMinRole(role, middleware.RoleViewer) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	folderID := r.PathValue("id")
+	if folderID == "" {
+		http.Error(w, `{"error":"folder id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireFolderVisible(w, r, folderID) {
+		return
+	}
+
+	content, err := h.folderSvc.GetIndex(ctx, tenantID, orgID, folderID)
+	if err != nil {
+		if errors.Is(err, usecase.ErrFolderNotFound) {
+			http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+			return
+		}
+		slog.Error("get folder index failed", "error", err, "folder_id", folderID)
+		http.Error(w, `{"error":"failed to get folder index","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"index_content": content,
+	})
+}
+
+// SetFolderIndex updates a folder's markdown "About this folder" overview.
+// Beyond the route-level Casbin folders/write check it enforces per-folder read
+// visibility via requireFolderVisible: a restricted folder a caller cannot see
+// returns 404. Body: {"index_content": string}.
+func (h *Handler) SetFolderIndex(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	tenantID := middleware.GetTenantID(ctx)
+	orgID := middleware.GetOrgID(ctx)
+	userID := middleware.GetUserID(ctx)
+	role := middleware.GetUserRole(ctx)
+
+	if !middleware.CanWrite(role) {
+		http.Error(w, `{"error":"insufficient permissions","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	if tenantID == "" || orgID == "" {
+		http.Error(w, `{"error":"tenant context required","code":"FORBIDDEN"}`, http.StatusForbidden)
+		return
+	}
+
+	folderID := r.PathValue("id")
+	if folderID == "" {
+		http.Error(w, `{"error":"folder id is required","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.requireFolderVisible(w, r, folderID) {
+		return
+	}
+
+	var body struct {
+		IndexContent string `json:"index_content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON body","code":"BAD_REQUEST"}`, http.StatusBadRequest)
+		return
+	}
+
+	content := body.IndexContent
+	if err := h.folderSvc.SetIndex(ctx, tenantID, orgID, folderID, &content); err != nil {
+		if errors.Is(err, usecase.ErrFolderNotFound) {
+			http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+			return
+		}
+		slog.Error("set folder index failed", "error", err, "folder_id", folderID)
+		http.Error(w, `{"error":"failed to set folder index","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+
+	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+		TenantID:   tenantID,
+		ActorID:    &userID,
+		EntityType: "folder",
+		EntityID:   folderID,
+		Action:     usecase.AuditActionUpdate,
+		Metadata:   map[string]interface{}{"action": "set_index"},
+	})
+
+	slog.Info("folder index updated", "folder_id", folderID, "tenant_id", tenantID, "actor_id", userID)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"id": folderID,
+	})
+}
+
 // MoveFolder reparents a folder, preserving its name. Body: {"parent_id":
 // "<uuid>"|null}. A null parent_id moves the folder to root. Self-parent,
 // cycle (moving under itself or a descendant), and depth-cap violations are

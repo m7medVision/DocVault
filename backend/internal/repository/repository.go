@@ -65,6 +65,12 @@ type FolderRepository interface {
 	// tenant serialize and cannot race a cycle. maxDepth is the hard nesting cap.
 	Reparent(ctx context.Context, tenantID, orgID, folderID string, parentID *string, maxDepth int) error
 	Delete(ctx context.Context, tenantID, orgID, id string) error
+	// GetIndex returns the folder's optional markdown "About this folder"
+	// overview. A nil pointer means the folder has no index content set.
+	GetIndex(ctx context.Context, tenantID, orgID, id string) (*string, error)
+	// SetIndex updates the folder's index content. A nil content clears it.
+	// Returns ErrFolderNotFound when no folder matched the tenant/org/id.
+	SetIndex(ctx context.Context, tenantID, orgID, id string, content *string) error
 }
 
 // ErrFolderNameExists is returned by folder Create-style operations when a

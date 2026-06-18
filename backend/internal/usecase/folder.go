@@ -169,6 +169,58 @@ func (s *FolderService) Rename(ctx context.Context, tenantID, orgID, folderID, n
 	return nil
 }
 
+// GetIndex returns the folder's optional markdown "About this folder" overview.
+// A nil pointer means the folder has no index content set. A missing folder maps
+// to ErrFolderNotFound.
+func (s *FolderService) GetIndex(ctx context.Context, tenantID, orgID, folderID string) (*string, error) {
+	if tenantID == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+	if orgID == "" {
+		return nil, fmt.Errorf("org_id is required")
+	}
+	if folderID == "" {
+		return nil, fmt.Errorf("folder_id is required")
+	}
+	if s.repo == nil {
+		return nil, ErrFolderRepositoryNotConfigured
+	}
+
+	content, err := s.repo.GetIndex(ctx, tenantID, orgID, folderID)
+	if err != nil {
+		if errors.Is(err, repository.ErrFolderNotFound) {
+			return nil, ErrFolderNotFound
+		}
+		return nil, fmt.Errorf("failed to get folder index: %w", err)
+	}
+	return content, nil
+}
+
+// SetIndex updates the folder's markdown index content (a nil content clears it).
+// A missing folder maps to ErrFolderNotFound.
+func (s *FolderService) SetIndex(ctx context.Context, tenantID, orgID, folderID string, content *string) error {
+	if tenantID == "" {
+		return fmt.Errorf("tenant_id is required")
+	}
+	if orgID == "" {
+		return fmt.Errorf("org_id is required")
+	}
+	if folderID == "" {
+		return fmt.Errorf("folder_id is required")
+	}
+	if s.repo == nil {
+		return ErrFolderRepositoryNotConfigured
+	}
+
+	if err := s.repo.SetIndex(ctx, tenantID, orgID, folderID, content); err != nil {
+		if errors.Is(err, repository.ErrFolderNotFound) {
+			return ErrFolderNotFound
+		}
+		return fmt.Errorf("failed to set folder index: %w", err)
+	}
+	return nil
+}
+
 // EnsureFolderPath walks the given path segments top-down starting from the
 // root (parent_id NULL) and find-or-creates each segment as a folder under the
 // running parent, returning the leaf folder's id. Segments are expected to be

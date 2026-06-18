@@ -265,6 +265,42 @@ func (r *folderRepository) Delete(ctx context.Context, tenantID, orgID, id strin
 	return nil
 }
 
+// GetIndex returns the folder's optional markdown index content. A nil pointer
+// means the folder has no index content (or, for a missing folder, ErrNoRows is
+// mapped to errFolderNotFound).
+func (r *folderRepository) GetIndex(ctx context.Context, tenantID, orgID, id string) (*string, error) {
+	content, err := r.queries.GetFolderIndex(ctx, sqldb.GetFolderIndexParams{
+		ID:       id,
+		TenantID: tenantID,
+		OrgID:    orgID,
+	})
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, errFolderNotFound
+		}
+		return nil, fmt.Errorf("failed to get folder index: %w", err)
+	}
+	return content, nil
+}
+
+// SetIndex updates the folder's index content (a nil content clears it). It
+// returns errFolderNotFound when no folder matched the tenant/org/id.
+func (r *folderRepository) SetIndex(ctx context.Context, tenantID, orgID, id string, content *string) error {
+	rows, err := r.queries.SetFolderIndex(ctx, sqldb.SetFolderIndexParams{
+		IndexContent: content,
+		ID:           id,
+		TenantID:     tenantID,
+		OrgID:        orgID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set folder index: %w", err)
+	}
+	if rows == 0 {
+		return errFolderNotFound
+	}
+	return nil
+}
+
 func toModelFolders(folders []sqldb.Folder) []model.Folder {
 	models := make([]model.Folder, 0, len(folders))
 	for _, folder := range folders {
