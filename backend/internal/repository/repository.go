@@ -71,6 +71,11 @@ type FolderRepository interface {
 // existing folder rather than fail.
 var ErrFolderNameExists = errFolderNameExists
 
+// ErrFolderNotFound is returned by GetByParentName when no folder matches the
+// (tenant, org, parent, name) tuple. Callers detect a lookup miss via
+// errors.Is(err, ErrFolderNotFound) instead of matching error-string substrings.
+var ErrFolderNotFound = errFolderNotFound
+
 // TagRepository provides tag data access.
 type TagRepository interface {
 	Create(ctx context.Context, tag *document.Tag) error

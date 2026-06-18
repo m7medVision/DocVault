@@ -572,12 +572,15 @@ func (s *DocumentService) AcceptSuggestion(ctx context.Context, input *AcceptSug
 }
 
 // DismissSuggestion clears the four suggestion columns without moving or
-// retitling the document. The processing_stage is left unchanged.
+// retitling the document. Like accept, it advances processing_stage to
+// "completed": dismissing is a terminal decision on the suggestion, so the
+// document should no longer report itself as "suggesting".
 func (s *DocumentService) DismissSuggestion(ctx context.Context, tenantID, orgID, documentID string) error {
 	if tenantID == "" || orgID == "" || documentID == "" {
 		return fmt.Errorf("tenant_id, org_id, and document_id are required")
 	}
-	if err := s.repo.ClearSuggestion(ctx, tenantID, orgID, documentID, nil); err != nil {
+	completed := string(model.StageCompleted)
+	if err := s.repo.ClearSuggestion(ctx, tenantID, orgID, documentID, &completed); err != nil {
 		return fmt.Errorf("failed to dismiss suggestion: %w", err)
 	}
 	return nil

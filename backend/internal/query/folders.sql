@@ -106,7 +106,8 @@ WITH RECURSIVE ancestors(id, parent_id, path) AS (
   UNION ALL
   SELECT pf.id, pf.parent_id, a.path || pf.id
   FROM folders pf JOIN ancestors a ON pf.id = a.parent_id
-  WHERE NOT pf.id = ANY(a.path) AND array_length(a.path, 1) < 100
+  WHERE pf.tenant_id = sqlc.arg(tenant_id)::uuid AND pf.org_id = sqlc.arg(org_id)::uuid
+    AND NOT pf.id = ANY(a.path) AND array_length(a.path, 1) < 100
 )
 SELECT id FROM ancestors;
 

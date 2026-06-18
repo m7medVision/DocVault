@@ -199,7 +199,7 @@ func (s *FolderService) EnsureFolderPath(ctx context.Context, tenantID, orgID, u
 			parentID = &id
 			continue
 		}
-		if !strings.Contains(err.Error(), "not found") {
+		if !errors.Is(err, repository.ErrFolderNotFound) {
 			return "", fmt.Errorf("failed to look up folder %q: %w", name, err)
 		}
 

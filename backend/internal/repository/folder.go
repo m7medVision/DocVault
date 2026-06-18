@@ -15,6 +15,11 @@ import (
 // errFolderNameExists is the unexported sentinel exposed via ErrFolderNameExists.
 var errFolderNameExists = errors.New("folder name already exists under parent")
 
+// errFolderNotFound is the unexported sentinel exposed via ErrFolderNotFound. It
+// lets callers (e.g. EnsureFolderPath) distinguish a genuine "no such folder"
+// lookup miss via errors.Is rather than matching error-string substrings.
+var errFolderNotFound = errors.New("folder not found")
+
 // isUniqueViolation reports whether err is a Postgres unique-constraint
 // violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
@@ -60,7 +65,7 @@ func (r *folderRepository) GetByParentName(ctx context.Context, tenantID, orgID 
 	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("folder not found")
+			return nil, errFolderNotFound
 		}
 		return nil, fmt.Errorf("failed to get folder by name: %w", err)
 	}
