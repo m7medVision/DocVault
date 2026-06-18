@@ -111,6 +111,7 @@ type ACLRepository interface {
 	RemoveGroupMember(ctx context.Context, tenantID, orgID, groupID, userID string) (int64, error)
 
 	CreateGrant(ctx context.Context, params CreateGrantParams) (string, error)
+	GrantTargetExists(ctx context.Context, ref ResourceRef) (bool, error)
 	DeleteGrant(ctx context.Context, tenantID, orgID, grantID string) (int64, error)
 	ListGrantsByResource(ctx context.Context, ref ResourceRef) ([]Grant, error)
 	DeleteGrantsForResource(ctx context.Context, ref ResourceRef) (int64, error)
@@ -351,6 +352,21 @@ func (r *aclRepository) CreateGrant(ctx context.Context, params CreateGrantParam
 		return "", fmt.Errorf("failed to create grant: %w", err)
 	}
 	return id, nil
+}
+
+// GrantTargetExists reports whether the grant target (a document or folder
+// identified by resource_type/resource_id) exists within the caller's org.
+func (r *aclRepository) GrantTargetExists(ctx context.Context, ref ResourceRef) (bool, error) {
+	exists, err := r.queries.GrantTargetExists(ctx, sqldb.GrantTargetExistsParams{
+		ResourceType: sqldb.AclResourceType(ref.ResourceType),
+		ResourceID:   ref.ResourceID,
+		TenantID:     ref.TenantID,
+		OrgID:        ref.OrgID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to check grant target existence: %w", err)
+	}
+	return exists, nil
 }
 
 // DeleteGrant deletes a grant by id and returns the affected row count.

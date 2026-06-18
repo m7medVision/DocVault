@@ -79,6 +79,10 @@ func (f *fakeACLRepository) CreateGrant(ctx context.Context, params repository.C
 	return "", nil
 }
 
+func (f *fakeACLRepository) GrantTargetExists(ctx context.Context, ref repository.ResourceRef) (bool, error) {
+	return true, nil
+}
+
 func (f *fakeACLRepository) DeleteGrant(ctx context.Context, tenantID, orgID, grantID string) (int64, error) {
 	return 0, nil
 }

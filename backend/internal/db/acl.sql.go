@@ -174,12 +174,47 @@ func (q *Queries) DeleteGroup(ctx context.Context, arg DeleteGroupParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const grantTargetExists = `-- name: GrantTargetExists :one
+SELECT EXISTS (
+  SELECT 1 FROM documents d
+  WHERE $1::acl_resource_type = 'document'
+    AND d.id = $2::uuid
+    AND d.tenant_id = $3::uuid AND d.org_id = $4::uuid
+  UNION ALL
+  SELECT 1 FROM folders f
+  WHERE $1::acl_resource_type = 'folder'
+    AND f.id = $2::uuid
+    AND f.tenant_id = $3::uuid AND f.org_id = $4::uuid
+) AS exists
+`
+
+type GrantTargetExistsParams struct {
+	ResourceType AclResourceType `json:"resource_type"`
+	ResourceID   string          `json:"resource_id"`
+	TenantID     string          `json:"tenant_id"`
+	OrgID        string          `json:"org_id"`
+}
+
+// Returns true when the (resource_type, resource_id) refers to an existing
+// document or folder in the caller's tenant/org, used to validate a grant target.
+func (q *Queries) GrantTargetExists(ctx context.Context, arg GrantTargetExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, grantTargetExists,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const isDocumentVisibleToUser = `-- name: IsDocumentVisibleToUser :one
 WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted, path) AS (
   SELECT f.id, f.parent_id, f.is_restricted, ARRAY[f.id]
   FROM folders f JOIN documents d ON d.folder_id = f.id
-  WHERE d.id = $4::uuid
-    AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
+  WHERE d.id = $5::uuid
+    AND d.tenant_id = $6::uuid AND d.org_id = $3::uuid
   UNION ALL
   SELECT pf.id, pf.parent_id, pf.is_restricted, fc.path || pf.id
   FROM folders pf JOIN folder_chain fc ON pf.id = fc.parent_id
@@ -191,35 +226,37 @@ SELECT
   OR (NOT d.is_restricted AND NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+         AND g.org_id = $3::uuid
          AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
-           OR (g.principal_type='group' AND g.principal_id = ANY($3::uuid[]))))
+           OR (g.principal_type='group' AND g.principal_id = ANY($4::uuid[]))))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
          AND g.permission='read'
+         AND g.org_id = $3::uuid
          AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
-           OR (g.principal_type='group' AND g.principal_id = ANY($3::uuid[])))) AS visible
+           OR (g.principal_type='group' AND g.principal_id = ANY($4::uuid[])))) AS visible
 FROM documents d
-WHERE d.id = $4::uuid
-  AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
+WHERE d.id = $5::uuid
+  AND d.tenant_id = $6::uuid AND d.org_id = $3::uuid
 `
 
 type IsDocumentVisibleToUserParams struct {
 	IsAdmin    bool     `json:"is_admin"`
 	UserID     string   `json:"user_id"`
+	OrgID      string   `json:"org_id"`
 	GroupIds   []string `json:"group_ids"`
 	DocumentID string   `json:"document_id"`
 	TenantID   string   `json:"tenant_id"`
-	OrgID      string   `json:"org_id"`
 }
 
 func (q *Queries) IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVisibleToUserParams) (*bool, error) {
 	row := q.db.QueryRow(ctx, isDocumentVisibleToUser,
 		arg.IsAdmin,
 		arg.UserID,
+		arg.OrgID,
 		arg.GroupIds,
 		arg.DocumentID,
 		arg.TenantID,
-		arg.OrgID,
 	)
 	var visible *bool
 	err := row.Scan(&visible)
@@ -230,8 +267,8 @@ const isDocumentWritableToUser = `-- name: IsDocumentWritableToUser :one
 WITH RECURSIVE folder_chain(folder_id, parent_id, is_restricted, path) AS (
   SELECT f.id, f.parent_id, f.is_restricted, ARRAY[f.id]
   FROM folders f JOIN documents d ON d.folder_id = f.id
-  WHERE d.id = $4::uuid
-    AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
+  WHERE d.id = $5::uuid
+    AND d.tenant_id = $6::uuid AND d.org_id = $3::uuid
   UNION ALL
   SELECT pf.id, pf.parent_id, pf.is_restricted, fc.path || pf.id
   FROM folders pf JOIN folder_chain fc ON pf.id = fc.parent_id
@@ -243,35 +280,37 @@ SELECT
   OR (NOT d.is_restricted AND NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission IN ('write','delete')
+         AND g.org_id = $3::uuid
          AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
-           OR (g.principal_type='group' AND g.principal_id = ANY($3::uuid[]))))
+           OR (g.principal_type='group' AND g.principal_id = ANY($4::uuid[]))))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
          AND g.permission IN ('write','delete')
+         AND g.org_id = $3::uuid
          AND ((g.principal_type='user'  AND g.principal_id=$2::uuid)
-           OR (g.principal_type='group' AND g.principal_id = ANY($3::uuid[])))) AS writable
+           OR (g.principal_type='group' AND g.principal_id = ANY($4::uuid[])))) AS writable
 FROM documents d
-WHERE d.id = $4::uuid
-  AND d.tenant_id = $5::uuid AND d.org_id = $6::uuid
+WHERE d.id = $5::uuid
+  AND d.tenant_id = $6::uuid AND d.org_id = $3::uuid
 `
 
 type IsDocumentWritableToUserParams struct {
 	IsAdmin    bool     `json:"is_admin"`
 	UserID     string   `json:"user_id"`
+	OrgID      string   `json:"org_id"`
 	GroupIds   []string `json:"group_ids"`
 	DocumentID string   `json:"document_id"`
 	TenantID   string   `json:"tenant_id"`
-	OrgID      string   `json:"org_id"`
 }
 
 func (q *Queries) IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWritableToUserParams) (*bool, error) {
 	row := q.db.QueryRow(ctx, isDocumentWritableToUser,
 		arg.IsAdmin,
 		arg.UserID,
+		arg.OrgID,
 		arg.GroupIds,
 		arg.DocumentID,
 		arg.TenantID,
-		arg.OrgID,
 	)
 	var writable *bool
 	err := row.Scan(&writable)
@@ -422,10 +461,12 @@ WHERE d.tenant_id = $1::uuid AND d.org_id = $2::uuid
          SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
     OR EXISTS (SELECT 1 FROM acl_grants g
          WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+           AND g.org_id = $2::uuid
            AND ((g.principal_type='user' AND g.principal_id=$7::uuid)
              OR (g.principal_type='group' AND g.principal_id = ANY($8::uuid[]))))
     OR EXISTS (SELECT 1 FROM folder_ancestors fa
          JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
+           AND g.org_id = $2::uuid
          WHERE fa.origin_folder_id=d.folder_id
            AND ((g.principal_type='user' AND g.principal_id=$7::uuid)
              OR (g.principal_type='group' AND g.principal_id = ANY($8::uuid[])))))

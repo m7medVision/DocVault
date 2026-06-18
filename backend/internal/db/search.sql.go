@@ -69,10 +69,12 @@ filtered_chunks AS (
            SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
       OR EXISTS (SELECT 1 FROM acl_grants g
            WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+             AND g.org_id = $2
              AND ((g.principal_type='user' AND g.principal_id=$15::uuid)
                OR (g.principal_type='group' AND g.principal_id = ANY($16::uuid[]))))
       OR EXISTS (SELECT 1 FROM folder_ancestors fa
            JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
+             AND g.org_id = $2
            WHERE fa.origin_folder_id=d.folder_id
              AND ((g.principal_type='user' AND g.principal_id=$15::uuid)
                OR (g.principal_type='group' AND g.principal_id = ANY($16::uuid[])))))

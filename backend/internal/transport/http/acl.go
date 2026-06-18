@@ -243,6 +243,21 @@ func (h *Handler) CreateGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	exists, err := h.aclRepo.GrantTargetExists(ctx, repository.ResourceRef{
+		TenantID:     tenantID,
+		OrgID:        orgID,
+		ResourceType: body.ResourceType,
+		ResourceID:   body.ResourceID,
+	})
+	if err != nil {
+		http.Error(w, `{"error":"failed to create grant","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		http.Error(w, `{"error":"resource not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+		return
+	}
+
 	id, err := h.aclRepo.CreateGrant(ctx, repository.CreateGrantParams{
 		TenantID:      tenantID,
 		OrgID:         orgID,

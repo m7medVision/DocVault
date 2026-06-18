@@ -15,11 +15,13 @@ SELECT
   OR (NOT d.is_restricted AND NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+         AND g.org_id = sqlc.arg(org_id)::uuid
          AND ((g.principal_type='user'  AND g.principal_id=sqlc.arg(user_id)::uuid)
            OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[]))))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
          AND g.permission='read'
+         AND g.org_id = sqlc.arg(org_id)::uuid
          AND ((g.principal_type='user'  AND g.principal_id=sqlc.arg(user_id)::uuid)
            OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[])))) AS visible
 FROM documents d
@@ -43,11 +45,13 @@ SELECT
   OR (NOT d.is_restricted AND NOT EXISTS (SELECT 1 FROM folder_chain WHERE is_restricted))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission IN ('write','delete')
+         AND g.org_id = sqlc.arg(org_id)::uuid
          AND ((g.principal_type='user'  AND g.principal_id=sqlc.arg(user_id)::uuid)
            OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[]))))
   OR EXISTS (SELECT 1 FROM acl_grants g
        WHERE g.resource_type='folder' AND g.resource_id IN (SELECT folder_id FROM folder_chain)
          AND g.permission IN ('write','delete')
+         AND g.org_id = sqlc.arg(org_id)::uuid
          AND ((g.principal_type='user'  AND g.principal_id=sqlc.arg(user_id)::uuid)
            OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[])))) AS writable
 FROM documents d
@@ -81,10 +85,12 @@ WHERE d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::u
          SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
     OR EXISTS (SELECT 1 FROM acl_grants g
          WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+           AND g.org_id = sqlc.arg(org_id)::uuid
            AND ((g.principal_type='user' AND g.principal_id=sqlc.arg(user_id)::uuid)
              OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[]))))
     OR EXISTS (SELECT 1 FROM folder_ancestors fa
          JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
+           AND g.org_id = sqlc.arg(org_id)::uuid
          WHERE fa.origin_folder_id=d.folder_id
            AND ((g.principal_type='user' AND g.principal_id=sqlc.arg(user_id)::uuid)
              OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[])))))
@@ -131,6 +137,21 @@ VALUES (
   sqlc.arg(permission)::acl_permission, sqlc.narg(granted_by)::uuid)
 ON CONFLICT (resource_type, resource_id, principal_type, principal_id, permission) DO NOTHING
 RETURNING id;
+
+-- name: GrantTargetExists :one
+-- Returns true when the (resource_type, resource_id) refers to an existing
+-- document or folder in the caller's tenant/org, used to validate a grant target.
+SELECT EXISTS (
+  SELECT 1 FROM documents d
+  WHERE sqlc.arg(resource_type)::acl_resource_type = 'document'
+    AND d.id = sqlc.arg(resource_id)::uuid
+    AND d.tenant_id = sqlc.arg(tenant_id)::uuid AND d.org_id = sqlc.arg(org_id)::uuid
+  UNION ALL
+  SELECT 1 FROM folders f
+  WHERE sqlc.arg(resource_type)::acl_resource_type = 'folder'
+    AND f.id = sqlc.arg(resource_id)::uuid
+    AND f.tenant_id = sqlc.arg(tenant_id)::uuid AND f.org_id = sqlc.arg(org_id)::uuid
+) AS exists;
 
 -- name: DeleteGrant :execrows
 DELETE FROM acl_grants

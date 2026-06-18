@@ -50,6 +50,9 @@ type Querier interface {
 	GetTagByID(ctx context.Context, arg GetTagByIDParams) (Tag, error)
 	GetTagByName(ctx context.Context, arg GetTagByNameParams) (Tag, error)
 	GetUnreadNotificationCount(ctx context.Context, arg GetUnreadNotificationCountParams) (int64, error)
+	// Returns true when the (resource_type, resource_id) refers to an existing
+	// document or folder in the caller's tenant/org, used to validate a grant target.
+	GrantTargetExists(ctx context.Context, arg GrantTargetExistsParams) (bool, error)
 	IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVisibleToUserParams) (*bool, error)
 	IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWritableToUserParams) (*bool, error)
 	IsEmailTakenByOther(ctx context.Context, arg IsEmailTakenByOtherParams) (bool, error)
