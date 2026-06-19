@@ -139,11 +139,17 @@ func Run() error {
 	slog.Info("Casbin authorization initialized")
 
 	repos := repository.NewRepositories(dbPool, authzEnforcer)
+	// One Redis-backed cache shared by the repository decorators below; each uses
+	// a distinct key prefix so namespaces never collide.
+	appCache := cache.NewRedis(redisClient.Client)
 	// Cache the per-(org,user) group-membership lookup the authorizer runs on
 	// nearly every non-admin request. Membership mutations bust the affected
 	// keys; a short TTL bounds staleness. Wrapped once here so every consumer
 	// (document/folder services, the handler's authorizer) shares the cache.
-	aclRepo := repository.NewCachingACL(repos.ACL, cache.NewRedis(redisClient.Client))
+	aclRepo := repository.NewCachingACL(repos.ACL, appCache)
+	// Cache the per-org document-stats aggregate; document create/delete bust it,
+	// a short TTL covers status changes made by the processing workers.
+	documentRepo := repository.NewCachingDocuments(repos.Document, appCache)
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
 	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
 	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)
@@ -156,7 +162,7 @@ func Run() error {
 	h := handler.New(cfg, handler.Dependencies{
 		DB:              dbPool,
 		AuthzEnforcer:   authzEnforcer,
-		DocumentSvc:     usecase.NewDocumentService(repos.Document, aclRepo, objectStore, ocrDispatcher),
+		DocumentSvc:     usecase.NewDocumentService(documentRepo, aclRepo, objectStore, ocrDispatcher),
 		FolderSvc:       usecase.NewFolderService(repos.Folder, aclRepo),
 		TagSvc:          usecase.NewTagService(repos.Tag),
 		AuditSvc:        usecase.NewAuditService(repos.Audit),
