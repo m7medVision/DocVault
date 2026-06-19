@@ -671,59 +671,14 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	getOutput, err := h.documentSvc.Get(ctx, &usecase.GetDocumentInput{
+	result, err := h.suggestionSvc.Accept(ctx, usecase.AcceptSuggestionRequest{
 		TenantID:   tenantID,
 		OrgID:      orgID,
+		UserID:     userID,
 		DocumentID: documentID,
 	})
 	if err != nil {
-		if errors.Is(err, repository.ErrDocumentNotFound) {
-			http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-			return
-		}
-		slog.Error("accept suggestion: load document failed", "error", err, "document_id", documentID)
-		http.Error(w, `{"error":"failed to load document","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
-		return
-	}
-
-	doc := getOutput.Document
-	if doc.SuggestedFolderName == nil || *doc.SuggestedFolderName == "" {
-		http.Error(w, `{"error":"no folder suggestion to accept","code":"BAD_REQUEST"}`, http.StatusBadRequest)
-		return
-	}
-
-	segments := usecase.SplitFolderPath(*doc.SuggestedFolderName)
-	if len(segments) == 0 {
-		http.Error(w, `{"error":"suggested folder path is empty","code":"BAD_REQUEST"}`, http.StatusBadRequest)
-		return
-	}
-
-	leafID, err := h.folderSvc.EnsureFolderPath(ctx, tenantID, orgID, userID, segments)
-	if err != nil {
-		slog.Error("accept suggestion: ensure folder path failed", "error", err, "document_id", documentID)
-		http.Error(w, `{"error":"failed to create suggested folders","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
-		return
-	}
-
-	title := ""
-	if doc.SuggestedFilename != nil {
-		title = *doc.SuggestedFilename
-	}
-
-	output, err := h.documentSvc.AcceptSuggestion(ctx, &usecase.AcceptSuggestionInput{
-		TenantID:     tenantID,
-		OrgID:        orgID,
-		DocumentID:   documentID,
-		LeafFolderID: leafID,
-		Title:        title,
-	})
-	if err != nil {
-		if errors.Is(err, repository.ErrDocumentTitleExists) {
-			http.Error(w, `{"error":"a document with this title already exists in this folder","code":"CONFLICT"}`, http.StatusConflict)
-			return
-		}
-		slog.Error("accept suggestion failed", "error", err, "document_id", documentID)
-		http.Error(w, `{"error":"failed to accept suggestion","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		writeErr(w, r, err)
 		return
 	}
 
@@ -735,16 +690,16 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		Action:     usecase.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":      "accept_suggestion",
-			"folder_id":   leafID,
-			"folder_path": *doc.SuggestedFolderName,
-			"title":       title,
+			"folder_id":   result.LeafFolderID,
+			"folder_path": result.FolderPath,
+			"title":       result.Title,
 		},
 	})
 
-	slog.Info("suggestion accepted", "document_id", documentID, "folder_id", leafID, "tenant_id", tenantID, "actor_id", userID)
+	slog.Info("suggestion accepted", "document_id", documentID, "folder_id", result.LeafFolderID, "tenant_id", tenantID, "actor_id", userID)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"document": output.Document,
+		"document": result.Document,
 	})
 }
 

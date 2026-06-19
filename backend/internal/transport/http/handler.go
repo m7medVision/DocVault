@@ -35,6 +35,7 @@ type Handler struct {
 	notificationSvc *usecase.NotificationService
 	searchSvc       *usecase.SearchService
 	chatSvc         *usecase.ChatService
+	suggestionSvc   *usecase.SuggestionService
 	userRepo        repository.UserRepository
 	membershipRepo  repository.MembershipRepository
 	policyRepo      repository.PolicyRepository
@@ -72,6 +73,7 @@ func New(cfg *config.Config, deps Dependencies) *Handler {
 		notificationSvc: deps.NotificationSvc,
 		searchSvc:       deps.SearchSvc,
 		chatSvc:         deps.ChatSvc,
+		suggestionSvc:   usecase.NewSuggestionService(deps.DocumentSvc, deps.FolderSvc),
 		userRepo:        deps.UserRepo,
 		membershipRepo:  deps.MembershipRepo,
 		policyRepo:      deps.PolicyRepo,
