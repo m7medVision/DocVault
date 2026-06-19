@@ -8,6 +8,7 @@ import (
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/platform/pgconv"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -321,7 +322,7 @@ func (r *documentRepository) SetMetadata(ctx context.Context, tenantID string, m
 		ExtractedValue: metadata.ExtractedValue,
 		CorrectedValue: metadata.CorrectedValue,
 		CorrectedBy:    metadata.CorrectedBy,
-		CorrectedAt:    timestamptzFromTimePtr(metadata.CorrectedAt),
+		CorrectedAt:    pgconv.TimestamptzFromTimePtr(metadata.CorrectedAt),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to set metadata: %w", err)
@@ -347,7 +348,7 @@ func (r *documentRepository) GetMetadata(ctx context.Context, tenantID, document
 			ExtractedValue: item.ExtractedValue,
 			CorrectedValue: item.CorrectedValue,
 			CorrectedBy:    item.CorrectedBy,
-			CorrectedAt:    timePtrFromTimestamptz(item.CorrectedAt),
+			CorrectedAt:    pgconv.TimePtrFromTimestamptz(item.CorrectedAt),
 			CreatedAt:      item.CreatedAt.Time,
 		})
 	}

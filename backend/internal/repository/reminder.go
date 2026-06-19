@@ -8,6 +8,7 @@ import (
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/reminder"
+	"github.com/docvault/backend/internal/platform/pgconv"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -34,8 +35,8 @@ func (r *reminderRepository) Create(ctx context.Context, reminder *model.Reminde
 		DocumentID:       reminder.DocumentID,
 		TenantID:         reminder.TenantID,
 		RuleType:         reminder.RuleType,
-		TriggerDate:      dateFromTime(reminder.TriggerDate),
-		NotifyDaysBefore: int32sFromInts(reminder.NotifyDaysBefore),
+		TriggerDate:      pgconv.DateFromTime(reminder.TriggerDate),
+		NotifyDaysBefore: pgconv.Int32sFromInts(reminder.NotifyDaysBefore),
 		Source:           sqldb.ReminderRuleSource(reminder.Source),
 		Active:           reminder.Active,
 	})
@@ -106,8 +107,8 @@ func (r *reminderRepository) Update(ctx context.Context, reminder *model.Reminde
 	}
 	err := r.queries.UpdateReminderRule(ctx, sqldb.UpdateReminderRuleParams{
 		RuleType:         reminder.RuleType,
-		TriggerDate:      dateFromTime(reminder.TriggerDate),
-		NotifyDaysBefore: int32sFromInts(reminder.NotifyDaysBefore),
+		TriggerDate:      pgconv.DateFromTime(reminder.TriggerDate),
+		NotifyDaysBefore: pgconv.Int32sFromInts(reminder.NotifyDaysBefore),
 		Active:           reminder.Active,
 		ID:               reminder.ID,
 		TenantID:         reminder.TenantID,
@@ -138,8 +139,8 @@ func (r *reminderRepository) CreateEvent(ctx context.Context, event *model.Remin
 	err := r.queries.CreateReminderEvent(ctx, sqldb.CreateReminderEventParams{
 		ID:           event.ID,
 		RuleID:       event.RuleID,
-		ScheduledAt:  timestamptzFromTime(event.ScheduledAt),
-		SentAt:       timestamptzFromTimePtr(event.SentAt),
+		ScheduledAt:  pgconv.TimestamptzFromTime(event.ScheduledAt),
+		SentAt:       pgconv.TimestamptzFromTimePtr(event.SentAt),
 		Channel:      event.Channel,
 		Status:       sqldb.ReminderEventStatus(event.Status),
 		ErrorMessage: event.ErrorMessage,
@@ -156,7 +157,7 @@ func (r *reminderRepository) UpdateEvent(ctx context.Context, event *model.Remin
 		return fmt.Errorf("event is nil")
 	}
 	err := r.queries.UpdateReminderEvent(ctx, sqldb.UpdateReminderEventParams{
-		SentAt:       timestamptzFromTimePtr(event.SentAt),
+		SentAt:       pgconv.TimestamptzFromTimePtr(event.SentAt),
 		Status:       sqldb.ReminderEventStatus(event.Status),
 		ErrorMessage: event.ErrorMessage,
 		ID:           event.ID,
@@ -169,7 +170,7 @@ func (r *reminderRepository) UpdateEvent(ctx context.Context, event *model.Remin
 
 // GetPendingEvents retrieves pending reminder events.
 func (r *reminderRepository) GetPendingEvents(ctx context.Context, before time.Time) ([]model.ReminderEvent, error) {
-	events, err := r.queries.GetPendingReminderEvents(ctx, sqldb.GetPendingReminderEventsParams{ScheduledAt: timestamptzFromTime(before)})
+	events, err := r.queries.GetPendingReminderEvents(ctx, sqldb.GetPendingReminderEventsParams{ScheduledAt: pgconv.TimestamptzFromTime(before)})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pending events: %w", err)
 	}
@@ -191,7 +192,7 @@ func toModelReminderRule(reminder sqldb.ReminderRule) model.ReminderRule {
 		TenantID:         reminder.TenantID,
 		RuleType:         reminder.RuleType,
 		TriggerDate:      reminder.TriggerDate.Time,
-		NotifyDaysBefore: intsFromInt32s(reminder.NotifyDaysBefore),
+		NotifyDaysBefore: pgconv.IntsFromInt32s(reminder.NotifyDaysBefore),
 		Source:           string(reminder.Source),
 		Active:           reminder.Active,
 		CreatedAt:        reminder.CreatedAt.Time,
@@ -205,7 +206,7 @@ func toModelReminderEvents(events []sqldb.ReminderEvent) []model.ReminderEvent {
 			ID:           event.ID,
 			RuleID:       event.RuleID,
 			ScheduledAt:  event.ScheduledAt.Time,
-			SentAt:       timePtrFromTimestamptz(event.SentAt),
+			SentAt:       pgconv.TimePtrFromTimestamptz(event.SentAt),
 			Channel:      event.Channel,
 			Status:       model.ReminderEventStatus(event.Status),
 			ErrorMessage: event.ErrorMessage,

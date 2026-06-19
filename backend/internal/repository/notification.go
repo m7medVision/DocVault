@@ -8,6 +8,7 @@ import (
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/notification"
+	"github.com/docvault/backend/internal/platform/pgconv"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -45,7 +46,7 @@ func (r *notificationRepository) Create(ctx context.Context, notification *model
 		Link:     notification.Link,
 		Status:   string(notification.Status),
 		Metadata: metadataJSON,
-		ReadAt:   timestamptzFromTimePtr(notification.ReadAt),
+		ReadAt:   pgconv.TimestamptzFromTimePtr(notification.ReadAt),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create notification: %w", err)
@@ -137,7 +138,7 @@ func toModelNotification(notification sqldb.Notification) (model.Notification, e
 		Link:      notification.Link,
 		Status:    model.NotificationStatus(notification.Status),
 		CreatedAt: notification.CreatedAt.Time,
-		ReadAt:    timePtrFromTimestamptz(notification.ReadAt),
+		ReadAt:    pgconv.TimePtrFromTimestamptz(notification.ReadAt),
 	}
 	if notification.Body != nil {
 		modelNotification.Body = *notification.Body
