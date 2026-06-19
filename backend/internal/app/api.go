@@ -150,6 +150,9 @@ func Run() error {
 	// Cache the per-org document-stats aggregate; document create/delete bust it,
 	// a short TTL covers status changes made by the processing workers.
 	documentRepo := repository.NewCachingDocuments(repos.Document, appCache)
+	// Cache the per-org folder tree read on every navigation render; structural
+	// folder mutations bust it, a short TTL covers is_restricted display toggles.
+	folderRepo := repository.NewCachingFolders(repos.Folder, appCache)
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
 	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
 	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)
@@ -163,7 +166,7 @@ func Run() error {
 		DB:              dbPool,
 		AuthzEnforcer:   authzEnforcer,
 		DocumentSvc:     usecase.NewDocumentService(documentRepo, aclRepo, objectStore, ocrDispatcher),
-		FolderSvc:       usecase.NewFolderService(repos.Folder, aclRepo),
+		FolderSvc:       usecase.NewFolderService(folderRepo, aclRepo),
 		TagSvc:          usecase.NewTagService(repos.Tag),
 		AuditSvc:        usecase.NewAuditService(repos.Audit),
 		ReminderSvc:     usecase.NewReminderService(repos.Reminder),
