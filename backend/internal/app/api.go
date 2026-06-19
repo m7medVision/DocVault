@@ -138,7 +138,7 @@ func Run() error {
 	slog.Info("JWT authentication initialized")
 	slog.Info("Casbin authorization initialized")
 
-	repos := repository.NewRepositories(dbPool, authzEnforcer)
+	repos := buildRepositories(dbPool, authzEnforcer)
 	// One Redis-backed cache shared by the repository decorators below; each uses
 	// a distinct key prefix so namespaces never collide.
 	appCache := cache.NewRedis(redisClient.Client)

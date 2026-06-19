@@ -6,13 +6,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/casbin/casbin/v3"
 	"github.com/docvault/backend/internal/domain/audit"
 	"github.com/docvault/backend/internal/domain/document"
 	"github.com/docvault/backend/internal/domain/identity"
 	"github.com/docvault/backend/internal/domain/notification"
 	"github.com/docvault/backend/internal/domain/reminder"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DocumentRepository provides document data access.
@@ -131,7 +129,11 @@ type UserRepository interface {
 	IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error)
 }
 
-// Repositories holds all repository instances.
+// Repositories holds all repository instances. It is the contract the
+// composition root populates (see app.buildRepositories) and the rest of the
+// application consumes; the concrete wiring lives in the composition root so
+// this package stays a pure leaf of contracts with no dependency on the
+// per-context postgres adapters.
 type Repositories struct {
 	Document     DocumentRepository
 	Reminder     ReminderRepository
@@ -144,21 +146,4 @@ type Repositories struct {
 	Policy       PolicyRepository
 	Search       SearchRepository
 	ACL          ACLRepository
-}
-
-// NewRepositories creates all repository instances with the given database pool.
-func NewRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *Repositories {
-	return &Repositories{
-		Document:     NewDocumentRepository(db),
-		Reminder:     NewReminderRepository(db),
-		Folder:       NewFolderRepository(db),
-		Tag:          NewTagRepository(db),
-		Audit:        NewAuditRepository(db),
-		Notification: NewNotificationRepository(db),
-		User:         NewUserRepository(db),
-		Membership:   NewMembershipRepository(db),
-		Policy:       NewPolicyRepository(enforcer),
-		Search:       NewSearchRepository(db),
-		ACL:          NewACLRepository(db),
-	}
 }
