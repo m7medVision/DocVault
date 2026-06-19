@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
@@ -63,12 +64,12 @@ func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action": "move",
 			"folder": body.FolderID,
@@ -143,12 +144,12 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action": "rename",
 			"title":  body.Title,
@@ -207,12 +208,12 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":      "accept_suggestion",
 			"folder_id":   result.LeafFolderID,
@@ -264,12 +265,12 @@ func (h *Handler) DismissSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action": "dismiss_suggestion",
 		},

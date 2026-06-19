@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	"github.com/docvault/backend/internal/document"
 	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
@@ -261,12 +262,12 @@ func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionDelete,
+		Action:     auditapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 

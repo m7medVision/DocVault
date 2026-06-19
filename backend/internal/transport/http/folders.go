@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 )
@@ -59,12 +60,12 @@ func (h *Handler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   output.Folder.ID,
-		Action:     documentapp.AuditActionCreate,
+		Action:     auditapp.AuditActionCreate,
 		Metadata:   nil,
 	})
 
@@ -189,12 +190,12 @@ func (h *Handler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata:   map[string]interface{}{"action": "rename", "name": body.Name},
 	})
 
@@ -305,12 +306,12 @@ func (h *Handler) SetFolderIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata:   map[string]interface{}{"action": "set_index"},
 	})
 
@@ -376,12 +377,12 @@ func (h *Handler) MoveFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":    "move",
 			"parent_id": body.ParentID,
@@ -426,12 +427,12 @@ func (h *Handler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     documentapp.AuditActionDelete,
+		Action:     auditapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 

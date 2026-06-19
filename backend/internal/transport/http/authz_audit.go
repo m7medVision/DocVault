@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	documentapp "github.com/docvault/backend/internal/document/app"
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	"github.com/docvault/backend/internal/middleware"
 )
 
@@ -30,12 +30,12 @@ func (h *Handler) AuditAuthorizationDecision(ctx context.Context, object, action
 		actor = &actorID
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    actor,
 		EntityType: "authorization",
 		EntityID:   fmt.Sprintf("%s:%s", object, action),
-		Action:     documentapp.AuditActionView,
+		Action:     auditapp.AuditActionView,
 		Metadata:   metadata,
 	})
 }

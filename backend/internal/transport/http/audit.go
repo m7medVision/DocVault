@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	documentapp "github.com/docvault/backend/internal/document/app"
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	"github.com/docvault/backend/internal/middleware"
 )
 
@@ -39,7 +39,7 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	input := &documentapp.ListAuditEventsInput{
+	input := &auditapp.ListAuditEventsInput{
 		TenantID:   tenantID,
 		EntityType: entityType,
 		EntityID:   entityID,

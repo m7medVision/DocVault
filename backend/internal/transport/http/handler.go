@@ -17,8 +17,11 @@ package handler
 
 import (
 	"github.com/casbin/casbin/v3"
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	"github.com/docvault/backend/internal/config"
 	documentapp "github.com/docvault/backend/internal/document/app"
+	notificationapp "github.com/docvault/backend/internal/notification/app"
+	reminderapp "github.com/docvault/backend/internal/reminder/app"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -30,9 +33,9 @@ type Handler struct {
 	documentSvc     *documentapp.DocumentService
 	folderSvc       *documentapp.FolderService
 	tagSvc          *documentapp.TagService
-	auditSvc        *documentapp.AuditService
-	reminderSvc     *documentapp.ReminderService
-	notificationSvc *documentapp.NotificationService
+	auditSvc        *auditapp.AuditService
+	reminderSvc     *reminderapp.ReminderService
+	notificationSvc *notificationapp.NotificationService
 	searchSvc       *documentapp.SearchService
 	chatSvc         *documentapp.ChatService
 	suggestionSvc   *documentapp.SuggestionService
@@ -49,9 +52,9 @@ type Dependencies struct {
 	DocumentSvc     *documentapp.DocumentService
 	FolderSvc       *documentapp.FolderService
 	TagSvc          *documentapp.TagService
-	AuditSvc        *documentapp.AuditService
-	ReminderSvc     *documentapp.ReminderService
-	NotificationSvc *documentapp.NotificationService
+	AuditSvc        *auditapp.AuditService
+	ReminderSvc     *reminderapp.ReminderService
+	NotificationSvc *notificationapp.NotificationService
 	SearchSvc       *documentapp.SearchService
 	ChatSvc         *documentapp.ChatService
 	UserRepo        repository.UserRepository

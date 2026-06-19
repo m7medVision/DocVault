@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	documentapp "github.com/docvault/backend/internal/document/app"
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
 )
@@ -45,12 +45,12 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "group",
 		EntityID:   group.ID,
-		Action:     documentapp.AuditActionCreate,
+		Action:     auditapp.AuditActionCreate,
 		Metadata: map[string]interface{}{
 			"name": group.Name,
 		},
@@ -88,12 +88,12 @@ func (h *Handler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "group",
 		EntityID:   groupID,
-		Action:     documentapp.AuditActionDelete,
+		Action:     auditapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 
@@ -158,12 +158,12 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "group",
 		EntityID:   groupID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":  "add_member",
 			"user_id": body.UserID,
@@ -205,12 +205,12 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "group",
 		EntityID:   groupID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":  "remove_member",
 			"user_id": userID,

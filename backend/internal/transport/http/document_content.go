@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 )
@@ -52,12 +53,12 @@ func (h *Handler) DownloadDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionDownload,
+		Action:     auditapp.AuditActionDownload,
 		Metadata:   nil,
 	})
 
@@ -159,12 +160,12 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	for k := range updates {
 		updatedFields = append(updatedFields, k)
 	}
-	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"fields": updatedFields,
 		},

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
@@ -94,12 +95,12 @@ func (h *Handler) setDocumentRestricted(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":     "restrict",
 			"restricted": restricted,
@@ -154,12 +155,12 @@ func (h *Handler) setFolderRestricted(w http.ResponseWriter, r *http.Request, re
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     documentapp.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":     "restrict",
 			"restricted": restricted,
@@ -258,12 +259,12 @@ func (h *Handler) CreateGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "acl_grant",
 		EntityID:   body.ResourceID,
-		Action:     documentapp.AuditActionShare,
+		Action:     auditapp.AuditActionShare,
 		Metadata: map[string]interface{}{
 			"resource_type":  body.ResourceType,
 			"resource_id":    body.ResourceID,
@@ -310,12 +311,12 @@ func (h *Handler) DeleteGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "acl_grant",
 		EntityID:   grantID,
-		Action:     documentapp.AuditActionDelete,
+		Action:     auditapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 

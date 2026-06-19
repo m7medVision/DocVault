@@ -7,14 +7,17 @@ import (
 	"time"
 
 	"github.com/casbin/casbin/v3"
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	internalauth "github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/config"
 	documentpg "github.com/docvault/backend/internal/document/adapter/postgres"
 	documentapp "github.com/docvault/backend/internal/document/app"
 	identitypg "github.com/docvault/backend/internal/identity/adapter/postgres"
 	"github.com/docvault/backend/internal/middleware"
+	notificationapp "github.com/docvault/backend/internal/notification/app"
 	"github.com/docvault/backend/internal/platform/cache"
 	appredis "github.com/docvault/backend/internal/redis"
+	reminderapp "github.com/docvault/backend/internal/reminder/app"
 	"github.com/docvault/backend/internal/search"
 	handler "github.com/docvault/backend/internal/transport/http"
 )
@@ -62,9 +65,9 @@ func buildHandlers(
 		DocumentSvc:     documentapp.NewDocumentService(documentRepo, aclRepo, inf.objectStore, inf.ocrDispatcher),
 		FolderSvc:       documentapp.NewFolderService(folderRepo, aclRepo),
 		TagSvc:          documentapp.NewTagService(repos.Tag),
-		AuditSvc:        documentapp.NewAuditService(repos.Audit),
-		ReminderSvc:     documentapp.NewReminderService(repos.Reminder),
-		NotificationSvc: documentapp.NewNotificationService(repos.Notification),
+		AuditSvc:        auditapp.NewAuditService(repos.Audit),
+		ReminderSvc:     reminderapp.NewReminderService(repos.Reminder),
+		NotificationSvc: notificationapp.NewNotificationService(repos.Notification),
 		SearchSvc:       documentapp.NewSearchService(queryEmbedder, repos.Search),
 		ChatSvc:         documentapp.NewChatService(queryEmbedder, repos.Search),
 		UserRepo:        repos.User,
