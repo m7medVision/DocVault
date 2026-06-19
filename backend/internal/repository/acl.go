@@ -109,29 +109,69 @@ type SetRestrictedParams struct {
 	Restricted bool
 }
 
-// ACLRepository evaluates per-document/folder read visibility and manages
-// groups, memberships, grants, and restrictions.
-type ACLRepository interface {
+// The ACL surface is segregated into role-specific ports so consumers can
+// depend on just the slice they use (interface segregation). The concrete
+// aclRepository satisfies every port, and ACLRepository composes them for the
+// composition root and the few callers that genuinely span roles.
+
+// DocVisibilityPort evaluates per-document read/write visibility for a
+// principal. The retrieval/authorization seam depends on just this.
+type DocVisibilityPort interface {
 	IsDocumentVisible(ctx context.Context, params VisibilityParams) (bool, error)
 	IsDocumentWritable(ctx context.Context, params VisibilityParams) (bool, error)
-	IsFolderVisible(ctx context.Context, params FolderVisibilityParams) (bool, error)
-	ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error)
-	ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, *string, error)
+}
 
+// FolderVisibilityPort evaluates per-folder read visibility for a principal.
+type FolderVisibilityPort interface {
+	IsFolderVisible(ctx context.Context, params FolderVisibilityParams) (bool, error)
+}
+
+// GroupMembershipPort resolves the groups a user belongs to within an org. It
+// is read on nearly every request that evaluates visibility.
+type GroupMembershipPort interface {
+	ListUserGroupIDs(ctx context.Context, userID, orgID string) ([]string, error)
+}
+
+// DocumentListingPort lists the documents a principal may read.
+type DocumentListingPort interface {
+	ListVisibleDocuments(ctx context.Context, params ListVisibleParams) ([]model.Document, *string, error)
+}
+
+// GroupAdminPort manages org-scoped groups and their membership.
+type GroupAdminPort interface {
 	CreateGroup(ctx context.Context, params CreateGroupParams) (Group, error)
 	DeleteGroup(ctx context.Context, tenantID, orgID, groupID string) (int64, error)
 	ListGroups(ctx context.Context, tenantID, orgID string) ([]Group, error)
 	AddGroupMember(ctx context.Context, tenantID, orgID, groupID, userID string) error
 	RemoveGroupMember(ctx context.Context, tenantID, orgID, groupID, userID string) (int64, error)
+}
 
+// GrantPort manages per-resource permission grants.
+type GrantPort interface {
 	CreateGrant(ctx context.Context, params CreateGrantParams) (string, error)
 	GrantTargetExists(ctx context.Context, ref ResourceRef) (bool, error)
 	DeleteGrant(ctx context.Context, tenantID, orgID, grantID string) (int64, error)
 	ListGrantsByResource(ctx context.Context, ref ResourceRef) ([]Grant, error)
 	DeleteGrantsForResource(ctx context.Context, ref ResourceRef) (int64, error)
+}
 
+// RestrictionPort toggles the is_restricted flag on documents and folders.
+type RestrictionPort interface {
 	SetDocumentRestricted(ctx context.Context, params SetRestrictedParams) (int64, error)
 	SetFolderRestricted(ctx context.Context, params SetRestrictedParams) (int64, error)
+}
+
+// ACLRepository composes every ACL role port. It is the producer-side superset
+// satisfied by the concrete aclRepository; prefer depending on the narrow role
+// ports above at each consumer.
+type ACLRepository interface {
+	DocVisibilityPort
+	FolderVisibilityPort
+	GroupMembershipPort
+	DocumentListingPort
+	GroupAdminPort
+	GrantPort
+	RestrictionPort
 }
 
 type aclRepository struct {
