@@ -16,8 +16,8 @@ import (
 
 // DocumentService handles document operations.
 type DocumentService struct {
-	repo          repository.DocumentRepository
-	aclRepo       repository.ACLRepository
+	repo          DocumentStore
+	aclRepo       DocumentACL
 	objectStore   ObjectStore
 	ocrDispatcher OCRDispatcher
 }
@@ -34,7 +34,7 @@ type OCRDispatcher interface {
 }
 
 // NewDocumentService creates a new DocumentService.
-func NewDocumentService(repo repository.DocumentRepository, aclRepo repository.ACLRepository, objectStore ObjectStore, ocrDispatcher OCRDispatcher) *DocumentService {
+func NewDocumentService(repo DocumentStore, aclRepo DocumentACL, objectStore ObjectStore, ocrDispatcher OCRDispatcher) *DocumentService {
 	return &DocumentService{
 		repo:          repo,
 		aclRepo:       aclRepo,
