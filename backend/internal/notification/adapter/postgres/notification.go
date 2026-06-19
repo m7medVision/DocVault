@@ -1,32 +1,34 @@
-package repository
+// Package postgres is the notification bounded context's data-access adapter. It
+// wraps the shared sqlc Queries and maps rows to the notification domain model.
+package postgres
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/notification"
 	"github.com/docvault/backend/internal/platform/pgconv"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrNotificationNotFound = errors.New("notification not found")
-
-// notificationRepository handles notification data access.
-type notificationRepository struct {
+// NotificationRepository handles notification data access. It satisfies the
+// repository.NotificationRepository contract; the composition root binds this
+// concrete type to that interface.
+type NotificationRepository struct {
 	queries sqldb.Querier
 }
 
-// NewNotificationRepository creates a new NotificationRepository.
-func NewNotificationRepository(db *pgxpool.Pool) NotificationRepository {
-	return &notificationRepository{queries: sqldb.New(db)}
+// NewNotificationRepository creates a postgres-backed notification repository.
+func NewNotificationRepository(db *pgxpool.Pool) *NotificationRepository {
+	return &NotificationRepository{queries: sqldb.New(db)}
 }
 
 // Create creates a new notification.
-func (r *notificationRepository) Create(ctx context.Context, notification *model.Notification) error {
+func (r *NotificationRepository) Create(ctx context.Context, notification *model.Notification) error {
 	if notification == nil {
 		return fmt.Errorf("notification is nil")
 	}
@@ -55,7 +57,7 @@ func (r *notificationRepository) Create(ctx context.Context, notification *model
 }
 
 // List returns notifications for a user with cursor pagination.
-func (r *notificationRepository) List(ctx context.Context, tenantID, userID string, status model.NotificationStatus, cursor string, limit int) ([]model.Notification, *string, error) {
+func (r *NotificationRepository) List(ctx context.Context, tenantID, userID string, status model.NotificationStatus, cursor string, limit int) ([]model.Notification, *string, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -101,7 +103,7 @@ func (r *notificationRepository) List(ctx context.Context, tenantID, userID stri
 }
 
 // MarkRead marks a notification as read.
-func (r *notificationRepository) MarkRead(ctx context.Context, tenantID, userID, notificationID string) error {
+func (r *NotificationRepository) MarkRead(ctx context.Context, tenantID, userID, notificationID string) error {
 	rowsAffected, err := r.queries.MarkNotificationRead(ctx, sqldb.MarkNotificationReadParams{
 		ID:       notificationID,
 		TenantID: tenantID,
@@ -111,13 +113,13 @@ func (r *notificationRepository) MarkRead(ctx context.Context, tenantID, userID,
 		return fmt.Errorf("failed to mark notification read: %w", err)
 	}
 	if rowsAffected == 0 {
-		return ErrNotificationNotFound
+		return repository.ErrNotificationNotFound
 	}
 	return nil
 }
 
 // GetUnreadCount returns the count of unread notifications for a user.
-func (r *notificationRepository) GetUnreadCount(ctx context.Context, tenantID, userID string) (int, error) {
+func (r *NotificationRepository) GetUnreadCount(ctx context.Context, tenantID, userID string) (int, error) {
 	count, err := r.queries.GetUnreadNotificationCount(ctx, sqldb.GetUnreadNotificationCountParams{TenantID: tenantID, UserID: userID})
 	if err != nil {
 		if err == pgx.ErrNoRows {
