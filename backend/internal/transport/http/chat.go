@@ -76,16 +76,17 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 	}
 
 	input := &documentapp.ChatInput{
-		DocumentID: documentID,
-		Messages:   body.Messages,
-		TenantID:   tenantID,
-		OrgID:      orgID,
-		UserID:     userID,
-		GroupIDs:   groupIDs,
-		IsAdmin:    isAdmin,
-		APIKey:     h.cfg.Search.EmbeddingAPIKey,
-		ChatModel:  h.cfg.Search.ChatModel,
-		RetrieveK:  h.cfg.Search.ChatRetrieveK,
+		DocumentID:     documentID,
+		Messages:       body.Messages,
+		TenantID:       tenantID,
+		OrgID:          orgID,
+		UserID:         userID,
+		GroupIDs:       groupIDs,
+		IsAdmin:        isAdmin,
+		APIKey:         h.cfg.Search.EmbeddingAPIKey,
+		ChatModel:      h.cfg.Search.ChatModel,
+		RetrieveK:      h.cfg.Search.ChatRetrieveK,
+		RewriteQueries: h.cfg.Search.ChatRewriteQueries,
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")

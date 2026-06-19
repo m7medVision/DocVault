@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -34,16 +35,17 @@ type ChatMessage struct {
 }
 
 type ChatInput struct {
-	DocumentID string
-	Messages   []ChatMessage
-	TenantID   string
-	OrgID      string
-	UserID     string
-	GroupIDs   []string
-	IsAdmin    bool
-	APIKey     string
-	ChatModel  string
-	RetrieveK  int
+	DocumentID     string
+	Messages       []ChatMessage
+	TenantID       string
+	OrgID          string
+	UserID         string
+	GroupIDs       []string
+	IsAdmin        bool
+	APIKey         string
+	ChatModel      string
+	RetrieveK      int
+	RewriteQueries bool
 }
 
 // ChatSource describes a single retrieved passage surfaced as a citation.
@@ -127,7 +129,16 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		return fmt.Errorf("no user message to answer")
 	}
 
-	embedding, err := s.embedder.Embed(ctx, query)
+	// Reformulate the latest turn into a standalone retrieval query so pronouns
+	// and references resolve (e.g. "what is its expiry?" -> the document name).
+	// Skipped for single-turn chats; best-effort, falling back to the raw query.
+	retrievalQuery := query
+	if input.RewriteQueries {
+		retrievalQuery = rewriteQuery(ctx, s.llm, input.ChatModel, input.APIKey, query, input.Messages)
+		slog.Info("chat query rewritten", "raw", query, "rewritten", retrievalQuery)
+	}
+
+	embedding, err := s.embedder.Embed(ctx, retrievalQuery)
 	if err != nil {
 		return fmt.Errorf("failed to generate query embedding: %w", err)
 	}
@@ -141,7 +152,7 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 	}
 
 	searchResult, err := s.searchRepo.Search(ctx, repository.SearchRequest{
-		Query:       query,
+		Query:       retrievalQuery,
 		TenantID:    input.TenantID,
 		OrgID:       input.OrgID,
 		UserID:      input.UserID,

@@ -92,14 +92,15 @@ type AuthConfig struct {
 }
 
 type SearchConfig struct {
-	Enabled           bool
-	EmbeddingProvider string
-	EmbeddingModel    string
-	EmbeddingAPIKey   string
-	EmbeddingURL      string
-	EmbeddingDim      int
-	ChatModel         string
-	ChatRetrieveK     int
+	Enabled            bool
+	EmbeddingProvider  string
+	EmbeddingModel     string
+	EmbeddingAPIKey    string
+	EmbeddingURL       string
+	EmbeddingDim       int
+	ChatModel          string
+	ChatRetrieveK      int
+	ChatRewriteQueries bool
 }
 
 type StorageConfig struct {
@@ -163,14 +164,15 @@ func Load() (*Config, error) {
 			JWTAudience:        getEnvString("JWT_AUDIENCE", "docvault-api"),
 		},
 		Search: SearchConfig{
-			Enabled:           getEnvBool("SEARCH_ENABLED", false),
-			EmbeddingProvider: getEnvString("EMBEDDING_PROVIDER", "openrouter"),
-			EmbeddingModel:    getEnvString("EMBEDDING_MODEL", defaultEmbeddingModel),
-			EmbeddingAPIKey:   getEnvString("OPENROUTER_API_KEY", ""),
-			EmbeddingURL:      getEnvString("EMBEDDING_URL", ""),
-			EmbeddingDim:      getEnvInt("EMBEDDING_DIM", 1024),
-			ChatModel:         getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
-			ChatRetrieveK:     getEnvInt("CHAT_RETRIEVE_K", 40),
+			Enabled:            getEnvBool("SEARCH_ENABLED", false),
+			EmbeddingProvider:  getEnvString("EMBEDDING_PROVIDER", "openrouter"),
+			EmbeddingModel:     getEnvString("EMBEDDING_MODEL", defaultEmbeddingModel),
+			EmbeddingAPIKey:    getEnvString("OPENROUTER_API_KEY", ""),
+			EmbeddingURL:       getEnvString("EMBEDDING_URL", ""),
+			EmbeddingDim:       getEnvInt("EMBEDDING_DIM", 1024),
+			ChatModel:          getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
+			ChatRetrieveK:      getEnvInt("CHAT_RETRIEVE_K", 40),
+			ChatRewriteQueries: getEnvBool("CHAT_REWRITE_QUERIES", true),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),
