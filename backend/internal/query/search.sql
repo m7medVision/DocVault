@@ -93,7 +93,7 @@ scored_chunks AS (
     is_translation,
     distance,
     GREATEST(
-      LEAST(1.0, GREATEST(0.0, (raw_semantic_score - 0.4) / 0.6)),
+      raw_semantic_score,
       CASE
         WHEN LOWER(BTRIM(title)) = LOWER(BTRIM(sqlc.arg(query_text))) THEN 1.0
         WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM(sqlc.arg(query_text))) THEN 0.99
