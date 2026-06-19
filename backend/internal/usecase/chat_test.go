@@ -121,8 +121,7 @@ func TestStreamChat_EmitsContentAndSourcesAndFinishes(t *testing.T) {
 
 	repo := &stubSearchRepository{result: &repository.SearchResult{Chunks: stubChunks()}}
 	svc := NewChatService(stubEmbedder{embedding: fixedEmbedding()}, repo)
-	svc.chatBaseURL = server.URL
-	svc.httpClient = server.Client()
+	svc.llm = NewOpenRouterChatClient(server.URL, server.Client())
 
 	var buf bytes.Buffer
 	err := svc.StreamChat(context.Background(), &ChatInput{
@@ -188,8 +187,7 @@ func TestStreamChat_EmptyRetrievalNoSources(t *testing.T) {
 
 	repo := &stubSearchRepository{result: &repository.SearchResult{Chunks: nil}}
 	svc := NewChatService(stubEmbedder{embedding: fixedEmbedding()}, repo)
-	svc.chatBaseURL = server.URL
-	svc.httpClient = server.Client()
+	svc.llm = NewOpenRouterChatClient(server.URL, server.Client())
 
 	var buf bytes.Buffer
 	err := svc.StreamChat(context.Background(), &ChatInput{
@@ -225,8 +223,7 @@ func TestStreamChat_PropagatesDocumentScope(t *testing.T) {
 
 	repo := &stubSearchRepository{result: &repository.SearchResult{Chunks: stubChunks()}}
 	svc := NewChatService(stubEmbedder{embedding: fixedEmbedding()}, repo)
-	svc.chatBaseURL = server.URL
-	svc.httpClient = server.Client()
+	svc.llm = NewOpenRouterChatClient(server.URL, server.Client())
 
 	var buf bytes.Buffer
 	err := svc.StreamChat(context.Background(), &ChatInput{

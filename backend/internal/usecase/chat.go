@@ -1,13 +1,10 @@
 package usecase
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -15,8 +12,6 @@ import (
 	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/search"
 )
-
-const defaultChatBaseURL = "https://openrouter.ai/api/v1"
 
 const systemPrompt = `You are a helpful assistant that answers questions strictly from the user's documents.
 You are given a set of numbered passages retrieved from those documents.
@@ -53,18 +48,16 @@ type ChatSource struct {
 }
 
 type ChatService struct {
-	embedder    search.Embedder
-	searchRepo  repository.SearchRepository
-	httpClient  *http.Client
-	chatBaseURL string
+	embedder   search.Embedder
+	searchRepo repository.SearchRepository
+	llm        LLMChatPort
 }
 
 func NewChatService(embedder search.Embedder, searchRepo repository.SearchRepository) *ChatService {
 	return &ChatService{
-		embedder:    embedder,
-		searchRepo:  searchRepo,
-		httpClient:  http.DefaultClient,
-		chatBaseURL: defaultChatBaseURL,
+		embedder:   embedder,
+		searchRepo: searchRepo,
+		llm:        NewOpenRouterChatClient(defaultChatBaseURL, http.DefaultClient),
 	}
 }
 
@@ -142,7 +135,7 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		GroupIDs:    input.GroupIDs,
 		IsAdmin:     input.IsAdmin,
 		QueryVector: search.FormatVectorLiteral(embedding),
-		Limit: 10,
+		Limit:       10,
 		// Use the same relevance floor as /search: chat must never be less able to
 		// find content than search. Off-topic chunks are kept out by the keyword
 		// scoring in search.sql, the top-K limit, and the "say if not found" prompt.
@@ -184,112 +177,51 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 
 	systemContent := fmt.Sprintf("%s\n\nNumbered passages:\n%s", systemPrompt, contextBlock)
 
-	apiMessages := []map[string]string{
-		{"role": "system", "content": systemContent},
-	}
+	messages := make([]LLMMessage, 0, len(input.Messages)+1)
+	messages = append(messages, LLMMessage{Role: "system", Content: systemContent})
 	for _, msg := range input.Messages {
-		apiMessages = append(apiMessages, map[string]string{
-			"role":    msg.Role,
-			"content": msg.Content,
-		})
+		messages = append(messages, LLMMessage{Role: msg.Role, Content: msg.Content})
 	}
 
-	reqBody := map[string]interface{}{
-		"model":    input.ChatModel,
-		"messages": apiMessages,
-		"stream":   true,
-	}
-
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	url := strings.TrimRight(s.chatBaseURL, "/") + "/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+input.APIKey)
-
-	client := s.httpClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		slog.Error("OpenRouter API error", "status", resp.StatusCode, "body", string(respBody))
-		return fmt.Errorf("OpenRouter API error: status %d", resp.StatusCode)
-	}
-
-	writeChunk(map[string]interface{}{
-		"type":      "TEXT_MESSAGE_START",
-		"messageId": messageID,
-		"role":      "assistant",
-		"timestamp": timestamp,
-	})
-
-	scanner := bufio.NewScanner(resp.Body)
+	started := false
 	hasContent := false
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.HasPrefix(line, "data: ") {
-			data := strings.TrimPrefix(line, "data: ")
-			if data == "[DONE]" {
-				break
-			}
-
-			var chunk map[string]interface{}
-			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-				continue
-			}
-
-			choices, ok := chunk["choices"].([]interface{})
-			if !ok || len(choices) == 0 {
-				continue
-			}
-
-			choice, ok := choices[0].(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			delta, ok := choice["delta"].(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			content, ok := delta["content"].(string)
-			if !ok || content == "" {
-				continue
-			}
-
+	streamErr := s.llm.StreamCompletion(ctx, LLMChatRequest{
+		Model:    input.ChatModel,
+		APIKey:   input.APIKey,
+		Messages: messages,
+	},
+		func() {
+			started = true
+			writeChunk(map[string]interface{}{
+				"type":      "TEXT_MESSAGE_START",
+				"messageId": messageID,
+				"role":      "assistant",
+				"timestamp": timestamp,
+			})
+		},
+		func(delta string) {
 			hasContent = true
 			writeChunk(map[string]interface{}{
 				"type":      "TEXT_MESSAGE_CONTENT",
 				"messageId": messageID,
-				"delta":     content,
+				"delta":     delta,
+				"timestamp": timestamp,
+			})
+		},
+	)
+	if streamErr != nil {
+		// A failure before the stream started (e.g. a non-200 from the provider)
+		// is returned to the caller without an AG-UI event, exactly as before. A
+		// mid-stream failure — after TEXT_MESSAGE_START was emitted — surfaces a
+		// RUN_ERROR event first, matching the old scanner-error path.
+		if started {
+			writeChunk(map[string]interface{}{
+				"type":      "RUN_ERROR",
+				"error":     map[string]string{"message": streamErr.Error()},
 				"timestamp": timestamp,
 			})
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		slog.Error("error reading streaming response", "error", err)
-		writeChunk(map[string]interface{}{
-			"type":      "RUN_ERROR",
-			"error":     map[string]string{"message": fmt.Sprintf("error reading streaming response: %v", err)},
-			"timestamp": timestamp,
-		})
-		return fmt.Errorf("error reading streaming response: %w", err)
+		return streamErr
 	}
 
 	if hasContent {
