@@ -8,6 +8,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Enable citext for case-insensitive text
 CREATE EXTENSION IF NOT EXISTS citext;
 
+-- Enable pg_trgm for fuzzy keyword / proper-noun similarity (word_similarity)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 
 -- Source: internal/migrate/sql/002_identity_access.sql
 
@@ -203,6 +206,10 @@ CREATE TABLE extracted_text_chunks (
     chunk_index     INTEGER NOT NULL,
     chunk_text      TEXT NOT NULL,
     embedding       vector(1024),  -- pgvector column (mistral-embed-2312 = 1024 dimensions)
+    -- Maintained by Postgres from chunk_text; powers keyword / phrase retrieval.
+    -- 'simple' config is language-agnostic, so it works for AR, EN, proper nouns,
+    -- IDs and dates alike (no stemming, every token indexed verbatim).
+    chunk_tsv       tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(chunk_text, ''))) STORED,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     UNIQUE(document_id, page_id, chunk_index)
@@ -342,6 +349,22 @@ CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw
     ON extracted_text_chunks
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
+
+-- GIN index over the generated chunk_tsv column for keyword / phrase matching
+-- (to_tsquery @@ chunk_tsv).
+CREATE INDEX IF NOT EXISTS idx_chunks_fts
+    ON extracted_text_chunks
+    USING gin (chunk_tsv);
+
+-- Trigram GIN indexes backing word_similarity() fuzzy containment for proper
+-- nouns, IDs, dates and typos (e.g. "teepee" vs "tepee").
+CREATE INDEX IF NOT EXISTS idx_chunks_trgm
+    ON extracted_text_chunks
+    USING gin (chunk_text gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_documents_title_trgm
+    ON documents
+    USING gin (title gin_trgm_ops);
 
 
 -- Source: internal/migrate/sql/006_add_user_auth_fields.sql
