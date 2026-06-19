@@ -99,6 +99,7 @@ type SearchConfig struct {
 	EmbeddingURL      string
 	EmbeddingDim      int
 	ChatModel         string
+	ChatRetrieveK     int
 }
 
 type StorageConfig struct {
@@ -169,6 +170,7 @@ func Load() (*Config, error) {
 			EmbeddingURL:      getEnvString("EMBEDDING_URL", ""),
 			EmbeddingDim:      getEnvInt("EMBEDDING_DIM", 1024),
 			ChatModel:         getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
+			ChatRetrieveK:     getEnvInt("CHAT_RETRIEVE_K", 40),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),

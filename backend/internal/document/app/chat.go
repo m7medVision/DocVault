@@ -21,6 +21,13 @@ If the answer cannot be found in the passages, say so plainly and do not guess.
 Reply in the user's language (Arabic or English).
 Use Markdown only when it improves readability. Do not restate the user's question.`
 
+// defaultChatRetrieveK is the number of chunks fetched for grounding when no
+// explicit value is supplied. A wider pool than the previous hard-coded 10
+// improves recall for short / proper-noun queries and gives a reranker room to
+// work; precision is protected by the top-K cap, lexical scoring, and the
+// "say if not found" system prompt.
+const defaultChatRetrieveK = 40
+
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -36,6 +43,7 @@ type ChatInput struct {
 	IsAdmin    bool
 	APIKey     string
 	ChatModel  string
+	RetrieveK  int
 }
 
 // ChatSource describes a single retrieved passage surfaced as a citation.
@@ -127,6 +135,11 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		return fmt.Errorf("unexpected embedding size: got %d want %d", len(embedding), expectedEmbeddingDimensions)
 	}
 
+	retrieveK := input.RetrieveK
+	if retrieveK <= 0 {
+		retrieveK = defaultChatRetrieveK
+	}
+
 	searchResult, err := s.searchRepo.Search(ctx, repository.SearchRequest{
 		Query:       query,
 		TenantID:    input.TenantID,
@@ -135,7 +148,7 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		GroupIDs:    input.GroupIDs,
 		IsAdmin:     input.IsAdmin,
 		QueryVector: search.FormatVectorLiteral(embedding),
-		Limit:       10,
+		Limit:       retrieveK,
 		// Use the same relevance floor as /search: chat must never be less able to
 		// find content than search. Off-topic chunks are kept out by the keyword
 		// scoring in search.sql, the top-K limit, and the "say if not found" prompt.

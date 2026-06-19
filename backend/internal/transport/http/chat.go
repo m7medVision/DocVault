@@ -85,6 +85,7 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 		IsAdmin:    isAdmin,
 		APIKey:     h.cfg.Search.EmbeddingAPIKey,
 		ChatModel:  h.cfg.Search.ChatModel,
+		RetrieveK:  h.cfg.Search.ChatRetrieveK,
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
