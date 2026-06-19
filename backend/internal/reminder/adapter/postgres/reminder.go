@@ -1,4 +1,6 @@
-package repository
+// Package postgres is the reminder bounded context's data-access adapter. It
+// wraps the shared sqlc Queries and maps rows to the reminder domain model.
+package postgres
 
 import (
 	"context"
@@ -9,24 +11,25 @@ import (
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/reminder"
 	"github.com/docvault/backend/internal/platform/pgconv"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrReminderNotFound = errors.New("reminder not found")
-
-// reminderRepository handles reminder data access.
-type reminderRepository struct {
+// ReminderRepository handles reminder data access. It satisfies the
+// repository.ReminderRepository contract; the composition root binds this
+// concrete type to that interface.
+type ReminderRepository struct {
 	queries sqldb.Querier
 }
 
-// NewReminderRepository creates a new ReminderRepository.
-func NewReminderRepository(db *pgxpool.Pool) ReminderRepository {
-	return &reminderRepository{queries: sqldb.New(db)}
+// NewReminderRepository creates a postgres-backed reminder repository.
+func NewReminderRepository(db *pgxpool.Pool) *ReminderRepository {
+	return &ReminderRepository{queries: sqldb.New(db)}
 }
 
 // Create creates a new reminder rule.
-func (r *reminderRepository) Create(ctx context.Context, reminder *model.ReminderRule) error {
+func (r *ReminderRepository) Create(ctx context.Context, reminder *model.ReminderRule) error {
 	if reminder == nil {
 		return fmt.Errorf("reminder is nil")
 	}
@@ -47,11 +50,11 @@ func (r *reminderRepository) Create(ctx context.Context, reminder *model.Reminde
 }
 
 // GetByID retrieves a reminder by ID.
-func (r *reminderRepository) GetByID(ctx context.Context, tenantID, id string) (*model.ReminderRule, error) {
+func (r *ReminderRepository) GetByID(ctx context.Context, tenantID, id string) (*model.ReminderRule, error) {
 	reminder, err := r.queries.GetReminderRuleByID(ctx, sqldb.GetReminderRuleByIDParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrReminderNotFound
+			return nil, repository.ErrReminderNotFound
 		}
 		return nil, fmt.Errorf("failed to get reminder: %w", err)
 	}
@@ -60,7 +63,7 @@ func (r *reminderRepository) GetByID(ctx context.Context, tenantID, id string) (
 }
 
 // GetByDocument retrieves reminders for a document.
-func (r *reminderRepository) GetByDocument(ctx context.Context, tenantID, documentID string) ([]model.ReminderRule, error) {
+func (r *ReminderRepository) GetByDocument(ctx context.Context, tenantID, documentID string) ([]model.ReminderRule, error) {
 	reminders, err := r.queries.GetReminderRulesByDocument(ctx, sqldb.GetReminderRulesByDocumentParams{
 		DocumentID: documentID,
 		TenantID:   tenantID,
@@ -72,7 +75,7 @@ func (r *reminderRepository) GetByDocument(ctx context.Context, tenantID, docume
 }
 
 // ListByTenant lists reminders for a tenant, optionally filtering to active only.
-func (r *reminderRepository) ListByTenant(ctx context.Context, tenantID string, activeOnly bool) ([]model.ReminderRule, error) {
+func (r *ReminderRepository) ListByTenant(ctx context.Context, tenantID string, activeOnly bool) ([]model.ReminderRule, error) {
 	var (
 		reminders []sqldb.ReminderRule
 		err       error
@@ -89,7 +92,7 @@ func (r *reminderRepository) ListByTenant(ctx context.Context, tenantID string, 
 }
 
 // ListUpcoming lists reminders due within the given number of days.
-func (r *reminderRepository) ListUpcoming(ctx context.Context, tenantID string, withinDays int) ([]model.ReminderRule, error) {
+func (r *ReminderRepository) ListUpcoming(ctx context.Context, tenantID string, withinDays int) ([]model.ReminderRule, error) {
 	reminders, err := r.queries.ListUpcomingReminderRules(ctx, sqldb.ListUpcomingReminderRulesParams{
 		TenantID:   tenantID,
 		WithinDays: int32(withinDays),
@@ -101,7 +104,7 @@ func (r *reminderRepository) ListUpcoming(ctx context.Context, tenantID string, 
 }
 
 // Update updates a reminder rule.
-func (r *reminderRepository) Update(ctx context.Context, reminder *model.ReminderRule) error {
+func (r *ReminderRepository) Update(ctx context.Context, reminder *model.ReminderRule) error {
 	if reminder == nil {
 		return fmt.Errorf("reminder is nil")
 	}
@@ -120,19 +123,19 @@ func (r *reminderRepository) Update(ctx context.Context, reminder *model.Reminde
 }
 
 // Delete deletes a reminder rule.
-func (r *reminderRepository) Delete(ctx context.Context, tenantID, id string) error {
+func (r *ReminderRepository) Delete(ctx context.Context, tenantID, id string) error {
 	rowsAffected, err := r.queries.DeleteReminderRule(ctx, sqldb.DeleteReminderRuleParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return fmt.Errorf("failed to delete reminder: %w", err)
 	}
 	if rowsAffected == 0 {
-		return ErrReminderNotFound
+		return repository.ErrReminderNotFound
 	}
 	return nil
 }
 
 // CreateEvent creates a reminder event.
-func (r *reminderRepository) CreateEvent(ctx context.Context, event *model.ReminderEvent) error {
+func (r *ReminderRepository) CreateEvent(ctx context.Context, event *model.ReminderEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
 	}
@@ -152,7 +155,7 @@ func (r *reminderRepository) CreateEvent(ctx context.Context, event *model.Remin
 }
 
 // UpdateEvent updates a reminder event.
-func (r *reminderRepository) UpdateEvent(ctx context.Context, event *model.ReminderEvent) error {
+func (r *ReminderRepository) UpdateEvent(ctx context.Context, event *model.ReminderEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
 	}
@@ -169,7 +172,7 @@ func (r *reminderRepository) UpdateEvent(ctx context.Context, event *model.Remin
 }
 
 // GetPendingEvents retrieves pending reminder events.
-func (r *reminderRepository) GetPendingEvents(ctx context.Context, before time.Time) ([]model.ReminderEvent, error) {
+func (r *ReminderRepository) GetPendingEvents(ctx context.Context, before time.Time) ([]model.ReminderEvent, error) {
 	events, err := r.queries.GetPendingReminderEvents(ctx, sqldb.GetPendingReminderEventsParams{ScheduledAt: pgconv.TimestamptzFromTime(before)})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pending events: %w", err)

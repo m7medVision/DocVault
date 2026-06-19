@@ -11,4 +11,8 @@ var (
 	// ErrNotificationNotFound is returned when no notification matches the
 	// tenant/user/id.
 	ErrNotificationNotFound = errors.New("notification not found")
+
+	// ErrReminderNotFound is returned when no reminder rule matches the
+	// tenant/id.
+	ErrReminderNotFound = errors.New("reminder not found")
 )

@@ -4,6 +4,7 @@ import (
 	"github.com/casbin/casbin/v3"
 	auditpg "github.com/docvault/backend/internal/audit/adapter/postgres"
 	notificationpg "github.com/docvault/backend/internal/notification/adapter/postgres"
+	reminderpg "github.com/docvault/backend/internal/reminder/adapter/postgres"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,7 +21,7 @@ import (
 func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *repository.Repositories {
 	return &repository.Repositories{
 		Document:     repository.NewDocumentRepository(db),
-		Reminder:     repository.NewReminderRepository(db),
+		Reminder:     reminderpg.NewReminderRepository(db),
 		Folder:       repository.NewFolderRepository(db),
 		Tag:          repository.NewTagRepository(db),
 		Audit:        auditpg.NewAuditRepository(db),
