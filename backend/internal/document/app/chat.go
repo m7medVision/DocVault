@@ -241,6 +241,18 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 	// reranker outage falls back to the SQL order.
 	chunks := rerankAndTrim(ctx, s.reranker, retrievalQuery, searchResult.Chunks, contextK)
 
+	topScore := 0.0
+	if len(chunks) > 0 {
+		topScore = chunks[0].Score
+	}
+	slog.Info("chat retrieval",
+		"query", retrievalQuery,
+		"candidates", len(searchResult.Chunks),
+		"grounded", len(chunks),
+		"top_score", topScore,
+		"reranker", isNoopReranker(s.reranker),
+	)
+
 	// Best-effort: enrich the grounding with the structured facts the classifier
 	// already extracted (issuer, amount, dates, document number) so the generator
 	// can answer date/amount/ID questions from structure. A failure just drops

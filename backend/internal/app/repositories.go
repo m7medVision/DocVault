@@ -21,7 +21,7 @@ import (
 // sentinels) that both the usecase layer and the per-context postgres adapters
 // import without forming a cycle: the adapters depend on the contracts, and the
 // composition root depends on the adapters.
-func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *repository.Repositories {
+func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer, efSearch int) *repository.Repositories {
 	return &repository.Repositories{
 		Document:     documentpg.NewDocumentRepository(db),
 		Reminder:     reminderpg.NewReminderRepository(db),
@@ -32,7 +32,7 @@ func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *repository.
 		User:         identitypg.NewUserRepository(db),
 		Membership:   identitypg.NewMembershipRepository(db),
 		Policy:       identitycasbin.NewPolicyRepository(enforcer),
-		Search:       documentpg.NewSearchRepository(db),
+		Search:       documentpg.NewSearchRepository(db, efSearch),
 		ACL:          documentpg.NewACLRepository(db),
 	}
 }

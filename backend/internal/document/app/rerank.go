@@ -40,6 +40,13 @@ func (NoopReranker) Rerank(_ context.Context, _ string, documents []string) ([]R
 	return out, nil
 }
 
+// isNoopReranker reports whether the configured reranker is the disabled/noop
+// one, for logging and diagnostics.
+func isNoopReranker(r RerankerPort) bool {
+	_, ok := r.(NoopReranker)
+	return ok
+}
+
 // HTTPReranker calls a Hugging Face text-embeddings-inference (TEI) /rerank
 // endpoint, which serves cross-encoder models such as BAAI/bge-reranker-v2-m3.
 type HTTPReranker struct {

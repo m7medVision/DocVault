@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,11 +14,16 @@ import (
 )
 
 type searchRepository struct {
-	queries sqldb.Querier
+	pool     *pgxpool.Pool
+	queries  sqldb.Querier
+	efSearch int
 }
 
-func NewSearchRepository(db *pgxpool.Pool) repository.SearchRepository {
-	return &searchRepository{queries: sqldb.New(db)}
+// NewSearchRepository builds the search repository. efSearch, when > 0, sets
+// hnsw.ef_search (via SET LOCAL) for each retrieval so recall at small K can be
+// tuned without a redeploy; 0 leaves the Postgres default (40) in place.
+func NewSearchRepository(db *pgxpool.Pool, efSearch int) repository.SearchRepository {
+	return &searchRepository{pool: db, queries: sqldb.New(db), efSearch: efSearch}
 }
 
 func searchDocumentChunksParams(req repository.SearchRequest) (sqldb.SearchDocumentChunksParams, error) {
@@ -74,7 +80,7 @@ func (r *searchRepository) Search(ctx context.Context, req repository.SearchRequ
 		return nil, err
 	}
 
-	rows, err := r.queries.SearchDocumentChunks(ctx, params)
+	rows, err := r.searchChunks(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
@@ -105,6 +111,36 @@ func (r *searchRepository) Search(ctx context.Context, req repository.SearchRequ
 
 func (r *searchRepository) IndexChunk(ctx context.Context, chunk repository.DocumentChunk) error {
 	return nil
+}
+
+// searchChunks runs the retrieval query, optionally scoping hnsw.ef_search via
+// SET LOCAL. SET LOCAL only applies inside a transaction, so when efSearch is
+// configured the query runs in a short tx that rolls the GUC back on commit —
+// it never leaks to other queries on the pooled connection. With efSearch == 0
+// the query runs directly as before.
+func (r *searchRepository) searchChunks(ctx context.Context, params sqldb.SearchDocumentChunksParams) ([]sqldb.SearchDocumentChunksRow, error) {
+	if r.efSearch <= 0 {
+		return r.queries.SearchDocumentChunks(ctx, params)
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin ef_search tx: %w", err)
+	}
+	defer tx.Rollback(ctx) // no-op after a successful commit
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('hnsw.ef_search', $1, true)", strconv.Itoa(r.efSearch)); err != nil {
+		return nil, fmt.Errorf("set hnsw.ef_search: %w", err)
+	}
+
+	rows, err := sqldb.New(tx).SearchDocumentChunks(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit ef_search tx: %w", err)
+	}
+	return rows, nil
 }
 
 func (r *searchRepository) DeleteChunksByDocument(ctx context.Context, docID string) error {

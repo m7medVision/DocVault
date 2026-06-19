@@ -35,7 +35,7 @@ func buildHandlers(
 	authzEnforcer *casbin.Enforcer,
 	logger *slog.Logger,
 ) (*handler.Handler, *handler.AuthHandler) {
-	repos := buildRepositories(inf.db, authzEnforcer)
+	repos := buildRepositories(inf.db, authzEnforcer, cfg.Search.EfSearch)
 
 	// One Redis-backed cache shared by the repository decorators below; each uses
 	// a distinct key prefix so namespaces never collide.

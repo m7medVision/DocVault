@@ -103,6 +103,7 @@ type SearchConfig struct {
 	ChatContextK       int
 	ChatRewriteQueries bool
 	RerankURL          string
+	EfSearch           int
 }
 
 type StorageConfig struct {
@@ -177,6 +178,7 @@ func Load() (*Config, error) {
 			ChatContextK:       getEnvInt("CHAT_CONTEXT_K", 10),
 			ChatRewriteQueries: getEnvBool("CHAT_REWRITE_QUERIES", true),
 			RerankURL:          getEnvString("RERANK_URL", ""),
+			EfSearch:           getEnvInt("HNSW_EF_SEARCH", 0),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),
