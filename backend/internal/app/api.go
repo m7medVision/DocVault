@@ -139,6 +139,11 @@ func Run() error {
 	slog.Info("Casbin authorization initialized")
 
 	repos := repository.NewRepositories(dbPool, authzEnforcer)
+	// Cache the per-(org,user) group-membership lookup the authorizer runs on
+	// nearly every non-admin request. Membership mutations bust the affected
+	// keys; a short TTL bounds staleness. Wrapped once here so every consumer
+	// (document/folder services, the handler's authorizer) shares the cache.
+	aclRepo := repository.NewCachingACL(repos.ACL, cache.NewRedis(redisClient.Client))
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
 	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
 	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)
@@ -151,8 +156,8 @@ func Run() error {
 	h := handler.New(cfg, handler.Dependencies{
 		DB:              dbPool,
 		AuthzEnforcer:   authzEnforcer,
-		DocumentSvc:     usecase.NewDocumentService(repos.Document, repos.ACL, objectStore, ocrDispatcher),
-		FolderSvc:       usecase.NewFolderService(repos.Folder, repos.ACL),
+		DocumentSvc:     usecase.NewDocumentService(repos.Document, aclRepo, objectStore, ocrDispatcher),
+		FolderSvc:       usecase.NewFolderService(repos.Folder, aclRepo),
 		TagSvc:          usecase.NewTagService(repos.Tag),
 		AuditSvc:        usecase.NewAuditService(repos.Audit),
 		ReminderSvc:     usecase.NewReminderService(repos.Reminder),
@@ -162,7 +167,7 @@ func Run() error {
 		UserRepo:        repos.User,
 		MembershipRepo:  repos.Membership,
 		PolicyRepo:      repos.Policy,
-		ACLRepo:         repos.ACL,
+		ACLRepo:         aclRepo,
 	})
 	middleware.SetAuthorizationAuditLogger(h.AuditAuthorizationDecision)
 	authHandler := handler.NewAuthHandler(dbPool, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger, repos.User)
