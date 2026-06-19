@@ -31,10 +31,10 @@ func SplitFolderPath(path string) []string {
 
 type FolderService struct {
 	repo    repository.FolderRepository
-	aclRepo repository.ACLRepository
+	aclRepo GrantCleaner
 }
 
-func NewFolderService(repo repository.FolderRepository, aclRepo repository.ACLRepository) *FolderService {
+func NewFolderService(repo repository.FolderRepository, aclRepo GrantCleaner) *FolderService {
 	return &FolderService{repo: repo, aclRepo: aclRepo}
 }
 
