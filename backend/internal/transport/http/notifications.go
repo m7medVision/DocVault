@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/docvault/backend/internal/domain/notification"
 	"github.com/docvault/backend/internal/middleware"
+	"github.com/docvault/backend/internal/notification"
 	"github.com/docvault/backend/internal/usecase"
 )
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/docvault/backend/internal/domain/document"
+	model "github.com/docvault/backend/internal/document"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/google/uuid"
 )

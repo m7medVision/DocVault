@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	model "github.com/docvault/backend/internal/domain/audit"
+	model "github.com/docvault/backend/internal/audit"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/google/uuid"
 )

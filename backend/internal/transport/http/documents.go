@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/document"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/usecase"

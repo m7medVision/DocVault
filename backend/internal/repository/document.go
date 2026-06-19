@@ -1,6 +1,6 @@
 package repository
 
-import model "github.com/docvault/backend/internal/domain/document"
+import model "github.com/docvault/backend/internal/document"
 
 // ListDocumentsQuery contains filters for listing documents. It is the contract
 // the document service passes to the data-access layer; the postgres adapter

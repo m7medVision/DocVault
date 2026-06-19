@@ -4,7 +4,7 @@ import (
 	"context"
 
 	sqldb "github.com/docvault/backend/internal/db"
-	model "github.com/docvault/backend/internal/domain/identity"
+	model "github.com/docvault/backend/internal/identity"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"

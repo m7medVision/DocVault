@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	sqldb "github.com/docvault/backend/internal/db"
-	model "github.com/docvault/backend/internal/domain/notification"
+	model "github.com/docvault/backend/internal/notification"
 	"github.com/docvault/backend/internal/platform/pgconv"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"

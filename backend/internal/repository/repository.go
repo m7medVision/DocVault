@@ -6,11 +6,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/docvault/backend/internal/domain/audit"
-	"github.com/docvault/backend/internal/domain/document"
-	"github.com/docvault/backend/internal/domain/identity"
-	"github.com/docvault/backend/internal/domain/notification"
-	"github.com/docvault/backend/internal/domain/reminder"
+	"github.com/docvault/backend/internal/audit"
+	"github.com/docvault/backend/internal/document"
+	"github.com/docvault/backend/internal/identity"
+	"github.com/docvault/backend/internal/notification"
+	"github.com/docvault/backend/internal/reminder"
 )
 
 // DocumentRepository provides document data access.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	model "github.com/docvault/backend/internal/domain/reminder"
+	model "github.com/docvault/backend/internal/reminder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

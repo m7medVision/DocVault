@@ -9,7 +9,7 @@ import (
 	"time"
 
 	sqldb "github.com/docvault/backend/internal/db"
-	model "github.com/docvault/backend/internal/domain/identity"
+	model "github.com/docvault/backend/internal/identity"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

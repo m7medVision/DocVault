@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	model "github.com/docvault/backend/internal/domain/document"
+	model "github.com/docvault/backend/internal/document"
 	"github.com/docvault/backend/internal/platform/apperr"
 	"github.com/docvault/backend/internal/repository"
 )

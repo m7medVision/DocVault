@@ -3,8 +3,8 @@ package usecase
 import (
 	"context"
 
-	model "github.com/docvault/backend/internal/domain/document"
-	remindermodel "github.com/docvault/backend/internal/domain/reminder"
+	model "github.com/docvault/backend/internal/document"
+	remindermodel "github.com/docvault/backend/internal/reminder"
 	"github.com/docvault/backend/internal/repository"
 )
 

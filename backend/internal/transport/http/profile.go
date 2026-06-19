@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/docvault/backend/internal/auth"
-	"github.com/docvault/backend/internal/domain/identity"
+	"github.com/docvault/backend/internal/identity"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/jackc/pgx/v5"
 )

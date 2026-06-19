@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	model "github.com/docvault/backend/internal/audit"
 	sqldb "github.com/docvault/backend/internal/db"
-	model "github.com/docvault/backend/internal/domain/audit"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

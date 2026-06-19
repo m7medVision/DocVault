@@ -9,8 +9,8 @@ import (
 	"time"
 
 	sqldb "github.com/docvault/backend/internal/db"
-	model "github.com/docvault/backend/internal/domain/reminder"
 	"github.com/docvault/backend/internal/platform/pgconv"
+	model "github.com/docvault/backend/internal/reminder"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

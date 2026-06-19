@@ -11,7 +11,7 @@ import (
 	"github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/authz"
 	sqldb "github.com/docvault/backend/internal/db"
-	"github.com/docvault/backend/internal/domain/identity"
+	"github.com/docvault/backend/internal/identity"
 	"github.com/docvault/backend/internal/middleware"
 	appredis "github.com/docvault/backend/internal/redis"
 	"github.com/jackc/pgx/v5"

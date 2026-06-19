@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	model "github.com/docvault/backend/internal/domain/document"
+	model "github.com/docvault/backend/internal/document"
 )
 
 // VisibilityParams identifies a single document and the principal whose read

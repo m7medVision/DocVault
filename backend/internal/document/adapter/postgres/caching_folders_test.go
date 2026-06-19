@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/document"
 	"github.com/docvault/backend/internal/repository"
 )
 

@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	model "github.com/docvault/backend/internal/domain/notification"
+	model "github.com/docvault/backend/internal/notification"
 	"github.com/docvault/backend/internal/repository"
 	"github.com/google/uuid"
 )

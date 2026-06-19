@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/document"
 	"github.com/docvault/backend/internal/platform/cache"
 	"github.com/docvault/backend/internal/repository"
 )
