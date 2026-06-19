@@ -18,6 +18,7 @@ import (
 	"github.com/docvault/backend/internal/platform/cache"
 	appredis "github.com/docvault/backend/internal/redis"
 	reminderapp "github.com/docvault/backend/internal/reminder/app"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/search"
 	handler "github.com/docvault/backend/internal/transport/http"
 )
@@ -69,7 +70,7 @@ func buildHandlers(
 		ReminderSvc:     reminderapp.NewReminderService(repos.Reminder),
 		NotificationSvc: notificationapp.NewNotificationService(repos.Notification),
 		SearchSvc:       documentapp.NewSearchService(queryEmbedder, repos.Search),
-		ChatSvc:         documentapp.NewChatService(queryEmbedder, repos.Search),
+		ChatSvc:         newChatService(queryEmbedder, repos.Search, cfg.Search.RerankURL),
 		UserRepo:        repos.User,
 		MembershipRepo:  repos.Membership,
 		PolicyRepo:      repos.Policy,
@@ -113,4 +114,15 @@ func newServer(cfg *config.Config, router http.Handler) *http.Server {
 		WriteTimeout:      0,
 		IdleTimeout:       60 * time.Second,
 	}
+}
+
+// newChatService builds the chat service with an optional cross-encoder
+// reranker. An empty rerankURL leaves the noop reranker in place, so chat works
+// with no sidecar; setting it points at a TEI /rerank endpoint.
+func newChatService(embedder search.Embedder, repo repository.SearchRepository, rerankURL string) *documentapp.ChatService {
+	svc := documentapp.NewChatService(embedder, repo)
+	if rerankURL != "" {
+		svc = svc.WithReranker(documentapp.NewHTTPReranker(rerankURL, nil))
+	}
+	return svc
 }

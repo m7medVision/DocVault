@@ -86,6 +86,7 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 		APIKey:         h.cfg.Search.EmbeddingAPIKey,
 		ChatModel:      h.cfg.Search.ChatModel,
 		RetrieveK:      h.cfg.Search.ChatRetrieveK,
+		ContextK:       h.cfg.Search.ChatContextK,
 		RewriteQueries: h.cfg.Search.ChatRewriteQueries,
 	}
 

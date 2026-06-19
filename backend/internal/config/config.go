@@ -100,7 +100,9 @@ type SearchConfig struct {
 	EmbeddingDim       int
 	ChatModel          string
 	ChatRetrieveK      int
+	ChatContextK       int
 	ChatRewriteQueries bool
+	RerankURL          string
 }
 
 type StorageConfig struct {
@@ -172,7 +174,9 @@ func Load() (*Config, error) {
 			EmbeddingDim:       getEnvInt("EMBEDDING_DIM", 1024),
 			ChatModel:          getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
 			ChatRetrieveK:      getEnvInt("CHAT_RETRIEVE_K", 40),
+			ChatContextK:       getEnvInt("CHAT_CONTEXT_K", 10),
 			ChatRewriteQueries: getEnvBool("CHAT_REWRITE_QUERIES", true),
+			RerankURL:          getEnvString("RERANK_URL", ""),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),

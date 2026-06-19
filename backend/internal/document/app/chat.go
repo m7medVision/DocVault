@@ -29,6 +29,10 @@ Use Markdown only when it improves readability. Do not restate the user's questi
 // "say if not found" system prompt.
 const defaultChatRetrieveK = 40
 
+// defaultChatContextK is how many chunks are actually sent to the generator
+// after reranking the wider retrieve pool. Keeps the prompt focused and bounded.
+const defaultChatContextK = 10
+
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -45,6 +49,7 @@ type ChatInput struct {
 	APIKey         string
 	ChatModel      string
 	RetrieveK      int
+	ContextK       int
 	RewriteQueries bool
 }
 
@@ -61,6 +66,7 @@ type ChatService struct {
 	embedder   search.Embedder
 	searchRepo repository.SearchRepository
 	llm        LLMChatPort
+	reranker   RerankerPort
 }
 
 func NewChatService(embedder search.Embedder, searchRepo repository.SearchRepository) *ChatService {
@@ -68,7 +74,17 @@ func NewChatService(embedder search.Embedder, searchRepo repository.SearchReposi
 		embedder:   embedder,
 		searchRepo: searchRepo,
 		llm:        NewOpenRouterChatClient(defaultChatBaseURL, http.DefaultClient),
+		reranker:   NoopReranker{},
 	}
+}
+
+// WithReranker installs a cross-encoder reranker. When unset, chat uses the
+// noop reranker (SQL retrieval order) so it works with no sidecar running.
+func (s *ChatService) WithReranker(r RerankerPort) *ChatService {
+	if r != nil {
+		s.reranker = r
+	}
+	return s
 }
 
 // buildRetrievalContext turns retrieved chunks into a numbered context block and a
@@ -170,7 +186,17 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		return fmt.Errorf("retrieval failed: %w", err)
 	}
 
-	contextBlock, sources := buildRetrievalContext(searchResult.Chunks)
+	contextK := input.ContextK
+	if contextK <= 0 {
+		contextK = defaultChatContextK
+	}
+
+	// Rerank the wider retrieve pool with a cross-encoder (when configured) and
+	// trim to the grounding budget sent to the generator. Noop/disabled or a
+	// reranker outage falls back to the SQL order.
+	chunks := rerankAndTrim(ctx, s.reranker, retrievalQuery, searchResult.Chunks, contextK)
+
+	contextBlock, sources := buildRetrievalContext(chunks)
 
 	// No grounding available: stream a graceful message and finish without sources.
 	if len(sources) == 0 {
