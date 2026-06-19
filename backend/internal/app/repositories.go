@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/casbin/casbin/v3"
 	auditpg "github.com/docvault/backend/internal/audit/adapter/postgres"
+	documentpg "github.com/docvault/backend/internal/document/adapter/postgres"
 	identitycasbin "github.com/docvault/backend/internal/identity/adapter/casbin"
 	identitypg "github.com/docvault/backend/internal/identity/adapter/postgres"
 	notificationpg "github.com/docvault/backend/internal/notification/adapter/postgres"
@@ -22,10 +23,10 @@ import (
 // composition root depends on the adapters.
 func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *repository.Repositories {
 	return &repository.Repositories{
-		Document:     repository.NewDocumentRepository(db),
+		Document:     documentpg.NewDocumentRepository(db),
 		Reminder:     reminderpg.NewReminderRepository(db),
 		Folder:       repository.NewFolderRepository(db),
-		Tag:          repository.NewTagRepository(db),
+		Tag:          documentpg.NewTagRepository(db),
 		Audit:        auditpg.NewAuditRepository(db),
 		Notification: notificationpg.NewNotificationRepository(db),
 		User:         identitypg.NewUserRepository(db),

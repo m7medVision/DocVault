@@ -15,4 +15,12 @@ var (
 	// ErrReminderNotFound is returned when no reminder rule matches the
 	// tenant/id.
 	ErrReminderNotFound = errors.New("reminder not found")
+
+	// ErrDocumentNotFound is returned when no document matches the tenant/org/id.
+	// Callers detect it via errors.Is rather than matching error-string substrings.
+	ErrDocumentNotFound = errors.New("document not found")
+
+	// ErrDocumentTitleExists is returned when a write collides with the per-folder
+	// unique document-title constraint (idx_documents_unique_title).
+	ErrDocumentTitleExists = errors.New("a document with this title already exists in the folder")
 )
