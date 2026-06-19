@@ -13,11 +13,11 @@ import (
 
 // ReminderService handles reminder operations.
 type ReminderService struct {
-	repo repository.ReminderRepository
+	repo ReminderStore
 }
 
 // NewReminderService creates a new ReminderService.
-func NewReminderService(repo repository.ReminderRepository) *ReminderService {
+func NewReminderService(repo ReminderStore) *ReminderService {
 	return &ReminderService{repo: repo}
 }
 
