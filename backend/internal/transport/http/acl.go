@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 var validACLPermissions = map[string]bool{"read": true, "write": true, "delete": true}
@@ -16,10 +16,10 @@ var validResourceTypes = map[string]bool{"document": true, "folder": true}
 // principalFrom builds the caller's security context from the request. IsAdmin
 // captures the admin short-circuit (admin or owner) so the app-layer Authorizer
 // stays free of the role hierarchy.
-func principalFrom(r *http.Request) usecase.Principal {
+func principalFrom(r *http.Request) documentapp.Principal {
 	ctx := r.Context()
 	role := middleware.GetUserRole(ctx)
-	return usecase.Principal{
+	return documentapp.Principal{
 		TenantID: middleware.GetTenantID(ctx),
 		OrgID:    middleware.GetOrgID(ctx),
 		UserID:   middleware.GetUserID(ctx),
@@ -94,12 +94,12 @@ func (h *Handler) setDocumentRestricted(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     documentapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":     "restrict",
 			"restricted": restricted,
@@ -154,12 +154,12 @@ func (h *Handler) setFolderRestricted(w http.ResponseWriter, r *http.Request, re
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     documentapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":     "restrict",
 			"restricted": restricted,
@@ -258,12 +258,12 @@ func (h *Handler) CreateGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "acl_grant",
 		EntityID:   body.ResourceID,
-		Action:     usecase.AuditActionShare,
+		Action:     documentapp.AuditActionShare,
 		Metadata: map[string]interface{}{
 			"resource_type":  body.ResourceType,
 			"resource_id":    body.ResourceID,
@@ -310,12 +310,12 @@ func (h *Handler) DeleteGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "acl_grant",
 		EntityID:   grantID,
-		Action:     usecase.AuditActionDelete,
+		Action:     documentapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 

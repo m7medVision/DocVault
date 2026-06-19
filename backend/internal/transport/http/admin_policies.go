@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/docvault/backend/internal/authz"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 type policyRequest struct {
@@ -45,12 +45,12 @@ func (h *Handler) ListPolicies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "authorization_policy",
 		EntityID:   tenantID,
-		Action:     usecase.AuditActionView,
+		Action:     documentapp.AuditActionView,
 		Metadata: map[string]interface{}{
 			"policy_count":  len(policies),
 			"binding_count": len(bindings),
@@ -88,12 +88,12 @@ func (h *Handler) AddPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "authorization_policy",
 		EntityID:   fmt.Sprintf("%s:%s:%s", body.Subject, body.Object, body.Action),
-		Action:     usecase.AuditActionCreate,
+		Action:     documentapp.AuditActionCreate,
 		Metadata: map[string]interface{}{
 			"subject": body.Subject,
 			"object":  body.Object,
@@ -136,12 +136,12 @@ func (h *Handler) DeletePolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "authorization_policy",
 		EntityID:   fmt.Sprintf("%s:%s:%s", body.Subject, body.Object, body.Action),
-		Action:     usecase.AuditActionDelete,
+		Action:     documentapp.AuditActionDelete,
 		Metadata: map[string]interface{}{
 			"subject": body.Subject,
 			"object":  body.Object,

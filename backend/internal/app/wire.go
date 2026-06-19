@@ -10,13 +10,13 @@ import (
 	internalauth "github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/config"
 	documentpg "github.com/docvault/backend/internal/document/adapter/postgres"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	identitypg "github.com/docvault/backend/internal/identity/adapter/postgres"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/platform/cache"
 	appredis "github.com/docvault/backend/internal/redis"
 	"github.com/docvault/backend/internal/search"
 	handler "github.com/docvault/backend/internal/transport/http"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 // buildHandlers wires the repositories (with their cache decorators), the
@@ -59,14 +59,14 @@ func buildHandlers(
 	h := handler.New(cfg, handler.Dependencies{
 		DB:              inf.db,
 		AuthzEnforcer:   authzEnforcer,
-		DocumentSvc:     usecase.NewDocumentService(documentRepo, aclRepo, inf.objectStore, inf.ocrDispatcher),
-		FolderSvc:       usecase.NewFolderService(folderRepo, aclRepo),
-		TagSvc:          usecase.NewTagService(repos.Tag),
-		AuditSvc:        usecase.NewAuditService(repos.Audit),
-		ReminderSvc:     usecase.NewReminderService(repos.Reminder),
-		NotificationSvc: usecase.NewNotificationService(repos.Notification),
-		SearchSvc:       usecase.NewSearchService(queryEmbedder, repos.Search),
-		ChatSvc:         usecase.NewChatService(queryEmbedder, repos.Search),
+		DocumentSvc:     documentapp.NewDocumentService(documentRepo, aclRepo, inf.objectStore, inf.ocrDispatcher),
+		FolderSvc:       documentapp.NewFolderService(folderRepo, aclRepo),
+		TagSvc:          documentapp.NewTagService(repos.Tag),
+		AuditSvc:        documentapp.NewAuditService(repos.Audit),
+		ReminderSvc:     documentapp.NewReminderService(repos.Reminder),
+		NotificationSvc: documentapp.NewNotificationService(repos.Notification),
+		SearchSvc:       documentapp.NewSearchService(queryEmbedder, repos.Search),
+		ChatSvc:         documentapp.NewChatService(queryEmbedder, repos.Search),
 		UserRepo:        repos.User,
 		MembershipRepo:  repos.Membership,
 		PolicyRepo:      repos.Policy,

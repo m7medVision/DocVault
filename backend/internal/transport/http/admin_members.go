@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/docvault/backend/internal/authz"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -72,12 +72,12 @@ func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 
 	invitationID := generateID("invite")
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "membership",
 		EntityID:   invitationID,
-		Action:     usecase.AuditActionCreate,
+		Action:     documentapp.AuditActionCreate,
 		Metadata: map[string]interface{}{
 			"email": body.Email,
 			"role":  body.Role,
@@ -220,12 +220,12 @@ func (h *Handler) GetMemberPermissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	_ = h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &actorID,
 		EntityType: "membership",
 		EntityID:   memberID,
-		Action:     usecase.AuditActionView,
+		Action:     documentapp.AuditActionView,
 		Metadata: map[string]interface{}{
 			"roles":       roles,
 			"permissions": len(permissions),

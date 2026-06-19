@@ -8,9 +8,9 @@ import (
 	"strconv"
 
 	"github.com/docvault/backend/internal/document"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) UploadDocument(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func (h *Handler) UploadDocument(w http.ResponseWriter, r *http.Request) {
 		languagePtr = &language
 	}
 
-	input := &usecase.UploadDocumentInput{
+	input := &documentapp.UploadDocumentInput{
 		TenantID: tenantID,
 		OrgID:    orgID,
 		OwnerID:  userID,
@@ -140,7 +140,7 @@ func (h *Handler) ListDocuments(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	input := &usecase.ListDocumentsInput{
+	input := &documentapp.ListDocumentsInput{
 		TenantID: tenantID,
 		OrgID:    orgID,
 		UserID:   userID,
@@ -195,7 +195,7 @@ func (h *Handler) GetDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.GetDocumentInput{
+	input := &documentapp.GetDocumentInput{
 		TenantID:   tenantID,
 		OrgID:      orgID,
 		DocumentID: documentID,
@@ -247,7 +247,7 @@ func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.DeleteDocumentInput{
+	input := &documentapp.DeleteDocumentInput{
 		TenantID:   tenantID,
 		OrgID:      orgID,
 		DocumentID: documentID,
@@ -261,12 +261,12 @@ func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     usecase.AuditActionDelete,
+		Action:     documentapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/notification"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) ListNotifications(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +40,7 @@ func (h *Handler) ListNotifications(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	input := &usecase.ListNotificationsInput{
+	input := &documentapp.ListNotificationsInput{
 		TenantID: tenantID,
 		UserID:   userID,
 		Status:   notification.NotificationStatus(status),
@@ -88,7 +88,7 @@ func (h *Handler) MarkNotificationRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.MarkReadInput{
+	input := &documentapp.MarkReadInput{
 		NotificationID: id,
 		TenantID:       tenantID,
 		UserID:         userID,
@@ -144,7 +144,7 @@ func (h *Handler) CreateNotificationWebhook(w http.ResponseWriter, r *http.Reque
 		notifType = "reminder"
 	}
 
-	notification, err := h.notificationSvc.CreateFromWorker(ctx, &usecase.CreateFromWorkerInput{
+	notification, err := h.notificationSvc.CreateFromWorker(ctx, &documentapp.CreateFromWorkerInput{
 		TenantID: input.TenantID,
 		UserID:   input.UserID,
 		Type:     notifType,

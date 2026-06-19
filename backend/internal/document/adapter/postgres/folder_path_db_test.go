@@ -7,7 +7,7 @@
 // that is always rolled back, so the target database is left untouched.
 //
 // These live in the external repository_test package (not package repository)
-// because they drive usecase.FolderService, and usecase imports repository — an
+// because they drive documentapp.FolderService, and usecase imports repository — an
 // internal test would form an import cycle. The repository is wired to the test
 // transaction via postgres.NewFolderRepositoryFromDBTX (integration-only).
 package postgres_test
@@ -21,7 +21,7 @@ import (
 
 	postgres "github.com/docvault/backend/internal/document/adapter/postgres"
 	"github.com/docvault/backend/internal/migrate"
-	"github.com/docvault/backend/internal/usecase"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -98,9 +98,9 @@ func withFolderTx(t *testing.T, fn func(tx pgx.Tx)) {
 // folderServiceForTx wires the real folder repository to the test transaction so
 // the production code path (sqldb queries) is exercised end to end. The ACL repo
 // is nil; none of the folder paths under test touch it.
-func folderServiceForTx(tx pgx.Tx) *usecase.FolderService {
+func folderServiceForTx(tx pgx.Tx) *documentapp.FolderService {
 	repo := postgres.NewFolderRepositoryFromDBTX(tx)
-	return usecase.NewFolderService(repo, nil)
+	return documentapp.NewFolderService(repo, nil)
 }
 
 // folderPoolQuerier is the subset of the pgx query surface shared by *pgxpool.Pool
@@ -119,7 +119,7 @@ type folderPoolQuerier interface {
 // transaction per call; this committed-rows-with-cleanup model is the
 // alternative. The tenant id is unique per call so concurrent test runs and the
 // advisory lock keyed on it never collide.
-func withFolderPool(t *testing.T, fn func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture)) {
+func withFolderPool(t *testing.T, fn func(pool *pgxpool.Pool, svc *documentapp.FolderService, f folderTenantFixture)) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -137,7 +137,7 @@ func withFolderPool(t *testing.T, fn func(pool *pgxpool.Pool, svc *usecase.Folde
 	defer folderCleanupCommitted(t, pool, f)
 
 	repo := postgres.NewFolderRepositoryFromPool(pool)
-	svc := usecase.NewFolderService(repo, nil)
+	svc := documentapp.NewFolderService(repo, nil)
 	fn(pool, svc, f)
 }
 
@@ -243,7 +243,7 @@ func TestEnsureFolderPath_CreatesNestedPathIdempotently(t *testing.T) {
 		ctx := context.Background()
 
 		// Nested path per the "/"-joined contract: split, trim, skip empties.
-		segments := usecase.SplitFolderPath(" Clients / Acme / Invoices ")
+		segments := documentapp.SplitFolderPath(" Clients / Acme / Invoices ")
 		if len(segments) != 3 {
 			t.Fatalf("SplitFolderPath normalized to %#v, want 3 segments", segments)
 		}
@@ -287,7 +287,7 @@ func TestEnsureFolderPath_CreatesNestedPathIdempotently(t *testing.T) {
 		}
 
 		// A path sharing the "Clients" prefix reuses it and adds only the new leaf.
-		other := usecase.SplitFolderPath("Clients/Globex")
+		other := documentapp.SplitFolderPath("Clients/Globex")
 		otherLeaf, err := svc.EnsureFolderPath(ctx, f.tenantID, f.orgID, f.userID, other)
 		if err != nil {
 			t.Fatalf("EnsureFolderPath (shared prefix): %v", err)
@@ -308,7 +308,7 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 	// Uses committed rows on a pool because Reparent now opens its own
 	// advisory-locked transaction and commits; a single rolled-back tx cannot
 	// host it.
-	withFolderPool(t, func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture) {
+	withFolderPool(t, func(pool *pgxpool.Pool, svc *documentapp.FolderService, f folderTenantFixture) {
 		ctx := context.Background()
 
 		// Tree: A (root) -> B (child of A) -> C (child of B); plus D at root.
@@ -318,7 +318,7 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 		d := createFolderRow(t, pool, f, "D", nil)
 
 		// Self-parent: moving A under A is rejected and does not mutate A.
-		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &a); !errors.Is(err, usecase.ErrFolderSelfParent) {
+		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &a); !errors.Is(err, documentapp.ErrFolderSelfParent) {
 			t.Fatalf("Reparent self-parent err = %v, want ErrFolderSelfParent", err)
 		}
 		if folderParentPool(t, pool, a) != "" {
@@ -326,14 +326,14 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 		}
 
 		// Cycle: moving A under C (a descendant of A) is rejected.
-		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &c); !errors.Is(err, usecase.ErrFolderCycle) {
+		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &c); !errors.Is(err, documentapp.ErrFolderCycle) {
 			t.Fatalf("Reparent descendant-as-parent err = %v, want ErrFolderCycle", err)
 		}
 		if folderParentPool(t, pool, a) != "" {
 			t.Fatal("cycle-rejected reparent must not change A's parent")
 		}
 		// And the direct-child cycle case: moving A under B (also a descendant).
-		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &b); !errors.Is(err, usecase.ErrFolderCycle) {
+		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &b); !errors.Is(err, documentapp.ErrFolderCycle) {
 			t.Fatalf("Reparent direct-descendant-as-parent err = %v, want ErrFolderCycle", err)
 		}
 
@@ -362,13 +362,13 @@ func TestReparent_GuardsCyclesAndAcceptsValidMove(t *testing.T) {
 // TestReparent_RejectsUnknownTargetParent asserts the target parent must exist
 // in the caller's tenant/org.
 func TestReparent_RejectsUnknownTargetParent(t *testing.T) {
-	withFolderPool(t, func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture) {
+	withFolderPool(t, func(pool *pgxpool.Pool, svc *documentapp.FolderService, f folderTenantFixture) {
 		ctx := context.Background()
 
 		a := createFolderRow(t, pool, f, "A", nil)
 
 		missing := "00000000-0000-0000-0000-000000000000"
-		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &missing); !errors.Is(err, usecase.ErrTargetParentNotFound) {
+		if err := svc.Reparent(ctx, f.tenantID, f.orgID, a, &missing); !errors.Is(err, documentapp.ErrTargetParentNotFound) {
 			t.Fatalf("Reparent unknown target err = %v, want ErrTargetParentNotFound", err)
 		}
 	})
@@ -386,7 +386,7 @@ func TestReparent_RejectsUnknownTargetParent(t *testing.T) {
 // rows, A and B are recreated fresh at root each iteration under a throwaway
 // tenant that is deleted at the end.
 func TestReparent_ConcurrentOppositeMovesNeverCreateCycle(t *testing.T) {
-	withFolderPool(t, func(pool *pgxpool.Pool, svc *usecase.FolderService, f folderTenantFixture) {
+	withFolderPool(t, func(pool *pgxpool.Pool, svc *documentapp.FolderService, f folderTenantFixture) {
 		ctx := context.Background()
 
 		const iterations = 8
@@ -431,7 +431,7 @@ func TestReparent_ConcurrentOppositeMovesNeverCreateCycle(t *testing.T) {
 				if e == nil {
 					continue
 				}
-				if !errors.Is(e, usecase.ErrFolderCycle) {
+				if !errors.Is(e, documentapp.ErrFolderCycle) {
 					t.Fatalf("iteration %d: unexpected Reparent error = %v, want nil or ErrFolderCycle", i, e)
 				}
 				rejected++

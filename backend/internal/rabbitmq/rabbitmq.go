@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docvault/backend/internal/usecase"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -72,7 +72,7 @@ func NewOCRDispatcher(conn *amqp.Connection, url string, queue string) *OCRDispa
 	return &OCRDispatcher{publisher: NewPublisher(conn, url, queue)}
 }
 
-func (d *OCRDispatcher) DispatchOCR(ctx context.Context, job usecase.OCRJob) error {
+func (d *OCRDispatcher) DispatchOCR(ctx context.Context, job documentapp.OCRJob) error {
 	body, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("marshal OCR job: %w", err)

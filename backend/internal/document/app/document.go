@@ -1,6 +1,6 @@
 // Package usecase contains application business logic.
 // Use cases orchestrate operations between transports and infrastructure adapters.
-package usecase
+package app
 
 import (
 	"context"

@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 // Chat answers questions grounded in a single document's retrieved chunks.
@@ -48,7 +48,7 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 	}
 
 	var body struct {
-		Messages []usecase.ChatMessage `json:"messages"`
+		Messages []documentapp.ChatMessage `json:"messages"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -75,7 +75,7 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 		return
 	}
 
-	input := &usecase.ChatInput{
+	input := &documentapp.ChatInput{
 		DocumentID: documentID,
 		Messages:   body.Messages,
 		TenantID:   tenantID,

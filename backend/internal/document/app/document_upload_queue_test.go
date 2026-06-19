@@ -1,4 +1,4 @@
-package usecase_test
+package app_test
 
 import (
 	"bytes"
@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	model "github.com/docvault/backend/internal/document"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/repository"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 type stubDocumentRepository struct {
@@ -86,10 +86,10 @@ func (s *stubDocumentRepository) ApplySuggestion(context.Context, *model.Documen
 }
 
 type stubOCRDispatcher struct {
-	job *usecase.OCRJob
+	job *documentapp.OCRJob
 }
 
-func (s *stubOCRDispatcher) DispatchOCR(_ context.Context, job usecase.OCRJob) error {
+func (s *stubOCRDispatcher) DispatchOCR(_ context.Context, job documentapp.OCRJob) error {
 	s.job = &job
 	return nil
 }
@@ -97,9 +97,9 @@ func (s *stubOCRDispatcher) DispatchOCR(_ context.Context, job usecase.OCRJob) e
 func TestUploadPublishesOCRJobContract(t *testing.T) {
 	repo := &stubDocumentRepository{}
 	dispatcher := &stubOCRDispatcher{}
-	svc := usecase.NewDocumentService(repo, nil, nil, dispatcher)
+	svc := documentapp.NewDocumentService(repo, nil, nil, dispatcher)
 
-	output, err := svc.Upload(context.Background(), &usecase.UploadDocumentInput{
+	output, err := svc.Upload(context.Background(), &documentapp.UploadDocumentInput{
 		TenantID: "tenant-1",
 		OrgID:    "org-1",
 		OwnerID:  "user-1",
@@ -179,7 +179,7 @@ func newTestFileHeader(t *testing.T, filename string, contents []byte) *multipar
 }
 
 var _ repository.DocumentRepository = (*stubDocumentRepository)(nil)
-var _ usecase.OCRDispatcher = (*stubOCRDispatcher)(nil)
+var _ documentapp.OCRDispatcher = (*stubOCRDispatcher)(nil)
 
 func (m *stubDocumentRepository) GetStats(ctx context.Context, tenantID, orgID string) (*model.DocumentStats, error) {
 	return &model.DocumentStats{}, nil

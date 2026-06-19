@@ -1,5 +1,5 @@
 // Package usecase provides tests for DocVault use cases.
-package usecase
+package app
 
 import (
 	"context"

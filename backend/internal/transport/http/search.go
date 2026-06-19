@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.SearchInput{
+	input := &documentapp.SearchInput{
 		Query:     body.Query,
 		Limit:     body.Limit,
 		DocType:   body.DocType,

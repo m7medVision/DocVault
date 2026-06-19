@@ -1,27 +1,27 @@
-package usecase_test
+package app_test
 
 import (
 	"context"
 	"mime/multipart"
 	"testing"
 
-	"github.com/docvault/backend/internal/usecase"
+	documentapp "github.com/docvault/backend/internal/document/app"
 )
 
 // TestDocumentServiceUploadValidation tests validation in document upload.
 func TestDocumentServiceUploadValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil, nil)
+	svc := documentapp.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
 		name    string
-		input   *usecase.UploadDocumentInput
+		input   *documentapp.UploadDocumentInput
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "missing tenant_id",
-			input: &usecase.UploadDocumentInput{
+			input: &documentapp.UploadDocumentInput{
 				TenantID: "",
 				OrgID:    "org-1",
 				OwnerID:  "user-1",
@@ -32,7 +32,7 @@ func TestDocumentServiceUploadValidation(t *testing.T) {
 		},
 		{
 			name: "missing org_id",
-			input: &usecase.UploadDocumentInput{
+			input: &documentapp.UploadDocumentInput{
 				TenantID: "tenant-1",
 				OrgID:    "",
 				OwnerID:  "user-1",
@@ -43,7 +43,7 @@ func TestDocumentServiceUploadValidation(t *testing.T) {
 		},
 		{
 			name: "missing owner_id",
-			input: &usecase.UploadDocumentInput{
+			input: &documentapp.UploadDocumentInput{
 				TenantID: "tenant-1",
 				OrgID:    "org-1",
 				OwnerID:  "",
@@ -54,7 +54,7 @@ func TestDocumentServiceUploadValidation(t *testing.T) {
 		},
 		{
 			name: "missing file",
-			input: &usecase.UploadDocumentInput{
+			input: &documentapp.UploadDocumentInput{
 				TenantID: "tenant-1",
 				OrgID:    "org-1",
 				OwnerID:  "user-1",
@@ -83,18 +83,18 @@ func TestDocumentServiceUploadValidation(t *testing.T) {
 
 // TestDocumentServiceListValidation tests validation in document listing.
 func TestDocumentServiceListValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil, nil)
+	svc := documentapp.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
 		name    string
-		input   *usecase.ListDocumentsInput
+		input   *documentapp.ListDocumentsInput
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "missing tenant_id",
-			input: &usecase.ListDocumentsInput{
+			input: &documentapp.ListDocumentsInput{
 				TenantID: "",
 				OrgID:    "org-1",
 			},
@@ -103,7 +103,7 @@ func TestDocumentServiceListValidation(t *testing.T) {
 		},
 		{
 			name: "missing org_id",
-			input: &usecase.ListDocumentsInput{
+			input: &documentapp.ListDocumentsInput{
 				TenantID: "tenant-1",
 				OrgID:    "",
 			},
@@ -130,18 +130,18 @@ func TestDocumentServiceListValidation(t *testing.T) {
 
 // TestDocumentServiceDeleteValidation tests validation in document deletion.
 func TestDocumentServiceDeleteValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil, nil)
+	svc := documentapp.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
 		name    string
-		input   *usecase.DeleteDocumentInput
+		input   *documentapp.DeleteDocumentInput
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "missing tenant_id",
-			input: &usecase.DeleteDocumentInput{
+			input: &documentapp.DeleteDocumentInput{
 				TenantID:   "",
 				OrgID:      "org-1",
 				DocumentID: "doc-1",
@@ -151,7 +151,7 @@ func TestDocumentServiceDeleteValidation(t *testing.T) {
 		},
 		{
 			name: "missing org_id",
-			input: &usecase.DeleteDocumentInput{
+			input: &documentapp.DeleteDocumentInput{
 				TenantID:   "tenant-1",
 				OrgID:      "",
 				DocumentID: "doc-1",
@@ -161,7 +161,7 @@ func TestDocumentServiceDeleteValidation(t *testing.T) {
 		},
 		{
 			name: "missing document_id",
-			input: &usecase.DeleteDocumentInput{
+			input: &documentapp.DeleteDocumentInput{
 				TenantID:   "tenant-1",
 				OrgID:      "org-1",
 				DocumentID: "",
@@ -189,18 +189,18 @@ func TestDocumentServiceDeleteValidation(t *testing.T) {
 
 // TestDocumentServiceGetValidation tests validation in getting document.
 func TestDocumentServiceGetValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil, nil)
+	svc := documentapp.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
 		name    string
-		input   *usecase.GetDocumentInput
+		input   *documentapp.GetDocumentInput
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "missing tenant_id",
-			input: &usecase.GetDocumentInput{
+			input: &documentapp.GetDocumentInput{
 				TenantID:   "",
 				OrgID:      "org-1",
 				DocumentID: "doc-1",
@@ -210,7 +210,7 @@ func TestDocumentServiceGetValidation(t *testing.T) {
 		},
 		{
 			name: "missing document_id",
-			input: &usecase.GetDocumentInput{
+			input: &documentapp.GetDocumentInput{
 				TenantID:   "tenant-1",
 				OrgID:      "org-1",
 				DocumentID: "",
@@ -238,18 +238,18 @@ func TestDocumentServiceGetValidation(t *testing.T) {
 
 // TestFolderServiceCreateValidation tests validation in folder creation.
 func TestFolderServiceCreateValidation(t *testing.T) {
-	svc := usecase.NewFolderService(nil, nil)
+	svc := documentapp.NewFolderService(nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
 		name    string
-		input   *usecase.CreateFolderInput
+		input   *documentapp.CreateFolderInput
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "missing tenant_id",
-			input: &usecase.CreateFolderInput{
+			input: &documentapp.CreateFolderInput{
 				TenantID: "",
 				OrgID:    "org-1",
 				Name:     "Test Folder",
@@ -259,7 +259,7 @@ func TestFolderServiceCreateValidation(t *testing.T) {
 		},
 		{
 			name: "missing org_id",
-			input: &usecase.CreateFolderInput{
+			input: &documentapp.CreateFolderInput{
 				TenantID: "tenant-1",
 				OrgID:    "",
 				Name:     "Test Folder",
@@ -269,7 +269,7 @@ func TestFolderServiceCreateValidation(t *testing.T) {
 		},
 		{
 			name: "missing name",
-			input: &usecase.CreateFolderInput{
+			input: &documentapp.CreateFolderInput{
 				TenantID: "tenant-1",
 				OrgID:    "org-1",
 				Name:     "",
@@ -297,18 +297,18 @@ func TestFolderServiceCreateValidation(t *testing.T) {
 
 // TestTagServiceListValidation tests validation in tag listing.
 func TestTagServiceListValidation(t *testing.T) {
-	svc := usecase.NewTagService(nil)
+	svc := documentapp.NewTagService(nil)
 	ctx := context.Background()
 
 	tests := []struct {
 		name    string
-		input   *usecase.ListTagsInput
+		input   *documentapp.ListTagsInput
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "missing tenant_id",
-			input: &usecase.ListTagsInput{
+			input: &documentapp.ListTagsInput{
 				TenantID: "",
 			},
 			wantErr: true,

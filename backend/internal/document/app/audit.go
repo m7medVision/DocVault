@@ -1,5 +1,5 @@
 // Package usecase contains application business logic.
-package usecase
+package app
 
 import (
 	"context"

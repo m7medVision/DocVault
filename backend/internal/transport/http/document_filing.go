@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/repository"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +49,7 @@ func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.MoveDocumentInput{
+	input := &documentapp.MoveDocumentInput{
 		TenantID:   tenantID,
 		OrgID:      orgID,
 		DocumentID: documentID,
@@ -63,12 +63,12 @@ func (h *Handler) MoveDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     documentapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action": "move",
 			"folder": body.FolderID,
@@ -126,7 +126,7 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.UpdateTitleInput{
+	input := &documentapp.UpdateTitleInput{
 		TenantID:   tenantID,
 		OrgID:      orgID,
 		DocumentID: documentID,
@@ -143,12 +143,12 @@ func (h *Handler) UpdateDocumentTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     documentapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action": "rename",
 			"title":  body.Title,
@@ -196,7 +196,7 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.suggestionSvc.Accept(ctx, usecase.AcceptSuggestionRequest{
+	result, err := h.suggestionSvc.Accept(ctx, documentapp.AcceptSuggestionRequest{
 		TenantID:   tenantID,
 		OrgID:      orgID,
 		UserID:     userID,
@@ -207,12 +207,12 @@ func (h *Handler) AcceptSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     documentapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":      "accept_suggestion",
 			"folder_id":   result.LeafFolderID,
@@ -264,12 +264,12 @@ func (h *Handler) DismissSuggestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &documentapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "document",
 		EntityID:   documentID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     documentapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action": "dismiss_suggestion",
 		},

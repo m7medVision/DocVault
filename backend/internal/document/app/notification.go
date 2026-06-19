@@ -1,5 +1,5 @@
 // Package usecase provides application business logic for DocVault.
-package usecase
+package app
 
 import (
 	"context"
