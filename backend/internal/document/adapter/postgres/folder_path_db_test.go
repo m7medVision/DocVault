@@ -20,8 +20,8 @@ import (
 	"testing"
 
 	postgres "github.com/docvault/backend/internal/document/adapter/postgres"
-	"github.com/docvault/backend/internal/migrate"
 	documentapp "github.com/docvault/backend/internal/document/app"
+	"github.com/docvault/backend/internal/migrate"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
