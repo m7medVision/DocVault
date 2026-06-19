@@ -1,4 +1,6 @@
-package repository
+// Package postgres is the audit bounded context's data-access adapter. It wraps
+// the shared sqlc Queries and maps rows to the audit domain model.
+package postgres
 
 import (
 	"context"
@@ -10,18 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// auditRepository handles audit event data access.
-type auditRepository struct {
+// AuditRepository handles audit event data access. It satisfies the
+// repository.AuditRepository contract the usecase layer depends on; the
+// composition root binds this concrete type to that interface.
+type AuditRepository struct {
 	queries sqldb.Querier
 }
 
-// NewAuditRepository creates a new AuditRepository.
-func NewAuditRepository(db *pgxpool.Pool) AuditRepository {
-	return &auditRepository{queries: sqldb.New(db)}
+// NewAuditRepository creates a postgres-backed audit repository.
+func NewAuditRepository(db *pgxpool.Pool) *AuditRepository {
+	return &AuditRepository{queries: sqldb.New(db)}
 }
 
 // Create creates a new audit event.
-func (r *auditRepository) Create(ctx context.Context, event *model.AuditEvent) error {
+func (r *AuditRepository) Create(ctx context.Context, event *model.AuditEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
 	}
@@ -47,7 +51,7 @@ func (r *auditRepository) Create(ctx context.Context, event *model.AuditEvent) e
 }
 
 // ListByTenant lists audit events for a tenant with filters and cursor pagination.
-func (r *auditRepository) ListByTenant(ctx context.Context, tenantID string, entityType, actorID, action, cursor string, limit int) ([]model.AuditEvent, *string, error) {
+func (r *AuditRepository) ListByTenant(ctx context.Context, tenantID string, entityType, actorID, action, cursor string, limit int) ([]model.AuditEvent, *string, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
