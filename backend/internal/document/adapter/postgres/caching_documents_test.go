@@ -1,17 +1,18 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"testing"
 
 	"github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/repository"
 )
 
 // fakeInnerDocs embeds the DocumentRepository interface (nil) and overrides only
 // the methods the caching decorator touches; any other call would panic, which
 // is fine because the decorator delegates the rest verbatim.
 type fakeInnerDocs struct {
-	DocumentRepository
+	repository.DocumentRepository
 	stats      document.DocumentStats
 	statsCalls int
 }

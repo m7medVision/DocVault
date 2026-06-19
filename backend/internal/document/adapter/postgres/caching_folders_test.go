@@ -1,16 +1,17 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"testing"
 
 	"github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/repository"
 )
 
 // fakeInnerFolders embeds the FolderRepository interface (nil) and overrides
 // only the methods the caching decorator touches.
 type fakeInnerFolders struct {
-	FolderRepository
+	repository.FolderRepository
 	folders     []document.Folder
 	listAllCall int
 }

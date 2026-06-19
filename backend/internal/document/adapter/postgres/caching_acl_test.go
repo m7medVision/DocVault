@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -6,13 +6,15 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/docvault/backend/internal/repository"
 )
 
 // fakeInnerACL embeds the ACLRepository interface (nil) and overrides only the
 // group-membership methods the caching decorator touches; any other call would
 // panic, which is fine because the decorator delegates the rest verbatim.
 type fakeInnerACL struct {
-	ACLRepository
+	repository.ACLRepository
 	groupIDs    []string
 	listCalls   int
 	addCalls    int

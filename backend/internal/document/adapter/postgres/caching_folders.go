@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/docvault/backend/internal/domain/document"
 	"github.com/docvault/backend/internal/platform/cache"
+	"github.com/docvault/backend/internal/repository"
 )
 
 // folderTreeTTL bounds staleness of the cached org folder tree. Structural
@@ -24,12 +25,12 @@ const folderTreeTTL = 60 * time.Second
 // single per-(tenant,org) entry serves all members. Structural mutations bust
 // the entry; everything else is delegated unchanged.
 type CachingFolders struct {
-	FolderRepository
+	repository.FolderRepository
 	cache cache.Cache
 }
 
 // NewCachingFolders wraps inner so ListAll reads through cache.
-func NewCachingFolders(inner FolderRepository, c cache.Cache) *CachingFolders {
+func NewCachingFolders(inner repository.FolderRepository, c cache.Cache) *CachingFolders {
 	return &CachingFolders{FolderRepository: inner, cache: c}
 }
 

@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/docvault/backend/internal/platform/cache"
+	"github.com/docvault/backend/internal/repository"
 )
 
 // groupMembershipTTL bounds how long a cached (org,user) group set may be stale
@@ -25,12 +26,12 @@ const groupMembershipTTL = 60 * time.Second
 // Visibility evaluation and grants are delegated unchanged — they are never
 // cached here, so restriction/grant changes take effect immediately.
 type CachingACL struct {
-	ACLRepository
+	repository.ACLRepository
 	cache cache.Cache
 }
 
 // NewCachingACL wraps inner so its group-membership lookups read through cache.
-func NewCachingACL(inner ACLRepository, c cache.Cache) *CachingACL {
+func NewCachingACL(inner repository.ACLRepository, c cache.Cache) *CachingACL {
 	return &CachingACL{ACLRepository: inner, cache: c}
 }
 

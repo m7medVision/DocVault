@@ -15,6 +15,7 @@ import (
 	"github.com/docvault/backend/internal/authz"
 	"github.com/docvault/backend/internal/config"
 	"github.com/docvault/backend/internal/database"
+	documentpg "github.com/docvault/backend/internal/document/adapter/postgres"
 	identitypg "github.com/docvault/backend/internal/identity/adapter/postgres"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/migrate"
@@ -22,7 +23,6 @@ import (
 	"github.com/docvault/backend/internal/platform/cache"
 	"github.com/docvault/backend/internal/rabbitmq"
 	appredis "github.com/docvault/backend/internal/redis"
-	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/search"
 	"github.com/docvault/backend/internal/sentry"
 	"github.com/docvault/backend/internal/telemetry"
@@ -147,13 +147,13 @@ func Run() error {
 	// nearly every non-admin request. Membership mutations bust the affected
 	// keys; a short TTL bounds staleness. Wrapped once here so every consumer
 	// (document/folder services, the handler's authorizer) shares the cache.
-	aclRepo := repository.NewCachingACL(repos.ACL, appCache)
+	aclRepo := documentpg.NewCachingACL(repos.ACL, appCache)
 	// Cache the per-org document-stats aggregate; document create/delete bust it,
 	// a short TTL covers status changes made by the processing workers.
-	documentRepo := repository.NewCachingDocuments(repos.Document, appCache)
+	documentRepo := documentpg.NewCachingDocuments(repos.Document, appCache)
 	// Cache the per-org folder tree read on every navigation render; structural
 	// folder mutations bust it, a short TTL covers is_restricted display toggles.
-	folderRepo := repository.NewCachingFolders(repos.Folder, appCache)
+	folderRepo := documentpg.NewCachingFolders(repos.Folder, appCache)
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
 	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
 	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)

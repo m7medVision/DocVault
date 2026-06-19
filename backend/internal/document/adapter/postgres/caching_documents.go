@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/docvault/backend/internal/domain/document"
 	"github.com/docvault/backend/internal/platform/cache"
+	"github.com/docvault/backend/internal/repository"
 )
 
 // documentStatsTTL bounds how long cached org stats may be stale. Kept short
@@ -25,12 +26,12 @@ const documentStatsTTL = 60 * time.Second
 // document create and delete bust the org's stats key. Everything else is
 // delegated unchanged.
 type CachingDocuments struct {
-	DocumentRepository
+	repository.DocumentRepository
 	cache cache.Cache
 }
 
 // NewCachingDocuments wraps inner so GetStats reads through cache.
-func NewCachingDocuments(inner DocumentRepository, c cache.Cache) *CachingDocuments {
+func NewCachingDocuments(inner repository.DocumentRepository, c cache.Cache) *CachingDocuments {
 	return &CachingDocuments{DocumentRepository: inner, cache: c}
 }
 
