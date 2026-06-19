@@ -60,8 +60,12 @@ func Status(ctx context.Context, dbURL string) error {
 }
 
 func wrapUpError(ctx context.Context, db *sql.DB, err error) error {
+	// 42P07 = duplicate_table, 42710 = duplicate_object (e.g. a pre-existing ENUM
+	// type). Both mean a migration is creating something that already exists, i.e.
+	// the database was migrated before and goose's version table is out of sync —
+	// the classic "reused or partially-reset dev database" symptom.
 	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.Code != "42P07" {
+	if !errors.As(err, &pgErr) || (pgErr.Code != "42P07" && pgErr.Code != "42710") {
 		return fmt.Errorf("goose up: %w", err)
 	}
 
@@ -71,7 +75,7 @@ func wrapUpError(ctx context.Context, db *sql.DB, err error) error {
 	}
 
 	return fmt.Errorf(
-		"goose up: database already contains conflicting public tables (%s), so DocVault migrations are running against a reused or non-empty database; original error: %w. Point DATABASE_URL at a fresh database, or reset the local Postgres volume with `just dev-clean && just dev-up` if you do not need the current data",
+		"goose up: database already contains conflicting objects (tables/types; existing tables: %s), so DocVault migrations are running against a reused or non-empty database; original error: %w. Point DATABASE_URL at a fresh database, or reset the local Postgres volume with `just dev-clean && just dev-up` if you do not need the current data",
 		formatTableSummary(tables, total),
 		err,
 	)
