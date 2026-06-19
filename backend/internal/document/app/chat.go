@@ -19,6 +19,7 @@ You are given a set of numbered passages retrieved from those documents.
 Answer ONLY using the information in the numbered passages below. Do not invent facts.
 Cite every supporting passage inline using its number in square brackets, for example [1] or [2].
 If the answer cannot be found in the passages, say so plainly and do not guess.
+Some passages list "Document facts" (issuer, dates, amount, document number); treat those as authoritative for that source.
 Reply in the user's language (Arabic or English).
 Use Markdown only when it improves readability. Do not restate the user's question.`
 
@@ -88,20 +89,43 @@ func (s *ChatService) WithReranker(r RerankerPort) *ChatService {
 }
 
 // buildRetrievalContext turns retrieved chunks into a numbered context block and a
-// parallel slice of citation sources. It is pure so it can be unit-tested in isolation.
-func buildRetrievalContext(chunks []repository.ChunkMatch) (string, []ChatSource) {
+// parallel slice of citation sources. It is pure so it can be unit-tested in
+// isolation. When factsByDoc carries the classifier's extracted facts for a
+// cited document, they are appended to that document's first passage so the
+// generator can answer date/amount/ID questions from structure, not just prose.
+func buildRetrievalContext(chunks []repository.ChunkMatch, factsByDoc map[string][]repository.DocFact) (string, []ChatSource) {
 	if len(chunks) == 0 {
 		return "", nil
 	}
 
+	if factsByDoc == nil {
+		factsByDoc = map[string][]repository.DocFact{}
+	}
+
 	var builder strings.Builder
 	sources := make([]ChatSource, 0, len(chunks))
+	renderedFactsFor := make(map[string]bool, len(chunks))
+
 	for i, chunk := range chunks {
 		n := i + 1
 		if i > 0 {
 			builder.WriteString("\n\n")
 		}
 		builder.WriteString(fmt.Sprintf("[%d] (source: %s, page %d)\n%s", n, chunk.DocumentTitle, chunk.PageNumber, chunk.ChunkText))
+
+		// Attach each document's facts once, to its first cited passage.
+		facts := factsByDoc[chunk.DocumentID]
+		if len(facts) > 0 && !renderedFactsFor[chunk.DocumentID] {
+			renderedFactsFor[chunk.DocumentID] = true
+			builder.WriteString("\nDocument facts:")
+			for _, f := range facts {
+				if f.Value == "" {
+					continue
+				}
+				builder.WriteString(fmt.Sprintf("\n  %s: %s", f.Key, f.Value))
+			}
+		}
+
 		sources = append(sources, ChatSource{
 			N:          n,
 			DocumentID: chunk.DocumentID,
@@ -121,6 +145,27 @@ func lastUserMessage(messages []ChatMessage) string {
 		}
 	}
 	return ""
+}
+
+// uniqueDocIDs returns the distinct document ids from a chunk slice, preserving
+// first-seen order. Used to fetch metadata once per cited document.
+func uniqueDocIDs(chunks []repository.ChunkMatch) []string {
+	if len(chunks) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(chunks))
+	ids := make([]string, 0, len(chunks))
+	for _, c := range chunks {
+		if c.DocumentID == "" {
+			continue
+		}
+		if _, ok := seen[c.DocumentID]; ok {
+			continue
+		}
+		seen[c.DocumentID] = struct{}{}
+		ids = append(ids, c.DocumentID)
+	}
+	return ids
 }
 
 func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Writer) error {
@@ -196,7 +241,17 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 	// reranker outage falls back to the SQL order.
 	chunks := rerankAndTrim(ctx, s.reranker, retrievalQuery, searchResult.Chunks, contextK)
 
-	contextBlock, sources := buildRetrievalContext(chunks)
+	// Best-effort: enrich the grounding with the structured facts the classifier
+	// already extracted (issuer, amount, dates, document number) so the generator
+	// can answer date/amount/ID questions from structure. A failure just drops
+	// the enrichment; chat proceeds with chunk prose.
+	factsByDoc, ferr := s.searchRepo.FetchDocumentsMetadata(ctx, input.TenantID, uniqueDocIDs(chunks))
+	if ferr != nil {
+		slog.Warn("document metadata fetch failed; grounding without facts", "error", ferr)
+		factsByDoc = nil
+	}
+
+	contextBlock, sources := buildRetrievalContext(chunks, factsByDoc)
 
 	// No grounding available: stream a graceful message and finish without sources.
 	if len(sources) == 0 {

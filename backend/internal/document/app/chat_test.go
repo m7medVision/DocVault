@@ -46,7 +46,7 @@ func stubChunks() []repository.ChunkMatch {
 func TestBuildRetrievalContext_NumbersContextAndMapsSources(t *testing.T) {
 	chunks := stubChunks()
 
-	contextBlock, sources := buildRetrievalContext(chunks)
+	contextBlock, sources := buildRetrievalContext(chunks, nil)
 
 	// Numbered context contains [1].. markers, titles, pages, and chunk text.
 	for _, want := range []string{
@@ -86,12 +86,63 @@ func TestBuildRetrievalContext_NumbersContextAndMapsSources(t *testing.T) {
 }
 
 func TestBuildRetrievalContext_EmptyChunks(t *testing.T) {
-	contextBlock, sources := buildRetrievalContext(nil)
+	contextBlock, sources := buildRetrievalContext(nil, nil)
 	if contextBlock != "" {
 		t.Fatalf("context block = %q, want empty", contextBlock)
 	}
 	if sources != nil {
 		t.Fatalf("sources = %#v, want nil", sources)
+	}
+}
+
+func TestBuildRetrievalContext_AttachesDocumentFactsOnce(t *testing.T) {
+	chunks := []repository.ChunkMatch{
+		{DocumentID: "doc-a", DocumentTitle: "Alpha", PageNumber: 1, ChunkText: "alpha passage"},
+		{DocumentID: "doc-a", DocumentTitle: "Alpha", PageNumber: 2, ChunkText: "second alpha passage"},
+	}
+	facts := map[string][]repository.DocFact{
+		"doc-a": {
+			{DocumentID: "doc-a", Key: "issuer", Value: "Teepee"},
+			{DocumentID: "doc-a", Key: "expiry_date", Value: "2026-09-06"},
+		},
+	}
+
+	contextBlock, sources := buildRetrievalContext(chunks, facts)
+
+	if !strings.Contains(contextBlock, "Document facts:") {
+		t.Fatalf("context block missing Document facts section\n---\n%s", contextBlock)
+	}
+	if !strings.Contains(contextBlock, "issuer: Teepee") || !strings.Contains(contextBlock, "expiry_date: 2026-09-06") {
+		t.Fatalf("context block missing fact values\n---\n%s", contextBlock)
+	}
+	// Facts appear exactly once even though doc-a has two passages.
+	if got := strings.Count(contextBlock, "Document facts:"); got != 1 {
+		t.Fatalf("Document facts rendered %d times, want 1", got)
+	}
+	// Facts are attached to the first passage, not the second.
+	firstDocIdx := strings.Index(contextBlock, "Document facts:")
+	secondPassageIdx := strings.Index(contextBlock, "second alpha passage")
+	if secondPassageIdx < firstDocIdx {
+		t.Fatalf("facts must follow the first passage, not precede the second\n---\n%s", contextBlock)
+	}
+	if len(sources) != len(chunks) {
+		t.Fatalf("len(sources) = %d, want %d", len(sources), len(chunks))
+	}
+}
+
+func TestUniqueDocIDs_DeduplicatesPreservingOrder(t *testing.T) {
+	chunks := []repository.ChunkMatch{
+		{DocumentID: "a"}, {DocumentID: "b"}, {DocumentID: "a"}, {DocumentID: ""}, {DocumentID: "c"},
+	}
+	got := uniqueDocIDs(chunks)
+	want := []string{"a", "b", "c"}
+	if len(got) != len(want) {
+		t.Fatalf("uniqueDocIDs = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("uniqueDocIDs = %v, want %v", got, want)
+		}
 	}
 }
 

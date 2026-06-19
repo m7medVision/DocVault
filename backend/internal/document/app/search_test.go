@@ -25,6 +25,7 @@ type stubSearchRepository struct {
 	result  *repository.SearchResult
 	err     error
 	lastReq repository.SearchRequest
+	facts   map[string][]repository.DocFact
 }
 
 func (s *stubSearchRepository) Search(_ context.Context, req repository.SearchRequest) (*repository.SearchResult, error) {
@@ -38,6 +39,10 @@ func (s *stubSearchRepository) IndexChunk(context.Context, repository.DocumentCh
 
 func (s *stubSearchRepository) DeleteChunksByDocument(context.Context, string) error {
 	return nil
+}
+
+func (s *stubSearchRepository) FetchDocumentsMetadata(_ context.Context, _ string, _ []string) (map[string][]repository.DocFact, error) {
+	return s.facts, nil
 }
 
 func TestSearchInput_Validation(t *testing.T) {

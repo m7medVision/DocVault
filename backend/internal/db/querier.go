@@ -44,6 +44,12 @@ type Querier interface {
 	GetDocumentStats(ctx context.Context, arg GetDocumentStatsParams) (GetDocumentStatsRow, error)
 	GetDocumentTags(ctx context.Context, arg GetDocumentTagsParams) ([]Tag, error)
 	GetDocumentVersions(ctx context.Context, arg GetDocumentVersionsParams) ([]DocumentVersion, error)
+	// Batched, tenant-scoped fetch of the extracted (or user-corrected) facts for a
+	// set of documents. Powers chat grounding: the generator sees issuer, amount,
+	// dates, document_number, etc. that the classifier already extracted, so
+	// "small things" questions about dates/amounts/IDs answer from structure, not
+	// just chunk prose. corrected_value takes precedence over extracted_value.
+	GetDocumentsMetadata(ctx context.Context, arg GetDocumentsMetadataParams) ([]GetDocumentsMetadataRow, error)
 	// Returns the folder itself plus all of its ancestors (walking parent_id up to
 	// the root), cycle-protected via a visited path. Used to detect reparent cycles:
 	// a folder may not be moved under itself or any of its descendants, which is

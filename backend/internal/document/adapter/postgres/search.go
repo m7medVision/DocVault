@@ -111,6 +111,34 @@ func (r *searchRepository) DeleteChunksByDocument(ctx context.Context, docID str
 	return nil
 }
 
+// FetchDocumentsMetadata returns the extracted (or user-corrected) facts for
+// the given documents, grouped by document id. A nil/empty value is skipped so
+// only concrete facts reach the chat context. Tenant-scoped via the query.
+func (r *searchRepository) FetchDocumentsMetadata(ctx context.Context, tenantID string, docIDs []string) (map[string][]repository.DocFact, error) {
+	if len(docIDs) == 0 {
+		return map[string][]repository.DocFact{}, nil
+	}
+	rows, err := r.queries.GetDocumentsMetadata(ctx, sqldb.GetDocumentsMetadataParams{
+		TenantID:    tenantID,
+		DocumentIds: docIDs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetch document metadata: %w", err)
+	}
+	out := make(map[string][]repository.DocFact, len(rows))
+	for _, row := range rows {
+		if row.Value == nil {
+			continue
+		}
+		out[row.DocumentID] = append(out[row.DocumentID], repository.DocFact{
+			DocumentID: row.DocumentID,
+			Key:        row.Key,
+			Value:      *row.Value,
+		})
+	}
+	return out, nil
+}
+
 func optionalString(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
