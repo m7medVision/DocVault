@@ -3,17 +3,28 @@
 // DB-backed integration tests for transactional self-registration. Unlike the
 // rolled-back visibility tests, RegisterWorkspace commits, so each test uses
 // unique identifiers and deletes the rows it created in t.Cleanup.
-package repository
+package postgres
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/docvault/backend/internal/migrate"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const defaultDatabaseURL = "postgresql://docvault:docvault_dev@localhost:5432/docvault"
+
+func databaseURL() string {
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		return v
+	}
+	return defaultDatabaseURL
+}
 
 func newRegistrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -49,9 +60,9 @@ func cleanupWorkspace(t *testing.T, pool *pgxpool.Pool, tenantID string) {
 	})
 }
 
-func newWorkspaceParams() RegisterWorkspaceParams {
+func newWorkspaceParams() repository.RegisterWorkspaceParams {
 	suffix := uuid.NewString()
-	return RegisterWorkspaceParams{
+	return repository.RegisterWorkspaceParams{
 		TenantID:     uuid.NewString(),
 		TenantName:   "reg-tenant",
 		OrgID:        uuid.NewString(),

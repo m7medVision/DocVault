@@ -1,54 +1,32 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"fmt"
-	"time"
 
 	sqldb "github.com/docvault/backend/internal/db"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// RegisterWorkspaceParams is the full set of rows created atomically when a new
-// user self-registers: a tenant, its default organization, the owner user, and
-// the owner membership. IDs are supplied by the caller so the transport can
-// build its response without a read-back.
-type RegisterWorkspaceParams struct {
-	TenantID     string
-	TenantName   string
-	OrgID        string
-	OrgName      string
-	UserID       string
-	Email        string
-	PasswordHash string
-	DisplayName  string
-	Locale       string
-	MembershipID string
-	CreatedAt    time.Time
-}
-
-// RegistrationRepository owns the transactional creation of a new workspace.
-// The unit of work (begin/commit/rollback) lives here, in the adapter, so the
-// transport layer never opens a database transaction itself.
-type RegistrationRepository interface {
-	RegisterWorkspace(ctx context.Context, params RegisterWorkspaceParams) error
-}
-
-type registrationRepository struct {
+// RegistrationRepository handles transactional workspace registration. It
+// satisfies the repository.RegistrationRepository contract; the composition
+// root binds this concrete type to that interface.
+type RegistrationRepository struct {
 	db      *pgxpool.Pool
 	queries *sqldb.Queries
 }
 
-// NewRegistrationRepository creates a RegistrationRepository over the pool.
-func NewRegistrationRepository(db *pgxpool.Pool) RegistrationRepository {
-	return &registrationRepository{db: db, queries: sqldb.New(db)}
+// NewRegistrationRepository creates a postgres-backed registration repository.
+func NewRegistrationRepository(db *pgxpool.Pool) *RegistrationRepository {
+	return &RegistrationRepository{db: db, queries: sqldb.New(db)}
 }
 
 // RegisterWorkspace creates the tenant, organization, owner user, and owner
 // membership inside a single transaction. Any failure rolls the whole set back,
 // so a half-provisioned workspace can never be observed.
-func (r *registrationRepository) RegisterWorkspace(ctx context.Context, p RegisterWorkspaceParams) error {
+func (r *RegistrationRepository) RegisterWorkspace(ctx context.Context, p repository.RegisterWorkspaceParams) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin registration transaction: %w", err)

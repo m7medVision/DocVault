@@ -31,6 +31,7 @@ func NewAuthHandler(
 	authzEnforcer *casbin.Enforcer,
 	logger *slog.Logger,
 	userRepo repository.UserRepository,
+	registrationRepo repository.RegistrationRepository,
 ) *AuthHandler {
 	return &AuthHandler{
 		db:               db,
@@ -40,7 +41,7 @@ func NewAuthHandler(
 		authzEnforcer:    authzEnforcer,
 		logger:           logger,
 		userRepo:         userRepo,
-		registrationRepo: repository.NewRegistrationRepository(db),
+		registrationRepo: registrationRepo,
 		queries:          sqldb.New(db),
 	}
 }

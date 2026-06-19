@@ -1,4 +1,7 @@
-package repository
+// Package postgres is the identity bounded context's data-access adapter. It
+// wraps the shared sqlc Queries and maps rows to the identity domain model for
+// users, memberships, and transactional workspace registration.
+package postgres
 
 import (
 	"context"
@@ -11,15 +14,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type userRepository struct {
+// UserRepository handles user data access. It satisfies the
+// repository.UserRepository contract; the composition root binds this concrete
+// type to that interface.
+type UserRepository struct {
 	queries sqldb.Querier
 }
 
-func NewUserRepository(db *pgxpool.Pool) UserRepository {
-	return &userRepository{queries: sqldb.New(db)}
+// NewUserRepository creates a postgres-backed user repository.
+func NewUserRepository(db *pgxpool.Pool) *UserRepository {
+	return &UserRepository{queries: sqldb.New(db)}
 }
 
-func (r *userRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	row, err := r.queries.FindUserByEmail(ctx, sqldb.FindUserByEmailParams{Email: email})
 	if err != nil {
 		return nil, err
@@ -40,7 +47,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*model.
 	return &user, nil
 }
 
-func (r *userRepository) FindByID(ctx context.Context, userID string) (*model.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, userID string) (*model.User, error) {
 	row, err := r.queries.FindUserByID(ctx, sqldb.FindUserByIDParams{ID: userID})
 	if err != nil {
 		return nil, err
@@ -59,7 +66,7 @@ func (r *userRepository) FindByID(ctx context.Context, userID string) (*model.Us
 	return &user, nil
 }
 
-func (r *userRepository) Create(ctx context.Context, u *model.User) error {
+func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 	return r.queries.CreateUser(ctx, sqldb.CreateUserParams{
 		ID:                  u.ID,
 		TenantID:            u.TenantID,
@@ -73,7 +80,7 @@ func (r *userRepository) Create(ctx context.Context, u *model.User) error {
 	})
 }
 
-func (r *userRepository) UpdateProfile(ctx context.Context, userID, displayName, locale string) error {
+func (r *UserRepository) UpdateProfile(ctx context.Context, userID, displayName, locale string) error {
 	return r.queries.UpdateUserProfile(ctx, sqldb.UpdateUserProfileParams{
 		DisplayName: displayName,
 		Locale:      locale,
@@ -81,21 +88,21 @@ func (r *userRepository) UpdateProfile(ctx context.Context, userID, displayName,
 	})
 }
 
-func (r *userRepository) UpdateEmail(ctx context.Context, userID, email string) error {
+func (r *UserRepository) UpdateEmail(ctx context.Context, userID, email string) error {
 	return r.queries.UpdateUserEmail(ctx, sqldb.UpdateUserEmailParams{
 		Email: email,
 		ID:    userID,
 	})
 }
 
-func (r *userRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
 	return r.queries.UpdateUserPassword(ctx, sqldb.UpdateUserPasswordParams{
 		PasswordHash: &passwordHash,
 		ID:           userID,
 	})
 }
 
-func (r *userRepository) UpdateFailedLogin(ctx context.Context, userID string, attempts int, lockedUntil *string) error {
+func (r *UserRepository) UpdateFailedLogin(ctx context.Context, userID string, attempts int, lockedUntil *string) error {
 	parsedLockedUntil, err := parseOptionalTime(lockedUntil)
 	if err != nil {
 		return err
@@ -107,7 +114,7 @@ func (r *userRepository) UpdateFailedLogin(ctx context.Context, userID string, a
 	})
 }
 
-func (r *userRepository) IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error) {
+func (r *UserRepository) IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error) {
 	return r.queries.IsEmailTakenByOther(ctx, sqldb.IsEmailTakenByOtherParams{
 		Email: email,
 		ID:    excludeUserID,

@@ -15,6 +15,7 @@ import (
 	"github.com/docvault/backend/internal/authz"
 	"github.com/docvault/backend/internal/config"
 	"github.com/docvault/backend/internal/database"
+	identitypg "github.com/docvault/backend/internal/identity/adapter/postgres"
 	"github.com/docvault/backend/internal/middleware"
 	"github.com/docvault/backend/internal/migrate"
 	"github.com/docvault/backend/internal/minio"
@@ -179,7 +180,7 @@ func Run() error {
 		ACLRepo:         aclRepo,
 	})
 	middleware.SetAuthorizationAuditLogger(h.AuditAuthorizationDecision)
-	authHandler := handler.NewAuthHandler(dbPool, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger, repos.User)
+	authHandler := handler.NewAuthHandler(dbPool, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger, repos.User, identitypg.NewRegistrationRepository(dbPool))
 
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(h, authHandler, mux, jwtMiddleware, authzEnforcer)
