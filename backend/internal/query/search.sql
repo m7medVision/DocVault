@@ -1,7 +1,22 @@
 -- name: SearchDocumentChunks :many
-WITH RECURSIVE folder_ancestors AS (
-  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
-  FROM folders f WHERE f.org_id = sqlc.arg(org_id)
+WITH RECURSIVE candidate_folders AS (
+  -- Seed the ancestor walk only from folders that hold a candidate document
+  -- (same tenant/org and the cheap folder/document scoping that filtered_chunks
+  -- applies below), instead of every folder in the org, so the recursive cost
+  -- stops scaling with the org's total folder count. This is a superset of the
+  -- folders any candidate document can resolve through, so the visibility
+  -- decision below is unchanged.
+  SELECT DISTINCT d.folder_id AS id
+  FROM documents d
+  WHERE d.tenant_id = sqlc.arg(tenant_id)
+    AND d.org_id = sqlc.arg(org_id)
+    AND d.folder_id IS NOT NULL
+    AND (sqlc.narg(folder_id)::uuid IS NULL OR d.folder_id = sqlc.narg(folder_id)::uuid)
+    AND (sqlc.narg(document_id)::uuid IS NULL OR d.id = sqlc.narg(document_id)::uuid)
+),
+folder_ancestors AS (
+  SELECT cf.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
+  FROM candidate_folders cf JOIN folders f ON f.id = cf.id AND f.org_id = sqlc.arg(org_id)
   UNION ALL
   SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
