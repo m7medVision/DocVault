@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
+	reminderapp "github.com/docvault/backend/internal/reminder/app"
 )
 
 func (h *Handler) ListReminders(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +29,7 @@ func (h *Handler) ListReminders(w http.ResponseWriter, r *http.Request) {
 	documentID := r.URL.Query().Get("document_id")
 	activeOnly := r.URL.Query().Get("active_only") == "true"
 
-	input := &usecase.ListRemindersInput{
+	input := &reminderapp.ListRemindersInput{
 		TenantID:   tenantID,
 		DocumentID: documentID,
 		ActiveOnly: activeOnly,
@@ -90,7 +90,7 @@ func (h *Handler) CreateReminder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createInput := &usecase.CreateReminderInput{
+	createInput := &reminderapp.CreateReminderInput{
 		TenantID:         tenantID,
 		DocumentID:       documentID,
 		RuleType:         input.RuleType,
@@ -142,7 +142,7 @@ func (h *Handler) UpdateReminder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updateInput := &usecase.UpdateReminderInput{
+	updateInput := &reminderapp.UpdateReminderInput{
 		TenantID: tenantID,
 		ID:       id,
 		Active:   input.Active,

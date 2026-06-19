@@ -466,6 +466,7 @@ type ExtractedTextChunk struct {
 	ChunkIndex int32              `json:"chunk_index"`
 	ChunkText  string             `json:"chunk_text"`
 	Embedding  *string            `json:"embedding"`
+	ChunkTsv   interface{}        `json:"chunk_tsv"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 

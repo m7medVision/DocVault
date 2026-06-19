@@ -1,7 +1,22 @@
 -- name: SearchDocumentChunks :many
-WITH RECURSIVE folder_ancestors AS (
-  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
-  FROM folders f WHERE f.org_id = sqlc.arg(org_id)
+WITH RECURSIVE candidate_folders AS (
+  -- Seed the ancestor walk only from folders that hold a candidate document
+  -- (same tenant/org and the cheap folder/document scoping that filtered_chunks
+  -- applies below), instead of every folder in the org, so the recursive cost
+  -- stops scaling with the org's total folder count. This is a superset of the
+  -- folders any candidate document can resolve through, so the visibility
+  -- decision below is unchanged.
+  SELECT DISTINCT d.folder_id AS id
+  FROM documents d
+  WHERE d.tenant_id = sqlc.arg(tenant_id)
+    AND d.org_id = sqlc.arg(org_id)
+    AND d.folder_id IS NOT NULL
+    AND (sqlc.narg(folder_id)::uuid IS NULL OR d.folder_id = sqlc.narg(folder_id)::uuid)
+    AND (sqlc.narg(document_id)::uuid IS NULL OR d.id = sqlc.narg(document_id)::uuid)
+),
+folder_ancestors AS (
+  SELECT cf.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
+  FROM candidate_folders cf JOIN folders f ON f.id = cf.id AND f.org_id = sqlc.arg(org_id)
   UNION ALL
   SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
@@ -19,8 +34,13 @@ filtered_chunks AS (
     FALSE AS is_translation,
     c.embedding <=> sqlc.arg(query_vector)::text::vector AS distance,
     GREATEST(0.0, 1 - (c.embedding <=> sqlc.arg(query_vector)::text::vector)) AS raw_semantic_score,
-    POSITION(LOWER(sqlc.arg(query_text)) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
-    POSITION(LOWER(sqlc.arg(query_text)) IN LOWER(d.title)) > 0 AS title_contains_query
+    -- Lexical signals (replace the old whole-phrase POSITION substring test,
+    -- which never fired for natural-language queries). chunk_tsv is the
+    -- generated 'simple' tsvector; word_similarity gives fuzzy containment for
+    -- proper nouns / IDs / typos (e.g. "teepee" in "...TEEPEE-20260609...").
+    (c.chunk_tsv @@ websearch_to_tsquery('simple', sqlc.arg(query_text))) AS chunk_fts_match,
+    word_similarity(sqlc.arg(query_text), c.chunk_text)::double precision AS chunk_word_sim,
+    word_similarity(sqlc.arg(query_text), d.title)::double precision AS title_word_sim
   FROM extracted_text_chunks c
   JOIN documents d ON c.document_id = d.id
   LEFT JOIN document_pages p ON c.page_id = p.id
@@ -78,12 +98,13 @@ scored_chunks AS (
     is_translation,
     distance,
     GREATEST(
-      LEAST(1.0, GREATEST(0.0, (raw_semantic_score - 0.4) / 0.6)),
+      raw_semantic_score,
       CASE
         WHEN LOWER(BTRIM(title)) = LOWER(BTRIM(sqlc.arg(query_text))) THEN 1.0
         WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM(sqlc.arg(query_text))) THEN 0.99
-        WHEN chunk_contains_query THEN 0.97
-        WHEN title_contains_query THEN 0.95
+        WHEN chunk_fts_match THEN 0.96
+        WHEN chunk_word_sim >= 0.5 THEN LEAST(0.95, chunk_word_sim)
+        WHEN title_word_sim >= 0.5 THEN LEAST(0.93, title_word_sim)
         ELSE 0.0
       END
     )::double precision AS score

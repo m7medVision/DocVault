@@ -12,14 +12,15 @@ import (
 )
 
 type AuthHandler struct {
-	db             *pgxpool.Pool
-	jwtService     *auth.JWTService
-	tokenBlacklist *appredis.TokenBlacklist
-	rateLimiter    *appredis.RateLimiter
-	authzEnforcer  *casbin.Enforcer
-	logger         *slog.Logger
-	userRepo       repository.UserRepository
-	queries        *sqldb.Queries
+	db               *pgxpool.Pool
+	jwtService       *auth.JWTService
+	tokenBlacklist   *appredis.TokenBlacklist
+	rateLimiter      *appredis.RateLimiter
+	authzEnforcer    *casbin.Enforcer
+	logger           *slog.Logger
+	userRepo         repository.UserRepository
+	registrationRepo repository.RegistrationRepository
+	queries          *sqldb.Queries
 }
 
 func NewAuthHandler(
@@ -30,15 +31,17 @@ func NewAuthHandler(
 	authzEnforcer *casbin.Enforcer,
 	logger *slog.Logger,
 	userRepo repository.UserRepository,
+	registrationRepo repository.RegistrationRepository,
 ) *AuthHandler {
 	return &AuthHandler{
-		db:             db,
-		jwtService:     jwtService,
-		tokenBlacklist: tokenBlacklist,
-		rateLimiter:    rateLimiter,
-		authzEnforcer:  authzEnforcer,
-		logger:         logger,
-		userRepo:       userRepo,
-		queries:        sqldb.New(db),
+		db:               db,
+		jwtService:       jwtService,
+		tokenBlacklist:   tokenBlacklist,
+		rateLimiter:      rateLimiter,
+		authzEnforcer:    authzEnforcer,
+		logger:           logger,
+		userRepo:         userRepo,
+		registrationRepo: registrationRepo,
+		queries:          sqldb.New(db),
 	}
 }

@@ -14,21 +14,16 @@ import (
 	internalauth "github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/authz"
 	"github.com/docvault/backend/internal/config"
-	"github.com/docvault/backend/internal/database"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/migrate"
-	"github.com/docvault/backend/internal/minio"
-	"github.com/docvault/backend/internal/rabbitmq"
 	appredis "github.com/docvault/backend/internal/redis"
-	"github.com/docvault/backend/internal/repository"
-	"github.com/docvault/backend/internal/search"
-	"github.com/docvault/backend/internal/sentry"
-	"github.com/docvault/backend/internal/telemetry"
-	handler "github.com/docvault/backend/internal/transport/http"
-	"github.com/docvault/backend/internal/usecase"
 	"github.com/joho/godotenv"
 )
 
+// Run is the composition root: it loads configuration, brings up observability
+// and the backing infrastructure, wires the handlers, and serves until a
+// shutdown signal. Each phase is delegated to a focused helper (initObservability,
+// initInfra, buildHandlers, buildRouter, newServer, serve) so this function reads
+// as the high-level startup sequence.
 func Run() error {
 	loadRepoEnv()
 
@@ -45,76 +40,13 @@ func Run() error {
 	}))
 	slog.SetDefault(logger)
 
-	telemetryCtx, telemetryCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer telemetryCancel()
+	defer initObservability(cfg)()
 
-	tp, err := telemetry.Init(telemetryCtx, cfg, "docvault-backend")
+	inf, err := initInfra(context.Background(), cfg)
 	if err != nil {
-		slog.Warn("failed to initialize telemetry, continuing without", "error", err)
+		return err
 	}
-	_ = tp
-
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer shutdownCancel()
-		if err := telemetry.Shutdown(shutdownCtx); err != nil {
-			slog.Error("failed to shutdown telemetry", "error", err)
-		}
-		if !sentry.Flush(shutdownCtx) {
-			slog.Error("failed to flush Sentry")
-		}
-	}()
-
-	if err := sentry.Init(telemetryCtx, cfg, "docvault-backend"); err != nil {
-		slog.Warn("failed to initialize Sentry, continuing without", "error", err)
-	}
-
-	initCtx := context.Background()
-
-	dbPool, err := database.NewConnection(initCtx, cfg.DB.URL)
-	if err != nil {
-		return fmt.Errorf("initialize database: %w", err)
-	}
-	defer dbPool.Close()
-	slog.Info("database connection initialized")
-
-	if err := migrate.Run(initCtx, cfg.DB.URL); err != nil {
-		return fmt.Errorf("run database migrations: %w", err)
-	}
-	slog.Info("database migrations applied")
-
-	minioClient, err := minio.NewClient(initCtx, cfg.Storage.Endpoint, cfg.Storage.AccessKey, cfg.Storage.SecretKey, cfg.Storage.UseSSL)
-	if err != nil {
-		return fmt.Errorf("initialize MinIO client: %w", err)
-	}
-	slog.Info("MinIO client initialized")
-
-	if err := minio.EnsureBucket(initCtx, minioClient, cfg.Storage.Bucket); err != nil {
-		slog.Warn("failed to ensure MinIO bucket", "error", err)
-	}
-
-	rabbitConn, err := rabbitmq.NewConnection(initCtx, cfg.Queue.URL)
-	if err != nil {
-		return fmt.Errorf("initialize RabbitMQ connection: %w", err)
-	}
-	defer rabbitConn.Close()
-	slog.Info("RabbitMQ connection initialized")
-
-	redisClient, err := appredis.NewClient(&appredis.Config{
-		Host:         cfg.Redis.Host,
-		Port:         cfg.Redis.Port,
-		Password:     cfg.Redis.Password,
-		DB:           cfg.Redis.DB,
-		PoolSize:     cfg.Redis.PoolSize,
-		MaxRetries:   cfg.Redis.MaxRetries,
-		DialTimeout:  cfg.Redis.DialTimeout,
-		ReadTimeout:  cfg.Redis.ReadTimeout,
-		WriteTimeout: cfg.Redis.WriteTimeout,
-	})
-	if err != nil {
-		return fmt.Errorf("initialize redis client: %w", err)
-	}
-	defer redisClient.Close()
+	defer inf.cleanup()
 
 	jwtService, err := internalauth.NewJWTService(
 		cfg.Auth.JWTSecret,
@@ -127,8 +59,8 @@ func Run() error {
 		return fmt.Errorf("initialize JWT service: %w", err)
 	}
 
-	tokenBlacklist := appredis.NewTokenBlacklist(redisClient)
-	rateLimiter := appredis.NewRateLimiter(redisClient)
+	tokenBlacklist := appredis.NewTokenBlacklist(inf.redis)
+	rateLimiter := appredis.NewRateLimiter(inf.redis)
 	jwtMiddleware := middleware.NewJWTMiddleware(jwtService, tokenBlacklist)
 	authzEnforcer, err := authz.NewEnforcer(filepath.Join("internal", "authz", "model.conf"), cfg.DB.URL)
 	if err != nil {
@@ -137,49 +69,14 @@ func Run() error {
 	slog.Info("JWT authentication initialized")
 	slog.Info("Casbin authorization initialized")
 
-	repos := repository.NewRepositories(dbPool, authzEnforcer)
-	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
-	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
-	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)
-	h := handler.New(cfg, handler.Dependencies{
-		DB:              dbPool,
-		AuthzEnforcer:   authzEnforcer,
-		DocumentSvc:     usecase.NewDocumentService(repos.Document, repos.ACL, objectStore, ocrDispatcher),
-		FolderSvc:       usecase.NewFolderService(repos.Folder, repos.ACL),
-		TagSvc:          usecase.NewTagService(repos.Tag),
-		AuditSvc:        usecase.NewAuditService(repos.Audit),
-		ReminderSvc:     usecase.NewReminderService(repos.Reminder),
-		NotificationSvc: usecase.NewNotificationService(repos.Notification),
-		SearchSvc:       usecase.NewSearchService(embedder, repos.Search),
-		ChatSvc:         usecase.NewChatService(embedder, repos.Search),
-		UserRepo:        repos.User,
-		MembershipRepo:  repos.Membership,
-		PolicyRepo:      repos.Policy,
-		ACLRepo:         repos.ACL,
-	})
-	middleware.SetAuthorizationAuditLogger(h.AuditAuthorizationDecision)
-	authHandler := handler.NewAuthHandler(dbPool, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger, repos.User)
+	h, authHandler := buildHandlers(cfg, inf, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger)
+	router := buildRouter(cfg, h, authHandler, jwtMiddleware, authzEnforcer)
+	return serve(cfg, newServer(cfg, router))
+}
 
-	mux := http.NewServeMux()
-	handler.RegisterRoutes(h, authHandler, mux, jwtMiddleware, authzEnforcer)
-	router := middleware.Chain(
-		mux,
-		middleware.Telemetry(),
-		middleware.RequestID(),
-		middleware.Logger(),
-		middleware.Recoverer(),
-		middleware.CORS(cfg.Server.CORSOrigins),
-		jwtMiddleware.Authenticate,
-	)
-
-	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
+// serve starts the HTTP server in a goroutine and blocks until it fails or a
+// SIGINT/SIGTERM arrives, then drains in-flight requests within a 30s deadline.
+func serve(cfg *config.Config, server *http.Server) error {
 	serverErr := make(chan error, 1)
 	go func() {
 		slog.Info("starting server", "port", cfg.Server.Port, "environment", cfg.Server.Environment)

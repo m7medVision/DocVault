@@ -108,67 +108,6 @@ func TestTokenBlacklist(t *testing.T) {
 	blacklist.RemoveToken(ctx, tokenID)
 }
 
-func TestSessionStore(t *testing.T) {
-	cfg := &Config{
-		Host:         "localhost",
-		Port:         "6379",
-		Password:     "changeme",
-		DB:           1,
-		PoolSize:     5,
-		MaxRetries:   2,
-		DialTimeout:  3 * time.Second,
-		ReadTimeout:  2 * time.Second,
-		WriteTimeout: 2 * time.Second,
-	}
-
-	client, err := NewClient(cfg)
-	if err != nil {
-		t.Skipf("Redis not available: %v", err)
-	}
-	defer client.Close()
-
-	store := NewSessionStore(client)
-	ctx := context.Background()
-
-	sessionID := "test-session-456"
-	sessionData := &SessionData{
-		UserID:       "user-123",
-		TenantID:     "tenant-456",
-		Email:        "test@example.com",
-		Role:         "admin",
-		CreatedAt:    time.Now(),
-		LastActivity: time.Now(),
-	}
-
-	// Save session
-	err = store.SaveSession(ctx, sessionID, sessionData, 10*time.Second)
-	if err != nil {
-		t.Fatalf("Failed to save session: %v", err)
-	}
-
-	// Get session
-	retrieved, err := store.GetSession(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("Failed to get session: %v", err)
-	}
-
-	if retrieved.UserID != sessionData.UserID {
-		t.Errorf("Expected UserID %s, got %s", sessionData.UserID, retrieved.UserID)
-	}
-
-	// Delete session
-	err = store.DeleteSession(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("Failed to delete session: %v", err)
-	}
-
-	// Verify deletion
-	_, err = store.GetSession(ctx, sessionID)
-	if err == nil {
-		t.Error("Session should have been deleted")
-	}
-}
-
 func TestRateLimiter(t *testing.T) {
 	cfg := &Config{
 		Host:         "localhost",

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +34,7 @@ func (h *Handler) ListTags(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	input := &usecase.ListTagsInput{
+	input := &documentapp.ListTagsInput{
 		TenantID: tenantID,
 		Query:    query,
 		Limit:    limit,

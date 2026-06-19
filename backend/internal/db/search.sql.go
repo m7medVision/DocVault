@@ -12,9 +12,24 @@ import (
 )
 
 const searchDocumentChunks = `-- name: SearchDocumentChunks :many
-WITH RECURSIVE folder_ancestors AS (
-  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
-  FROM folders f WHERE f.org_id = $2
+WITH RECURSIVE candidate_folders AS (
+  -- Seed the ancestor walk only from folders that hold a candidate document
+  -- (same tenant/org and the cheap folder/document scoping that filtered_chunks
+  -- applies below), instead of every folder in the org, so the recursive cost
+  -- stops scaling with the org's total folder count. This is a superset of the
+  -- folders any candidate document can resolve through, so the visibility
+  -- decision below is unchanged.
+  SELECT DISTINCT d.folder_id AS id
+  FROM documents d
+  WHERE d.tenant_id = $2
+    AND d.org_id = $3
+    AND d.folder_id IS NOT NULL
+    AND ($4::uuid IS NULL OR d.folder_id = $4::uuid)
+    AND ($5::uuid IS NULL OR d.id = $5::uuid)
+),
+folder_ancestors AS (
+  SELECT cf.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
+  FROM candidate_folders cf JOIN folders f ON f.id = cf.id AND f.org_id = $3
   UNION ALL
   SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
   FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
@@ -30,21 +45,26 @@ filtered_chunks AS (
     COALESCE(p.page_number, 0)::integer AS page_number,
     COALESCE(d.language, '') AS language,
     FALSE AS is_translation,
-    c.embedding <=> $3::text::vector AS distance,
-    GREATEST(0.0, 1 - (c.embedding <=> $3::text::vector)) AS raw_semantic_score,
-    POSITION(LOWER($4) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
-    POSITION(LOWER($4) IN LOWER(d.title)) > 0 AS title_contains_query
+    c.embedding <=> $6::text::vector AS distance,
+    GREATEST(0.0, 1 - (c.embedding <=> $6::text::vector)) AS raw_semantic_score,
+    -- Lexical signals (replace the old whole-phrase POSITION substring test,
+    -- which never fired for natural-language queries). chunk_tsv is the
+    -- generated 'simple' tsvector; word_similarity gives fuzzy containment for
+    -- proper nouns / IDs / typos (e.g. "teepee" in "...TEEPEE-20260609...").
+    (c.chunk_tsv @@ websearch_to_tsquery('simple', $7)) AS chunk_fts_match,
+    word_similarity($7, c.chunk_text)::double precision AS chunk_word_sim,
+    word_similarity($7, d.title)::double precision AS title_word_sim
   FROM extracted_text_chunks c
   JOIN documents d ON c.document_id = d.id
   LEFT JOIN document_pages p ON c.page_id = p.id
   WHERE c.embedding IS NOT NULL
-    AND d.tenant_id = $5
-    AND d.org_id = $2
-    AND ($6::text IS NULL OR d.doc_type::text = $6::text)
-    AND ($7::text IS NULL OR d.language = $7::text)
-    AND ($8::text IS NULL OR d.status::text = $8::text)
-    AND ($9::uuid IS NULL OR d.folder_id = $9::uuid)
-    AND ($10::uuid IS NULL OR c.document_id = $10::uuid)
+    AND d.tenant_id = $2
+    AND d.org_id = $3
+    AND ($8::text IS NULL OR d.doc_type::text = $8::text)
+    AND ($9::text IS NULL OR d.language = $9::text)
+    AND ($10::text IS NULL OR d.status::text = $10::text)
+    AND ($4::uuid IS NULL OR d.folder_id = $4::uuid)
+    AND ($5::uuid IS NULL OR c.document_id = $5::uuid)
     AND ($11::timestamptz IS NULL OR d.created_at >= $11::timestamptz)
     AND ($12::timestamptz IS NULL OR d.created_at <= $12::timestamptz)
     AND (
@@ -69,12 +89,12 @@ filtered_chunks AS (
            SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
       OR EXISTS (SELECT 1 FROM acl_grants g
            WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
-             AND g.org_id = $2
+             AND g.org_id = $3
              AND ((g.principal_type='user' AND g.principal_id=$15::uuid)
                OR (g.principal_type='group' AND g.principal_id = ANY($16::uuid[]))))
       OR EXISTS (SELECT 1 FROM folder_ancestors fa
            JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
-             AND g.org_id = $2
+             AND g.org_id = $3
            WHERE fa.origin_folder_id=d.folder_id
              AND ((g.principal_type='user' AND g.principal_id=$15::uuid)
                OR (g.principal_type='group' AND g.principal_id = ANY($16::uuid[])))))
@@ -91,12 +111,13 @@ scored_chunks AS (
     is_translation,
     distance,
     GREATEST(
-      LEAST(1.0, GREATEST(0.0, (raw_semantic_score - 0.4) / 0.6)),
+      raw_semantic_score,
       CASE
-        WHEN LOWER(BTRIM(title)) = LOWER(BTRIM($4)) THEN 1.0
-        WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM($4)) THEN 0.99
-        WHEN chunk_contains_query THEN 0.97
-        WHEN title_contains_query THEN 0.95
+        WHEN LOWER(BTRIM(title)) = LOWER(BTRIM($7)) THEN 1.0
+        WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM($7)) THEN 0.99
+        WHEN chunk_fts_match THEN 0.96
+        WHEN chunk_word_sim >= 0.5 THEN LEAST(0.95, chunk_word_sim)
+        WHEN title_word_sim >= 0.5 THEN LEAST(0.93, title_word_sim)
         ELSE 0.0
       END
     )::double precision AS score
@@ -152,15 +173,15 @@ LIMIT $1
 
 type SearchDocumentChunksParams struct {
 	LimitCount  int32              `json:"limit_count"`
+	TenantID    string             `json:"tenant_id"`
 	OrgID       string             `json:"org_id"`
+	FolderID    *string            `json:"folder_id"`
+	DocumentID  *string            `json:"document_id"`
 	QueryVector string             `json:"query_vector"`
 	QueryText   string             `json:"query_text"`
-	TenantID    string             `json:"tenant_id"`
 	DocType     *string            `json:"doc_type"`
 	Language    *string            `json:"language"`
 	Status      *string            `json:"status"`
-	FolderID    *string            `json:"folder_id"`
-	DocumentID  *string            `json:"document_id"`
 	StartDate   pgtype.Timestamptz `json:"start_date"`
 	EndDate     pgtype.Timestamptz `json:"end_date"`
 	Tags        []string           `json:"tags"`
@@ -184,15 +205,15 @@ type SearchDocumentChunksRow struct {
 func (q *Queries) SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error) {
 	rows, err := q.db.Query(ctx, searchDocumentChunks,
 		arg.LimitCount,
+		arg.TenantID,
 		arg.OrgID,
+		arg.FolderID,
+		arg.DocumentID,
 		arg.QueryVector,
 		arg.QueryText,
-		arg.TenantID,
 		arg.DocType,
 		arg.Language,
 		arg.Status,
-		arg.FolderID,
-		arg.DocumentID,
 		arg.StartDate,
 		arg.EndDate,
 		arg.Tags,

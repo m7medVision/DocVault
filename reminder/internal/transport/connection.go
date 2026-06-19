@@ -12,6 +12,7 @@ type RabbitMQConfig struct {
 	URL      string
 	Queue    string
 	DLQ      string
+	Retry    string
 	Prefetch int
 }
 
@@ -22,6 +23,10 @@ type RabbitMQConnection struct {
 }
 
 func NewRabbitMQConnection(cfg RabbitMQConfig) (*RabbitMQConnection, error) {
+	if cfg.Retry == "" {
+		cfg.Retry = cfg.Queue + ".retry"
+	}
+
 	conn, err := amqp.Dial(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
@@ -39,13 +44,24 @@ func NewRabbitMQConnection(cfg RabbitMQConfig) (*RabbitMQConnection, error) {
 		return nil, fmt.Errorf("failed to set QoS: %w", err)
 	}
 
-	queues := []string{cfg.Queue, cfg.DLQ}
+	queues := []string{cfg.Queue, cfg.DLQ, cfg.Retry}
 	for _, queue := range queues {
-		args := amqp.Table(nil)
-		if queue == cfg.Queue {
+		var args amqp.Table
+		switch queue {
+		case cfg.Queue:
+			// Main queue dead-letters to the DLQ on permanent failure.
 			args = amqp.Table{
 				"x-dead-letter-exchange":    "",
 				"x-dead-letter-routing-key": cfg.DLQ,
+			}
+		case cfg.Retry:
+			// Delayed-retry queue: it has no consumer. Messages published here
+			// carry a per-message TTL and are dead-lettered back to the main
+			// queue when the TTL expires, giving non-blocking exponential
+			// backoff without ever stalling the consumer goroutine.
+			args = amqp.Table{
+				"x-dead-letter-exchange":    "",
+				"x-dead-letter-routing-key": cfg.Queue,
 			}
 		}
 
@@ -94,6 +110,7 @@ func NewRabbitMQConnectionFromConfig(cfg *config.Config) *RabbitMQConfig {
 		URL:      cfg.RabbitMQURL,
 		Queue:    cfg.ReminderQueue,
 		DLQ:      cfg.DeadLetterQueue,
+		Retry:    cfg.ReminderQueue + ".retry",
 		Prefetch: cfg.PrefetchCount,
 	}
 }

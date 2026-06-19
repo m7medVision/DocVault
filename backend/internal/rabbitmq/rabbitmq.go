@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docvault/backend/internal/usecase"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -20,6 +20,7 @@ type Publisher struct {
 	url   string
 	queue string
 	mu    sync.Mutex
+	ch    *amqp.Channel
 }
 
 type OCRDispatcher struct {
@@ -71,7 +72,7 @@ func NewOCRDispatcher(conn *amqp.Connection, url string, queue string) *OCRDispa
 	return &OCRDispatcher{publisher: NewPublisher(conn, url, queue)}
 }
 
-func (d *OCRDispatcher) DispatchOCR(ctx context.Context, job usecase.OCRJob) error {
+func (d *OCRDispatcher) DispatchOCR(ctx context.Context, job documentapp.OCRJob) error {
 	body, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("marshal OCR job: %w", err)
@@ -84,14 +85,61 @@ func (p *Publisher) Publish(ctx context.Context, body []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Reuse a single long-lived channel and declare the queue topology only
+	// once per channel lifetime. Channels are not goroutine-safe, but the mutex
+	// above serializes every publish, so one cached channel is sufficient and
+	// avoids opening/closing a channel plus redeclaring both queues on every
+	// message.
+	if err := p.ensureChannel(); err != nil {
+		return err
+	}
+
+	if err := p.ch.PublishWithContext(ctx, "", p.queue, false, false, amqp.Publishing{
+		ContentType:  "application/json",
+		DeliveryMode: amqp.Persistent,
+		Body:         body,
+	}); err != nil {
+		// The channel may be in a bad state after a publish error; drop it so
+		// the next call reopens and re-declares the topology on a fresh channel.
+		p.resetChannel()
+		return fmt.Errorf("failed to publish message: %w", err)
+	}
+
+	return nil
+}
+
+// ensureChannel lazily opens the cached channel and declares the queue topology
+// once. Callers must hold p.mu.
+func (p *Publisher) ensureChannel() error {
+	if p.ch != nil && !p.ch.IsClosed() {
+		return nil
+	}
+	p.resetChannel()
+
 	ch, err := p.openChannel()
 	if err != nil {
 		return err
 	}
-	defer ch.Close()
+	if err := declareTopology(ch, p.queue); err != nil {
+		_ = ch.Close()
+		return err
+	}
+	p.ch = ch
+	return nil
+}
 
-	// Ensure DLQ exists first
-	dlqName := fmt.Sprintf("%s.dlq", p.queue)
+// resetChannel closes and clears the cached channel. Callers must hold p.mu.
+func (p *Publisher) resetChannel() {
+	if p.ch != nil {
+		_ = p.ch.Close()
+		p.ch = nil
+	}
+}
+
+// declareTopology declares the DLQ and the main queue (wired to the DLQ). It is
+// idempotent and only needs to run once per channel.
+func declareTopology(ch *amqp.Channel, queue string) error {
+	dlqName := fmt.Sprintf("%s.dlq", queue)
 	if _, err := ch.QueueDeclare(
 		dlqName,
 		true,  // durable
@@ -103,9 +151,8 @@ func (p *Publisher) Publish(ctx context.Context, body []byte) error {
 		return fmt.Errorf("failed to declare DLQ: %w", err)
 	}
 
-	// Declare main queue with DLQ configuration
 	if _, err := ch.QueueDeclare(
-		p.queue,
+		queue,
 		true,
 		false,
 		false,
@@ -116,14 +163,6 @@ func (p *Publisher) Publish(ctx context.Context, body []byte) error {
 		},
 	); err != nil {
 		return fmt.Errorf("failed to declare queue: %w", err)
-	}
-
-	if err := ch.PublishWithContext(ctx, "", p.queue, false, false, amqp.Publishing{
-		ContentType:  "application/json",
-		DeliveryMode: amqp.Persistent,
-		Body:         body,
-	}); err != nil {
-		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
 	return nil

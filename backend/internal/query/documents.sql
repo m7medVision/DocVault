@@ -70,6 +70,22 @@ JOIN documents d ON d.id = m.document_id
 WHERE m.document_id = $1 AND d.tenant_id = $2
 ORDER BY key ASC;
 
+-- name: GetDocumentsMetadata :many
+-- Batched, tenant-scoped fetch of the extracted (or user-corrected) facts for a
+-- set of documents. Powers chat grounding: the generator sees issuer, amount,
+-- dates, document_number, etc. that the classifier already extracted, so
+-- "small things" questions about dates/amounts/IDs answer from structure, not
+-- just chunk prose. corrected_value takes precedence over extracted_value.
+SELECT
+  m.document_id,
+  m.key,
+  COALESCE(m.corrected_value, m.extracted_value) AS value
+FROM document_metadata m
+JOIN documents d ON d.id = m.document_id
+WHERE d.tenant_id = sqlc.arg(tenant_id)
+  AND m.document_id = ANY(sqlc.arg(document_ids)::uuid[])
+ORDER BY m.document_id, m.key;
+
 -- name: UpdateDocumentMetadataField :execrows
 UPDATE document_metadata m
 SET corrected_value = $1, corrected_by = $2, corrected_at = NOW()

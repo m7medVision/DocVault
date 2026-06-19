@@ -8,11 +8,10 @@ import (
 
 	"github.com/docvault/backend/internal/auth"
 	"github.com/docvault/backend/internal/authz"
-	sqldb "github.com/docvault/backend/internal/db"
 	appredis "github.com/docvault/backend/internal/redis"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type RegisterRequest struct {
@@ -95,74 +94,28 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.db.Begin(ctx)
-	if err != nil {
-		h.logger.Error("failed to begin registration transaction", "error", err)
-		respondError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-	defer tx.Rollback(ctx)
-
 	now := time.Now().UTC()
-	createdAt := pgtype.Timestamptz{Time: now, Valid: true}
 	tenantID := uuid.NewString()
 	orgID := uuid.NewString()
 	userID := uuid.NewString()
 	membershipID := uuid.NewString()
-	txQueries := h.queries.WithTx(tx)
 
-	if err := txQueries.CreateTenant(ctx, sqldb.CreateTenantParams{
-		ID:        tenantID,
-		Name:      req.TenantName,
-		Plan:      "free",
-		CreatedAt: createdAt,
+	// The tenant/org/user/membership rows are created atomically by the
+	// repository; the transaction boundary lives in the adapter, not here.
+	if err := h.registrationRepo.RegisterWorkspace(ctx, repository.RegisterWorkspaceParams{
+		TenantID:     tenantID,
+		TenantName:   req.TenantName,
+		OrgID:        orgID,
+		OrgName:      req.OrgName,
+		UserID:       userID,
+		Email:        req.Email,
+		PasswordHash: passwordHash,
+		DisplayName:  req.DisplayName,
+		Locale:       req.Locale,
+		MembershipID: membershipID,
+		CreatedAt:    now,
 	}); err != nil {
-		h.logger.Error("failed to create tenant", "error", err)
-		respondError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	if err := txQueries.CreateOrganization(ctx, sqldb.CreateOrganizationParams{
-		ID:        orgID,
-		TenantID:  tenantID,
-		Name:      req.OrgName,
-		CreatedAt: createdAt,
-	}); err != nil {
-		h.logger.Error("failed to create organization", "error", err)
-		respondError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	if err := txQueries.CreateUser(ctx, sqldb.CreateUserParams{
-		ID:                  userID,
-		TenantID:            tenantID,
-		Email:               req.Email,
-		PasswordHash:        &passwordHash,
-		DisplayName:         req.DisplayName,
-		Locale:              req.Locale,
-		EmailVerified:       false,
-		FailedLoginAttempts: 0,
-		CreatedAt:           createdAt,
-	}); err != nil {
-		h.logger.Error("failed to create user", "error", err)
-		respondError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	if err := txQueries.CreateMembership(ctx, sqldb.CreateMembershipParams{
-		ID:        membershipID,
-		UserID:    userID,
-		OrgID:     orgID,
-		Role:      sqldb.MembershipRoleOwner,
-		CreatedAt: createdAt,
-	}); err != nil {
-		h.logger.Error("failed to create membership", "error", err)
-		respondError(w, http.StatusInternalServerError, "internal server error")
-		return
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		h.logger.Error("failed to commit registration transaction", "error", err)
+		h.logger.Error("failed to register workspace", "error", err)
 		respondError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}

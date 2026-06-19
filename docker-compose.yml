@@ -109,6 +109,27 @@ services:
     networks:
       - docvault-dev
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # Reranker (optional). Serves a cross-encoder (BAAI/bge-reranker-v2-m3) via
+  # the Hugging Face text-embeddings-inference /rerank endpoint. The backend
+  # reranks the wider chat retrieval pool with it when RERANK_URL is set; with
+  # RERANK_URL empty (the default) chat uses the noop reranker and works fine.
+  # Start on demand with: docker compose up rerank
+  # ──────────────────────────────────────────────────────────────────────────
+  rerank:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    container_name: docvault-rerank
+    restart: unless-stopped
+    command:
+      - --model-id=BAAI/bge-reranker-v2-m3
+      - --port=8080
+    ports:
+      - "8082:8080"
+    volumes:
+      - rerank_data:/data
+    networks:
+      - docvault-dev
+
   grafana:
     image: grafana/grafana:latest
     container_name: docvault-grafana
@@ -209,6 +230,8 @@ volumes:
   rabbitmq_data:
     driver: local
   minio_data:
+    driver: local
+  rerank_data:
     driver: local
   grafana_data:
     driver: local

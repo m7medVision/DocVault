@@ -1,16 +1,17 @@
 """Mistral OCR API client."""
 
+import asyncio
 import structlog
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from mistralai.client import Mistral
 from mistralai.client.models import OCRResponse
 
 from docvault_shared.config import config
 from docvault_shared.models import OCRJob, OCRPage, OCRResult
-from .storage import minio_client
+
+from .application.ports import BlobStore
 
 logger = structlog.get_logger(__name__)
 
@@ -23,10 +24,11 @@ def _document_page_id(document_id: str, version_id: str, page_number: int) -> st
 class MistralOCRClient:
     """Client for Mistral OCR API."""
 
-    def __init__(self):
-        """Initialize Mistral OCR client."""
+    def __init__(self, storage: BlobStore):
+        """Initialize Mistral OCR client with its blob storage dependency."""
         self.client = Mistral(api_key=config.mistral_api_key)
         self.model = "mistral-ocr-2503"
+        self.storage = storage
 
     async def process_document(self, job: OCRJob) -> OCRResult:
         """Process a document through Mistral OCR."""
@@ -38,52 +40,14 @@ class MistralOCRClient:
         )
 
         try:
-            document_bytes = await minio_client.get_object(job.storage_key)
-            logger.info(
-                "document_downloaded",
-                document_id=job.document_id,
-                size=len(document_bytes),
-            )
-
-            file_name = job.storage_key.rsplit("/", 1)[-1] or f"{job.document_id}.bin"
-            uploaded_file = self.client.files.upload(
-                file={
-                    "file_name": file_name,
-                    "content": document_bytes,
-                    "content_type": job.mime_type,
-                },
-                purpose="ocr",
-            )
-            logger.info(
-                "document_uploaded_to_mistral",
-                document_id=job.document_id,
-                file_id=uploaded_file.id,
-            )
-
-            signed_url = self.client.files.get_signed_url(file_id=uploaded_file.id)
-
+            document_bytes = await self._download(job)
+            uploaded_file = await self._upload_to_mistral(job, document_bytes)
             try:
-                response = self.client.ocr.process(
-                    model=self.model,
-                    document={
-                        "type": "document_url",
-                        "document_url": signed_url.url,
-                    },
-                    id=job.version_id,
-                )
+                response = await self._run_ocr(job, uploaded_file)
             finally:
-                try:
-                    self.client.files.delete(file_id=uploaded_file.id)
-                except Exception as cleanup_error:
-                    logger.warning(
-                        "failed_to_delete_mistral_upload",
-                        document_id=job.document_id,
-                        file_id=uploaded_file.id,
-                        error=str(cleanup_error),
-                    )
+                await self._delete_mistral_upload(job, uploaded_file.id)
 
             pages = self._parse_ocr_response(response, job.document_id, job.version_id)
-
             result = OCRResult(
                 document_id=job.document_id,
                 version_id=job.version_id,
@@ -106,6 +70,75 @@ class MistralOCRClient:
                 error=str(e),
             )
             raise
+
+    async def _download(self, job: OCRJob) -> bytes:
+        """Fetch the document bytes from blob storage."""
+        document_bytes = await self.storage.get_object(job.storage_key)
+        logger.info(
+            "document_downloaded",
+            document_id=job.document_id,
+            size=len(document_bytes),
+        )
+        return document_bytes
+
+    async def _upload_to_mistral(self, job: OCRJob, document_bytes: bytes):
+        """Upload the document bytes to Mistral and return the file handle.
+
+        The Mistral SDK is synchronous, so the blocking upload runs in a worker
+        thread to avoid blocking the event loop.
+        """
+        file_name = job.storage_key.rsplit("/", 1)[-1] or f"{job.document_id}.bin"
+        uploaded_file = await asyncio.to_thread(
+            self.client.files.upload,
+            file={
+                "file_name": file_name,
+                "content": document_bytes,
+                "content_type": job.mime_type,
+            },
+            purpose="ocr",
+        )
+        logger.info(
+            "document_uploaded_to_mistral",
+            document_id=job.document_id,
+            file_id=uploaded_file.id,
+        )
+        return uploaded_file
+
+    async def _run_ocr(self, job: OCRJob, uploaded_file) -> OCRResponse:
+        """Run OCR over the uploaded file via its signed URL.
+
+        Both blocking Mistral SDK calls (signed URL + OCR) run off the event
+        loop in worker threads.
+        """
+        signed_url = await asyncio.to_thread(
+            self.client.files.get_signed_url, file_id=uploaded_file.id
+        )
+        return await asyncio.to_thread(
+            self._ocr_process_sync, job, signed_url.url
+        )
+
+    def _ocr_process_sync(self, job: OCRJob, document_url: str) -> OCRResponse:
+        """Blocking Mistral OCR call, run off the event loop."""
+        return self.client.ocr.process(
+            model=self.model,
+            document={
+                "type": "document_url",
+                "document_url": document_url,
+            },
+            id=job.version_id,
+        )
+
+    async def _delete_mistral_upload(self, job: OCRJob, file_id: str) -> None:
+        """Best-effort cleanup of the temporary Mistral upload."""
+        try:
+            await asyncio.to_thread(self.client.files.delete, file_id=file_id)
+        except Exception as cleanup_error:
+            logger.warning(
+                "failed_to_delete_mistral_upload",
+                document_id=job.document_id,
+                file_id=file_id,
+                error=str(cleanup_error),
+            )
 
     def _parse_ocr_response(
         self,
@@ -166,27 +199,3 @@ class MistralOCRClient:
                     threshold=config.min_confidence_threshold,
                 )
         return low_confidence
-
-
-ocr_client = MistralOCRClient()
-
-
-async def process_and_persist(job: OCRJob) -> OCRResult:
-    """Process a document through OCR and persist results."""
-    from docvault_shared.database import get_ocr_persistence
-
-    persistence = get_ocr_persistence()
-    await persistence.update_document_status(job.document_id, "processing")
-
-    result = await ocr_client.process_document(job)
-
-    low_confidence = ocr_client.flag_low_confidence_pages(result)
-
-    await persistence.save_ocr_results(result)
-
-    await persistence.update_document_status(
-        result.document_id,
-        "processed",
-    )
-
-    return result

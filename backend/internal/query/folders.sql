@@ -8,19 +8,22 @@ FROM folders
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3;
 
 -- name: ListFoldersByParent :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+-- List endpoints intentionally omit index_content: the markdown "About this
+-- folder" overview is large, never serialized in lists (json:"-"), and exposed
+-- only via the dedicated, visibility-checked folder index endpoint.
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id = $3
 ORDER BY name ASC;
 
 -- name: ListRootFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id IS NULL
 ORDER BY name ASC;
 
 -- name: ListAllFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
 ORDER BY name ASC;

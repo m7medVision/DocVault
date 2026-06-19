@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	auditapp "github.com/docvault/backend/internal/audit/app"
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) CreateFolder(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +45,7 @@ func (h *Handler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := &usecase.CreateFolderInput{
+	input := &documentapp.CreateFolderInput{
 		TenantID:  tenantID,
 		OrgID:     orgID,
 		ParentID:  body.ParentID,
@@ -59,12 +60,12 @@ func (h *Handler) CreateFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   output.Folder.ID,
-		Action:     usecase.AuditActionCreate,
+		Action:     auditapp.AuditActionCreate,
 		Metadata:   nil,
 	})
 
@@ -98,7 +99,7 @@ func (h *Handler) ListFolders(w http.ResponseWriter, r *http.Request) {
 		parentID = &parentIDStr
 	}
 
-	input := &usecase.ListFoldersInput{
+	input := &documentapp.ListFoldersInput{
 		TenantID: tenantID,
 		OrgID:    orgID,
 		ParentID: parentID,
@@ -189,12 +190,12 @@ func (h *Handler) RenameFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata:   map[string]interface{}{"action": "rename", "name": body.Name},
 	})
 
@@ -240,7 +241,7 @@ func (h *Handler) GetFolderIndex(w http.ResponseWriter, r *http.Request) {
 
 	content, err := h.folderSvc.GetIndex(ctx, tenantID, orgID, folderID)
 	if err != nil {
-		if errors.Is(err, usecase.ErrFolderNotFound) {
+		if errors.Is(err, documentapp.ErrFolderNotFound) {
 			http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
 			return
 		}
@@ -296,7 +297,7 @@ func (h *Handler) SetFolderIndex(w http.ResponseWriter, r *http.Request) {
 
 	content := body.IndexContent
 	if err := h.folderSvc.SetIndex(ctx, tenantID, orgID, folderID, &content); err != nil {
-		if errors.Is(err, usecase.ErrFolderNotFound) {
+		if errors.Is(err, documentapp.ErrFolderNotFound) {
 			http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
 			return
 		}
@@ -305,12 +306,12 @@ func (h *Handler) SetFolderIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata:   map[string]interface{}{"action": "set_index"},
 	})
 
@@ -359,15 +360,15 @@ func (h *Handler) MoveFolder(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.folderSvc.Reparent(ctx, tenantID, orgID, folderID, body.ParentID); err != nil {
 		switch {
-		case errors.Is(err, usecase.ErrFolderNotFound):
+		case errors.Is(err, documentapp.ErrFolderNotFound):
 			http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		case errors.Is(err, usecase.ErrTargetParentNotFound):
+		case errors.Is(err, documentapp.ErrTargetParentNotFound):
 			http.Error(w, `{"error":"target parent folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		case errors.Is(err, usecase.ErrFolderSelfParent):
+		case errors.Is(err, documentapp.ErrFolderSelfParent):
 			http.Error(w, `{"error":"a folder cannot be its own parent","code":"BAD_REQUEST"}`, http.StatusBadRequest)
-		case errors.Is(err, usecase.ErrFolderCycle):
+		case errors.Is(err, documentapp.ErrFolderCycle):
 			http.Error(w, `{"error":"cannot move a folder into itself or one of its descendants","code":"BAD_REQUEST"}`, http.StatusBadRequest)
-		case errors.Is(err, usecase.ErrFolderDepthExceeded):
+		case errors.Is(err, documentapp.ErrFolderDepthExceeded):
 			http.Error(w, `{"error":"resulting folder depth exceeds the maximum allowed","code":"BAD_REQUEST"}`, http.StatusBadRequest)
 		default:
 			slog.Error("move folder failed", "error", err, "folder_id", folderID)
@@ -376,12 +377,12 @@ func (h *Handler) MoveFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     usecase.AuditActionUpdate,
+		Action:     auditapp.AuditActionUpdate,
 		Metadata: map[string]interface{}{
 			"action":    "move",
 			"parent_id": body.ParentID,
@@ -426,12 +427,12 @@ func (h *Handler) DeleteFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.auditSvc.Write(ctx, &usecase.WriteAuditEventInput{
+	h.auditSvc.Write(ctx, &auditapp.WriteAuditEventInput{
 		TenantID:   tenantID,
 		ActorID:    &userID,
 		EntityType: "folder",
 		EntityID:   folderID,
-		Action:     usecase.AuditActionDelete,
+		Action:     auditapp.AuditActionDelete,
 		Metadata:   nil,
 	})
 

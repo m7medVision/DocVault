@@ -1,8 +1,8 @@
 """MinIO/S3 storage client for document binary access."""
 
-import io
+import asyncio
+
 import structlog
-from typing import Optional
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -46,8 +46,7 @@ class MinIOClient:
             ClientError: If the object cannot be downloaded.
         """
         try:
-            response = self.client.get_object(Bucket=self.bucket, Key=storage_key)
-            return response["Body"].read()
+            return await asyncio.to_thread(self._get_object_sync, storage_key)
         except ClientError as e:
             logger.error("failed_to_download_object", storage_key=storage_key, error=str(e))
             raise
@@ -62,7 +61,8 @@ class MinIOClient:
             content_type: The MIME type of the content.
         """
         try:
-            self.client.put_object(
+            await asyncio.to_thread(
+                self.client.put_object,
                 Bucket=self.bucket,
                 Key=storage_key,
                 Body=content,
@@ -85,7 +85,8 @@ class MinIOClient:
             Presigned URL string.
         """
         try:
-            url = self.client.generate_presigned_url(
+            url = await asyncio.to_thread(
+                self.client.generate_presigned_url,
                 "get_object",
                 Params={"Bucket": self.bucket, "Key": storage_key},
                 ExpiresIn=expires_in,
@@ -107,7 +108,9 @@ class MinIOClient:
             storage_key: The key of the object to delete.
         """
         try:
-            self.client.delete_object(Bucket=self.bucket, Key=storage_key)
+            await asyncio.to_thread(
+                self.client.delete_object, Bucket=self.bucket, Key=storage_key
+            )
             logger.info("object_deleted", storage_key=storage_key)
         except ClientError as e:
             logger.error("failed_to_delete_object", storage_key=storage_key, error=str(e))
@@ -124,10 +127,14 @@ class MinIOClient:
             True if the object exists, False otherwise.
         """
         try:
-            self.client.head_object(Bucket=self.bucket, Key=storage_key)
+            await asyncio.to_thread(
+                self.client.head_object, Bucket=self.bucket, Key=storage_key
+            )
             return True
         except ClientError:
             return False
 
-
-minio_client = MinIOClient()
+    def _get_object_sync(self, storage_key: str) -> bytes:
+        """Blocking get_object + body read, run off the event loop."""
+        response = self.client.get_object(Bucket=self.bucket, Key=storage_key)
+        return response["Body"].read()

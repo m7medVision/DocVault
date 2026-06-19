@@ -17,9 +17,12 @@ package handler
 
 import (
 	"github.com/casbin/casbin/v3"
+	auditapp "github.com/docvault/backend/internal/audit/app"
 	"github.com/docvault/backend/internal/config"
+	documentapp "github.com/docvault/backend/internal/document/app"
+	notificationapp "github.com/docvault/backend/internal/notification/app"
+	reminderapp "github.com/docvault/backend/internal/reminder/app"
 	"github.com/docvault/backend/internal/repository"
-	"github.com/docvault/backend/internal/usecase"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,31 +30,33 @@ type Handler struct {
 	cfg             *config.Config
 	db              *pgxpool.Pool
 	authzEnforcer   *casbin.Enforcer
-	documentSvc     *usecase.DocumentService
-	folderSvc       *usecase.FolderService
-	tagSvc          *usecase.TagService
-	auditSvc        *usecase.AuditService
-	reminderSvc     *usecase.ReminderService
-	notificationSvc *usecase.NotificationService
-	searchSvc       *usecase.SearchService
-	chatSvc         *usecase.ChatService
+	documentSvc     *documentapp.DocumentService
+	folderSvc       *documentapp.FolderService
+	tagSvc          *documentapp.TagService
+	auditSvc        *auditapp.AuditService
+	reminderSvc     *reminderapp.ReminderService
+	notificationSvc *notificationapp.NotificationService
+	searchSvc       *documentapp.SearchService
+	chatSvc         *documentapp.ChatService
+	suggestionSvc   *documentapp.SuggestionService
 	userRepo        repository.UserRepository
 	membershipRepo  repository.MembershipRepository
 	policyRepo      repository.PolicyRepository
 	aclRepo         repository.ACLRepository
+	authz           *documentapp.Authorizer
 }
 
 type Dependencies struct {
 	DB              *pgxpool.Pool
 	AuthzEnforcer   *casbin.Enforcer
-	DocumentSvc     *usecase.DocumentService
-	FolderSvc       *usecase.FolderService
-	TagSvc          *usecase.TagService
-	AuditSvc        *usecase.AuditService
-	ReminderSvc     *usecase.ReminderService
-	NotificationSvc *usecase.NotificationService
-	SearchSvc       *usecase.SearchService
-	ChatSvc         *usecase.ChatService
+	DocumentSvc     *documentapp.DocumentService
+	FolderSvc       *documentapp.FolderService
+	TagSvc          *documentapp.TagService
+	AuditSvc        *auditapp.AuditService
+	ReminderSvc     *reminderapp.ReminderService
+	NotificationSvc *notificationapp.NotificationService
+	SearchSvc       *documentapp.SearchService
+	ChatSvc         *documentapp.ChatService
 	UserRepo        repository.UserRepository
 	MembershipRepo  repository.MembershipRepository
 	PolicyRepo      repository.PolicyRepository
@@ -71,9 +76,11 @@ func New(cfg *config.Config, deps Dependencies) *Handler {
 		notificationSvc: deps.NotificationSvc,
 		searchSvc:       deps.SearchSvc,
 		chatSvc:         deps.ChatSvc,
+		suggestionSvc:   documentapp.NewSuggestionService(deps.DocumentSvc, deps.FolderSvc),
 		userRepo:        deps.UserRepo,
 		membershipRepo:  deps.MembershipRepo,
 		policyRepo:      deps.PolicyRepo,
 		aclRepo:         deps.ACLRepo,
+		authz:           documentapp.NewAuthorizer(deps.ACLRepo),
 	}
 }

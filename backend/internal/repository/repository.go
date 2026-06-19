@@ -6,13 +6,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/casbin/casbin/v3"
-	"github.com/docvault/backend/internal/domain/audit"
-	"github.com/docvault/backend/internal/domain/document"
-	"github.com/docvault/backend/internal/domain/identity"
-	"github.com/docvault/backend/internal/domain/notification"
-	"github.com/docvault/backend/internal/domain/reminder"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/docvault/backend/internal/audit"
+	"github.com/docvault/backend/internal/document"
+	"github.com/docvault/backend/internal/identity"
+	"github.com/docvault/backend/internal/notification"
+	"github.com/docvault/backend/internal/reminder"
 )
 
 // DocumentRepository provides document data access.
@@ -73,27 +71,6 @@ type FolderRepository interface {
 	SetIndex(ctx context.Context, tenantID, orgID, id string, content *string) error
 }
 
-// ErrFolderNameExists is returned by folder Create-style operations when a
-// folder with the same (tenant, org, parent, name) already exists. Callers that
-// find-or-create (e.g. EnsureFolderPath) treat it as a signal to fetch the
-// existing folder rather than fail.
-var ErrFolderNameExists = errFolderNameExists
-
-// ErrFolderNotFound is returned by GetByParentName when no folder matches the
-// (tenant, org, parent, name) tuple. Callers detect a lookup miss via
-// errors.Is(err, ErrFolderNotFound) instead of matching error-string substrings.
-var ErrFolderNotFound = errFolderNotFound
-
-// ErrFolderReparentCycle is returned by Reparent when the (advisory-locked)
-// cycle-checked move rejected the new parent as the folder itself or one of its
-// descendants. The usecase maps it to ErrFolderCycle.
-var ErrFolderReparentCycle = errFolderReparentCycle
-
-// ErrFolderReparentDepthExceeded is returned by Reparent when the moved subtree
-// would exceed the supplied depth cap. The usecase maps it to
-// ErrFolderDepthExceeded.
-var ErrFolderReparentDepthExceeded = errFolderReparentDepthExceeded
-
 // TagRepository provides tag data access.
 type TagRepository interface {
 	Create(ctx context.Context, tag *document.Tag) error
@@ -131,7 +108,11 @@ type UserRepository interface {
 	IsEmailTakenByOther(ctx context.Context, email, excludeUserID string) (bool, error)
 }
 
-// Repositories holds all repository instances.
+// Repositories holds all repository instances. It is the contract the
+// composition root populates (see app.buildRepositories) and the rest of the
+// application consumes; the concrete wiring lives in the composition root so
+// this package stays a pure leaf of contracts with no dependency on the
+// per-context postgres adapters.
 type Repositories struct {
 	Document     DocumentRepository
 	Reminder     ReminderRepository
@@ -144,21 +125,4 @@ type Repositories struct {
 	Policy       PolicyRepository
 	Search       SearchRepository
 	ACL          ACLRepository
-}
-
-// NewRepositories creates all repository instances with the given database pool.
-func NewRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *Repositories {
-	return &Repositories{
-		Document:     NewDocumentRepository(db),
-		Reminder:     NewReminderRepository(db),
-		Folder:       NewFolderRepository(db),
-		Tag:          NewTagRepository(db),
-		Audit:        NewAuditRepository(db),
-		Notification: NewNotificationRepository(db),
-		User:         NewUserRepository(db),
-		Membership:   NewMembershipRepository(db),
-		Policy:       NewPolicyRepository(enforcer),
-		Search:       NewSearchRepository(db),
-		ACL:          NewACLRepository(db),
-	}
 }

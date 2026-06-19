@@ -394,6 +394,54 @@ func (q *Queries) GetDocumentVersions(ctx context.Context, arg GetDocumentVersio
 	return items, nil
 }
 
+const getDocumentsMetadata = `-- name: GetDocumentsMetadata :many
+SELECT
+  m.document_id,
+  m.key,
+  COALESCE(m.corrected_value, m.extracted_value) AS value
+FROM document_metadata m
+JOIN documents d ON d.id = m.document_id
+WHERE d.tenant_id = $1
+  AND m.document_id = ANY($2::uuid[])
+ORDER BY m.document_id, m.key
+`
+
+type GetDocumentsMetadataParams struct {
+	TenantID    string   `json:"tenant_id"`
+	DocumentIds []string `json:"document_ids"`
+}
+
+type GetDocumentsMetadataRow struct {
+	DocumentID string  `json:"document_id"`
+	Key        string  `json:"key"`
+	Value      *string `json:"value"`
+}
+
+// Batched, tenant-scoped fetch of the extracted (or user-corrected) facts for a
+// set of documents. Powers chat grounding: the generator sees issuer, amount,
+// dates, document_number, etc. that the classifier already extracted, so
+// "small things" questions about dates/amounts/IDs answer from structure, not
+// just chunk prose. corrected_value takes precedence over extracted_value.
+func (q *Queries) GetDocumentsMetadata(ctx context.Context, arg GetDocumentsMetadataParams) ([]GetDocumentsMetadataRow, error) {
+	rows, err := q.db.Query(ctx, getDocumentsMetadata, arg.TenantID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDocumentsMetadataRow{}
+	for rows.Next() {
+		var i GetDocumentsMetadataRow
+		if err := rows.Scan(&i.DocumentID, &i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocuments = `-- name: ListDocuments :many
 SELECT d.id, d.tenant_id, d.org_id, d.folder_id, d.owner_id, d.title, d.doc_type, d.status, d.language, d.created_at
 FROM documents d

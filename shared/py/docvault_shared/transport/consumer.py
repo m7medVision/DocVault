@@ -65,6 +65,7 @@ class QueueConsumer:
         self._connection = connection
         self.queue = queue_name
         self.dlq = dlq_name or f"{queue_name}.dlq"
+        self.retry = f"{queue_name}.retry"
         self.max_retries = MAX_RETRY_ATTEMPTS
         self._should_stop = False
 
@@ -154,12 +155,11 @@ class QueueConsumer:
                     retry_count=retry_count,
                     backoff_seconds=backoff,
                 )
-                time.sleep(backoff)
 
                 retry_message = dict(message or {})
                 retry_message["retry_count"] = retry_count + 1
 
-                if self._publish(self.queue, retry_message):
+                if self._publish_with_delay(retry_message, backoff):
                     ch.basic_ack(delivery_tag=method.delivery_tag)
                 else:
                     ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
@@ -192,6 +192,26 @@ class QueueConsumer:
             logger.error(
                 "failed_to_publish_control_message",
                 queue=queue,
+                error=str(exc),
+            )
+            return False
+
+    def _publish_with_delay(self, message: dict, delay_seconds: int) -> bool:
+        """Publish a retry to the delayed-retry queue with a per-message TTL.
+
+        The retry queue has no consumer and dead-letters back to the main queue
+        when the TTL expires, so the message is redelivered only after the
+        backoff elapses — without blocking the single consume thread.
+        """
+        try:
+            QueuePublisher(connection=self._connection).publish(
+                self.retry, message, expiration_ms=delay_seconds * 1000
+            )
+            return True
+        except Exception as exc:
+            logger.error(
+                "failed_to_publish_retry_message",
+                queue=self.retry,
                 error=str(exc),
             )
             return False

@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
@@ -51,9 +51,13 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 
 	userID := middleware.GetUserID(ctx)
 	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to resolve permissions","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
 
-	input := &usecase.SearchInput{
+	input := &documentapp.SearchInput{
 		Query:     body.Query,
 		Limit:     body.Limit,
 		DocType:   body.DocType,

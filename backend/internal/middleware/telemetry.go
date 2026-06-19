@@ -60,7 +60,6 @@ func Telemetry() Middleware {
 
 			// Record metrics
 			duration := time.Since(start)
-			wrapped.statusCode = wrapped.statusCode // Ensure we capture the final status
 
 			span.SetAttributes(
 				attribute.Int("http.status_code", wrapped.statusCode),

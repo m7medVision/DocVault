@@ -1,8 +1,6 @@
 """Main entry point for the Processing Pipeline Service."""
 
 import sys
-import threading
-from typing import Callable
 
 import structlog
 import structlog.stdlib
@@ -28,33 +26,24 @@ structlog.configure(
 logger = structlog.get_logger(__name__)
 
 
-class ConsumerThread(threading.Thread):
-    """Run a blocking consumer in a background thread."""
-
-    def __init__(self, name: str, starter: Callable[[], None]) -> None:
-        super().__init__(name=f"{name}-consumer", daemon=True)
-        self._starter = starter
-        self.error: Exception | None = None
-
-    def run(self) -> None:
-        try:
-            self._starter()
-        except Exception as exc:
-            self.error = exc
-
-
 def main() -> None:
-    """Main entry point for Processing Pipeline Service."""
+    """Main entry point for Processing Pipeline Service.
+
+    Composition root: construct the external clients (LLM/embeddings, the
+    pgvector repository, the reminder publisher) once here and inject them into
+    the handler, rather than relying on import-time module singletons.
+    """
     from docvault_shared.config import config
     from docvault_shared import telemetry
     from docvault_shared.transport.connection import RabbitMQConnection
     from docvault_shared.transport.consumer import QueueConsumer
     from .application.processing_job import ProcessingJobHandler
-    from .chunker import processing_chunker
-    from .embeddings import generate_chunk_embeddings
-    from .classifier import metadata_extractor
-    from .database import chunk_persistence
-    from .reminder_publisher import reminder_publisher
+    from .chunker import ProcessingChunker
+    from .classifier import MetadataExtractor
+    from .database import PGVectorRepository
+    from .embeddings import EmbeddingService
+    from .reminder_publisher import ReminderPublisher
+    from .translation import DocumentTranslator
 
     telemetry.init_telemetry("docvault-processing")
 
@@ -65,6 +54,14 @@ def main() -> None:
 
     connections: list[RabbitMQConnection] = []
 
+    # Build external clients once (the composition root) and inject them.
+    chunker = ProcessingChunker()
+    embedding_service = EmbeddingService()
+    metadata_extractor = MetadataExtractor()
+    repository = PGVectorRepository()
+    reminder_publisher = ReminderPublisher()
+    translator = DocumentTranslator()
+
     try:
         conn = RabbitMQConnection(
             queues=[config.rabbitmq_queue_processing, config.rabbitmq_queue_reminder]
@@ -72,13 +69,13 @@ def main() -> None:
         connections.append(conn)
         reminder_publisher.set_connection(conn)
         handler = ProcessingJobHandler(
-            processing_chunker,
-            generate_chunk_embeddings,
-            metadata_extractor,
-            chunk_persistence,
-            chunk_persistence,
-            reminder_publisher,
-            conn,
+            chunker=chunker,
+            embedder=embedding_service.generate_chunk_embeddings,
+            classifier=metadata_extractor,
+            repo=repository,
+            reminder_publisher=reminder_publisher,
+            connection=conn,
+            translator=translator,
         )
         consumer = QueueConsumer(
             conn, config.rabbitmq_queue_processing, f"{config.rabbitmq_queue_processing}.dlq"

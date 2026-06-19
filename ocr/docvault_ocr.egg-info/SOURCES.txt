@@ -12,3 +12,6 @@ ocr/ocr.py
 ocr/storage.py
 ocr/application/__init__.py
 ocr/application/ocr_job.py
+ocr/application/ports.py
+tests/test_mistral_ocr_client.py
+tests/test_ocr_job_handler.py

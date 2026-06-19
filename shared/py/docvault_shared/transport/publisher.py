@@ -26,8 +26,14 @@ class QueuePublisher:
         else:
             raise ValueError("Either channel or connection must be provided")
 
-    def publish(self, queue: str, message: dict) -> None:
-        """Publish a message to a queue."""
+    def publish(
+        self, queue: str, message: dict, expiration_ms: Optional[int] = None
+    ) -> None:
+        """Publish a message to a queue.
+
+        When expiration_ms is set it becomes the message's per-message TTL,
+        used to drive delayed retries via a dead-lettered retry queue.
+        """
         try:
             self._channel.basic_publish(
                 exchange="",
@@ -36,6 +42,9 @@ class QueuePublisher:
                 properties=pika.BasicProperties(
                     delivery_mode=2,
                     content_type="application/json",
+                    expiration=(
+                        str(expiration_ms) if expiration_ms is not None else None
+                    ),
                 ),
             )
             logger.info("message_published", queue=queue)

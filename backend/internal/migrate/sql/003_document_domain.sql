@@ -125,6 +125,10 @@ CREATE TABLE extracted_text_chunks (
     chunk_index     INTEGER NOT NULL,
     chunk_text      TEXT NOT NULL,
     embedding       vector(1024),  -- pgvector column (mistral-embed-2312 = 1024 dimensions)
+    -- Maintained by Postgres from chunk_text; powers keyword / phrase retrieval.
+    -- 'simple' config is language-agnostic, so it works for AR, EN, proper nouns,
+    -- IDs and dates alike (no stemming, every token indexed verbatim).
+    chunk_tsv       tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(chunk_text, ''))) STORED,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     UNIQUE(document_id, page_id, chunk_index)

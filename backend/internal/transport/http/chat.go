@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	documentapp "github.com/docvault/backend/internal/document/app"
 	"github.com/docvault/backend/internal/middleware"
-	"github.com/docvault/backend/internal/usecase"
 )
 
 // Chat answers questions grounded in a single document's retrieved chunks.
@@ -48,7 +48,7 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 	}
 
 	var body struct {
-		Messages []usecase.ChatMessage `json:"messages"`
+		Messages []documentapp.ChatMessage `json:"messages"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -69,18 +69,25 @@ func (h *Handler) streamChat(w http.ResponseWriter, r *http.Request, documentID 
 
 	userID := middleware.GetUserID(ctx)
 	isAdmin := middleware.HasMinRole(role, middleware.RoleAdmin)
-	groupIDs, _ := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, orgID)
+	if err != nil {
+		http.Error(w, `{"error":"failed to resolve permissions","code":"INTERNAL_ERROR"}`, http.StatusInternalServerError)
+		return
+	}
 
-	input := &usecase.ChatInput{
-		DocumentID: documentID,
-		Messages:   body.Messages,
-		TenantID:   tenantID,
-		OrgID:      orgID,
-		UserID:     userID,
-		GroupIDs:   groupIDs,
-		IsAdmin:    isAdmin,
-		APIKey:     h.cfg.Search.EmbeddingAPIKey,
-		ChatModel:  h.cfg.Search.ChatModel,
+	input := &documentapp.ChatInput{
+		DocumentID:     documentID,
+		Messages:       body.Messages,
+		TenantID:       tenantID,
+		OrgID:          orgID,
+		UserID:         userID,
+		GroupIDs:       groupIDs,
+		IsAdmin:        isAdmin,
+		APIKey:         h.cfg.Search.EmbeddingAPIKey,
+		ChatModel:      h.cfg.Search.ChatModel,
+		RetrieveK:      h.cfg.Search.ChatRetrieveK,
+		ContextK:       h.cfg.Search.ChatContextK,
+		RewriteQueries: h.cfg.Search.ChatRewriteQueries,
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")

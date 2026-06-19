@@ -63,6 +63,18 @@ class RabbitMQConnection:
             )
 
         channel.queue_declare(queue=f"{queue}.dlq", durable=True)
+        # Delayed-retry queue: it has no consumer. Retries are published here
+        # with a per-message TTL and dead-letter back to the main queue when the
+        # TTL expires, giving non-blocking exponential backoff instead of
+        # sleeping the single consume thread.
+        channel.queue_declare(
+            queue=f"{queue}.retry",
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": queue,
+            },
+        )
 
     def _require_connection(self) -> pika.BlockingConnection:
         if self._connection is None:

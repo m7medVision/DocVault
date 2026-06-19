@@ -92,13 +92,18 @@ type AuthConfig struct {
 }
 
 type SearchConfig struct {
-	Enabled           bool
-	EmbeddingProvider string
-	EmbeddingModel    string
-	EmbeddingAPIKey   string
-	EmbeddingURL      string
-	EmbeddingDim      int
-	ChatModel         string
+	Enabled            bool
+	EmbeddingProvider  string
+	EmbeddingModel     string
+	EmbeddingAPIKey    string
+	EmbeddingURL       string
+	EmbeddingDim       int
+	ChatModel          string
+	ChatRetrieveK      int
+	ChatContextK       int
+	ChatRewriteQueries bool
+	RerankURL          string
+	EfSearch           int
 }
 
 type StorageConfig struct {
@@ -162,13 +167,18 @@ func Load() (*Config, error) {
 			JWTAudience:        getEnvString("JWT_AUDIENCE", "docvault-api"),
 		},
 		Search: SearchConfig{
-			Enabled:           getEnvBool("SEARCH_ENABLED", false),
-			EmbeddingProvider: getEnvString("EMBEDDING_PROVIDER", "openrouter"),
-			EmbeddingModel:    getEnvString("EMBEDDING_MODEL", defaultEmbeddingModel),
-			EmbeddingAPIKey:   getEnvString("OPENROUTER_API_KEY", ""),
-			EmbeddingURL:      getEnvString("EMBEDDING_URL", ""),
-			EmbeddingDim:      getEnvInt("EMBEDDING_DIM", 1024),
-			ChatModel:         getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
+			Enabled:            getEnvBool("SEARCH_ENABLED", false),
+			EmbeddingProvider:  getEnvString("EMBEDDING_PROVIDER", "openrouter"),
+			EmbeddingModel:     getEnvString("EMBEDDING_MODEL", defaultEmbeddingModel),
+			EmbeddingAPIKey:    getEnvString("OPENROUTER_API_KEY", ""),
+			EmbeddingURL:       getEnvString("EMBEDDING_URL", ""),
+			EmbeddingDim:       getEnvInt("EMBEDDING_DIM", 1024),
+			ChatModel:          getEnvString("OPENROUTER_CHAT_MODEL", defaultChatModel),
+			ChatRetrieveK:      getEnvInt("CHAT_RETRIEVE_K", 40),
+			ChatContextK:       getEnvInt("CHAT_CONTEXT_K", 10),
+			ChatRewriteQueries: getEnvBool("CHAT_REWRITE_QUERIES", true),
+			RerankURL:          getEnvString("RERANK_URL", ""),
+			EfSearch:           getEnvInt("HNSW_EF_SEARCH", 0),
 		},
 		Storage: StorageConfig{
 			Endpoint:        getEnvString("MINIO_ENDPOINT", "localhost:9000"),
