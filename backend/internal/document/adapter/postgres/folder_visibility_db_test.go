@@ -9,19 +9,20 @@
 // and run inside a transaction that is always rolled back, so the target
 // database is left untouched. They reuse seedBase / withTx / aclRepoForTx /
 // exec / queryID from acl_db_test.go.
-package repository
+package postgres
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 )
 
 // mustFolderVisible evaluates IsFolderVisible and fails the test on a wiring
 // error so each case asserts only the boolean visibility decision.
-func mustFolderVisible(t *testing.T, repo *aclRepository, params FolderVisibilityParams) bool {
+func mustFolderVisible(t *testing.T, repo *aclRepository, params repository.FolderVisibilityParams) bool {
 	t.Helper()
 	visible, err := repo.IsFolderVisible(context.Background(), params)
 	if err != nil {
@@ -32,7 +33,7 @@ func mustFolderVisible(t *testing.T, repo *aclRepository, params FolderVisibilit
 
 // withFolderUser returns a copy of params with the user identity and admin flag
 // set (the folder analogue of withUser in acl_db_test.go).
-func withFolderUser(params FolderVisibilityParams, userID string, isAdmin bool) FolderVisibilityParams {
+func withFolderUser(params repository.FolderVisibilityParams, userID string, isAdmin bool) repository.FolderVisibilityParams {
 	params.UserID = userID
 	params.IsAdmin = isAdmin
 	return params
@@ -53,7 +54,7 @@ func TestFolderVisibility_RestrictedGrantAndAdminBypass(t *testing.T) {
 			f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
-		base := FolderVisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, FolderID: f.folderID}
+		base := repository.FolderVisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, FolderID: f.folderID}
 
 		// userB: not owner, not granted, not admin -> NOT visible.
 		if mustFolderVisible(t, repo, withFolderUser(base, f.userB, false)) {
@@ -70,8 +71,8 @@ func TestFolderVisibility_RestrictedGrantAndAdminBypass(t *testing.T) {
 			t.Fatal("is_admin=true should bypass folder restriction")
 		}
 
-		// Grant read to userB on the folder -> visible.
-		grantID, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant read to userB on the folder -> visible.
+		grantID, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "folder", ResourceID: f.folderID,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
@@ -108,15 +109,15 @@ func TestFolderVisibility_RestrictionCascade(t *testing.T) {
 			f.tenantID, f.orgID, parentFolder, f.userA)
 
 		repo := aclRepoForTx(tx)
-		base := FolderVisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, FolderID: childFolder}
+		base := repository.FolderVisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, FolderID: childFolder}
 
 		// userB hidden by the restricted ANCESTOR folder (cascade).
 		if mustFolderVisible(t, repo, withFolderUser(base, f.userB, false)) {
 			t.Fatal("a child folder under a restricted parent must be hidden from a non-granted member")
 		}
 
-		// Grant read on the restricted parent -> cascades to the child.
-		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant read on the restricted parent -> cascades to the child.
+		if _, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "folder", ResourceID: parentFolder,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
@@ -150,7 +151,7 @@ func TestFolderVisibility_CycleTerminates(t *testing.T) {
 		exec(t, tx, `UPDATE folders SET parent_id = $1 WHERE id = $2`, folderA, folderB)
 
 		repo := aclRepoForTx(tx)
-		params := FolderVisibilityParams{
+		params := repository.FolderVisibilityParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			FolderID: folderA, UserID: f.userB,
 		}

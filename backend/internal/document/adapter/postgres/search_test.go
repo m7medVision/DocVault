@@ -1,15 +1,17 @@
-package repository
+package postgres
 
 import (
 	"testing"
 	"time"
+
+	"github.com/docvault/backend/internal/repository"
 )
 
 func TestSearchDocumentChunksParams_MapsTypedFilters(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
 
-	params, err := searchDocumentChunksParams(SearchRequest{
+	params, err := searchDocumentChunksParams(repository.SearchRequest{
 		Query:       "PDFObject",
 		QueryVector: "[0.25,0.75]",
 		TenantID:    "tenant-1",
@@ -61,7 +63,7 @@ func TestSearchDocumentChunksParams_MapsTypedFilters(t *testing.T) {
 }
 
 func TestSearchDocumentChunksParams_MapsVisibilityFields(t *testing.T) {
-	params, err := searchDocumentChunksParams(SearchRequest{
+	params, err := searchDocumentChunksParams(repository.SearchRequest{
 		Query:       "PDFObject",
 		QueryVector: "[0.25,0.75]",
 		TenantID:    "tenant-1",
@@ -86,7 +88,7 @@ func TestSearchDocumentChunksParams_MapsVisibilityFields(t *testing.T) {
 }
 
 func TestSearchDocumentChunksParams_NilGroupIDsBecomeEmptySlice(t *testing.T) {
-	params, err := searchDocumentChunksParams(SearchRequest{
+	params, err := searchDocumentChunksParams(repository.SearchRequest{
 		Query:       "test",
 		QueryVector: "[0.25,0.75]",
 		UserID:      "user-1",
@@ -105,28 +107,28 @@ func TestSearchDocumentChunksParams_NilGroupIDsBecomeEmptySlice(t *testing.T) {
 
 func TestSearchDocumentChunksParams_DefaultsAndValidation(t *testing.T) {
 	t.Run("requires vector", func(t *testing.T) {
-		_, err := searchDocumentChunksParams(SearchRequest{Query: "test"})
+		_, err := searchDocumentChunksParams(repository.SearchRequest{Query: "test"})
 		if err == nil {
 			t.Fatal("expected error when query vector is missing")
 		}
 	})
 
 	t.Run("requires query text", func(t *testing.T) {
-		_, err := searchDocumentChunksParams(SearchRequest{QueryVector: "[0.25,0.75]"})
+		_, err := searchDocumentChunksParams(repository.SearchRequest{QueryVector: "[0.25,0.75]"})
 		if err == nil {
 			t.Fatal("expected error when query text is missing")
 		}
 	})
 
 	t.Run("requires user id", func(t *testing.T) {
-		_, err := searchDocumentChunksParams(SearchRequest{Query: "test", QueryVector: "[0.25,0.75]"})
+		_, err := searchDocumentChunksParams(repository.SearchRequest{Query: "test", QueryVector: "[0.25,0.75]"})
 		if err == nil {
 			t.Fatal("expected error when user id is missing")
 		}
 	})
 
 	t.Run("defaults invalid limit and empty tags", func(t *testing.T) {
-		params, err := searchDocumentChunksParams(SearchRequest{Query: "test", QueryVector: "[0.25,0.75]", UserID: "user-1", Limit: 100})
+		params, err := searchDocumentChunksParams(repository.SearchRequest{Query: "test", QueryVector: "[0.25,0.75]", UserID: "user-1", Limit: 100})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

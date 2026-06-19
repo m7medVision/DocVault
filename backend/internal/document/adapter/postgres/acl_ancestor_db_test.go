@@ -7,12 +7,13 @@
 // restricted ancestor folder stays hidden from a non-granted member, and that a
 // read grant on the ancestor restores it — i.e. the seed narrowing did not
 // change the visibility decision.
-package repository
+package postgres
 
 import (
 	"context"
 	"testing"
 
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -33,7 +34,7 @@ func TestVisibility_ListVisibleDocumentsRestrictedAncestorFolder(t *testing.T) {
 
 		repo := aclRepoForTx(tx)
 		listFor := func(userID string) map[string]bool {
-			docs, _, err := repo.ListVisibleDocuments(context.Background(), ListVisibleParams{
+			docs, _, err := repo.ListVisibleDocuments(context.Background(), repository.ListVisibleParams{
 				TenantID: f.tenantID, OrgID: f.orgID, UserID: userID, Limit: 50,
 			})
 			if err != nil {
@@ -52,7 +53,7 @@ func TestVisibility_ListVisibleDocumentsRestrictedAncestorFolder(t *testing.T) {
 		}
 
 		// Read grant on the ancestor (parent) folder restores visibility.
-		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		if _, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "folder", ResourceID: parent,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
@@ -91,7 +92,7 @@ func TestVisibility_SearchRestrictedAncestorFolder(t *testing.T) {
 			 VALUES ($1, $2, 0, 'buried contents about the merger', $3::vector)`, doc, pageID, embedding)
 
 		search := searchRepoForTx(tx)
-		req := SearchRequest{
+		req := repository.SearchRequest{
 			Query:       "buried",
 			QueryVector: embedding,
 			TenantID:    f.tenantID,
@@ -99,7 +100,7 @@ func TestVisibility_SearchRestrictedAncestorFolder(t *testing.T) {
 			UserID:      f.userB,
 			Limit:       20,
 		}
-		hasDoc := func(r SearchRequest) bool {
+		hasDoc := func(r repository.SearchRequest) bool {
 			res, err := search.Search(context.Background(), r)
 			if err != nil {
 				t.Fatalf("Search: %v", err)
@@ -125,7 +126,7 @@ func TestVisibility_SearchRestrictedAncestorFolder(t *testing.T) {
 		}
 
 		// A read grant on the ancestor folder restores retrieval for the member.
-		if _, err := aclRepoForTx(tx).CreateGrant(context.Background(), CreateGrantParams{
+		if _, err := aclRepoForTx(tx).CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "folder", ResourceID: parent,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",

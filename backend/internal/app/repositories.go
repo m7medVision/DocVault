@@ -25,14 +25,14 @@ func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *repository.
 	return &repository.Repositories{
 		Document:     documentpg.NewDocumentRepository(db),
 		Reminder:     reminderpg.NewReminderRepository(db),
-		Folder:       repository.NewFolderRepository(db),
+		Folder:       documentpg.NewFolderRepository(db),
 		Tag:          documentpg.NewTagRepository(db),
 		Audit:        auditpg.NewAuditRepository(db),
 		Notification: notificationpg.NewNotificationRepository(db),
 		User:         identitypg.NewUserRepository(db),
 		Membership:   identitypg.NewMembershipRepository(db),
 		Policy:       identitycasbin.NewPolicyRepository(enforcer),
-		Search:       repository.NewSearchRepository(db),
-		ACL:          repository.NewACLRepository(db),
+		Search:       documentpg.NewSearchRepository(db),
+		ACL:          documentpg.NewACLRepository(db),
 	}
 }

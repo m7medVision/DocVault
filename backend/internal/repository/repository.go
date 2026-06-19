@@ -71,27 +71,6 @@ type FolderRepository interface {
 	SetIndex(ctx context.Context, tenantID, orgID, id string, content *string) error
 }
 
-// ErrFolderNameExists is returned by folder Create-style operations when a
-// folder with the same (tenant, org, parent, name) already exists. Callers that
-// find-or-create (e.g. EnsureFolderPath) treat it as a signal to fetch the
-// existing folder rather than fail.
-var ErrFolderNameExists = errFolderNameExists
-
-// ErrFolderNotFound is returned by GetByParentName when no folder matches the
-// (tenant, org, parent, name) tuple. Callers detect a lookup miss via
-// errors.Is(err, ErrFolderNotFound) instead of matching error-string substrings.
-var ErrFolderNotFound = errFolderNotFound
-
-// ErrFolderReparentCycle is returned by Reparent when the (advisory-locked)
-// cycle-checked move rejected the new parent as the folder itself or one of its
-// descendants. The usecase maps it to ErrFolderCycle.
-var ErrFolderReparentCycle = errFolderReparentCycle
-
-// ErrFolderReparentDepthExceeded is returned by Reparent when the moved subtree
-// would exceed the supplied depth cap. The usecase maps it to
-// ErrFolderDepthExceeded.
-var ErrFolderReparentDepthExceeded = errFolderReparentDepthExceeded
-
 // TagRepository provides tag data access.
 type TagRepository interface {
 	Create(ctx context.Context, tag *document.Tag) error

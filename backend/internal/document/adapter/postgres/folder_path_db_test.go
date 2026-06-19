@@ -9,8 +9,8 @@
 // These live in the external repository_test package (not package repository)
 // because they drive usecase.FolderService, and usecase imports repository — an
 // internal test would form an import cycle. The repository is wired to the test
-// transaction via repository.NewFolderRepositoryFromDBTX (integration-only).
-package repository_test
+// transaction via postgres.NewFolderRepositoryFromDBTX (integration-only).
+package postgres_test
 
 import (
 	"context"
@@ -19,8 +19,8 @@ import (
 	"sync"
 	"testing"
 
+	postgres "github.com/docvault/backend/internal/document/adapter/postgres"
 	"github.com/docvault/backend/internal/migrate"
-	"github.com/docvault/backend/internal/repository"
 	"github.com/docvault/backend/internal/usecase"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -99,7 +99,7 @@ func withFolderTx(t *testing.T, fn func(tx pgx.Tx)) {
 // the production code path (sqldb queries) is exercised end to end. The ACL repo
 // is nil; none of the folder paths under test touch it.
 func folderServiceForTx(tx pgx.Tx) *usecase.FolderService {
-	repo := repository.NewFolderRepositoryFromDBTX(tx)
+	repo := postgres.NewFolderRepositoryFromDBTX(tx)
 	return usecase.NewFolderService(repo, nil)
 }
 
@@ -136,7 +136,7 @@ func withFolderPool(t *testing.T, fn func(pool *pgxpool.Pool, svc *usecase.Folde
 	f := folderSeedBaseCommitted(t, pool)
 	defer folderCleanupCommitted(t, pool, f)
 
-	repo := repository.NewFolderRepositoryFromPool(pool)
+	repo := postgres.NewFolderRepositoryFromPool(pool)
 	svc := usecase.NewFolderService(repo, nil)
 	fn(pool, svc, f)
 }

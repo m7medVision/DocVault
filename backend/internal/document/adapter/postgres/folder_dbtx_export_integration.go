@@ -1,22 +1,23 @@
 //go:build integration
 
-package repository
+package postgres
 
 import (
 	sqldb "github.com/docvault/backend/internal/db"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // NewFolderRepositoryFromDBTX builds a FolderRepository bound to any sqldb.DBTX
 // (a *pgxpool.Pool or a pgx.Tx). It exists only under the `integration` build
-// tag so DB-backed tests in the external repository_test package can wire the
-// real repository to a rolled-back transaction without depending on a live
-// pool. It is never compiled into production binaries.
+// tag so DB-backed tests in an external test package can wire the real
+// repository to a rolled-back transaction without depending on a live pool. It
+// is never compiled into production binaries.
 //
 // The resulting repository has a nil pool, so Reparent (which needs to open its
 // own advisory-locked transaction) is unsupported on it. Tests that exercise
 // Reparent must use NewFolderRepositoryFromPool with real committed rows.
-func NewFolderRepositoryFromDBTX(db sqldb.DBTX) FolderRepository {
+func NewFolderRepositoryFromDBTX(db sqldb.DBTX) repository.FolderRepository {
 	return &folderRepository{queries: sqldb.New(db)}
 }
 
@@ -24,6 +25,6 @@ func NewFolderRepositoryFromDBTX(db sqldb.DBTX) FolderRepository {
 // the production one, exposed under the `integration` build tag so DB-backed
 // tests can exercise Reparent (which opens its own advisory-locked transaction
 // against the pool and commits). Never compiled into production binaries.
-func NewFolderRepositoryFromPool(pool *pgxpool.Pool) FolderRepository {
+func NewFolderRepositoryFromPool(pool *pgxpool.Pool) repository.FolderRepository {
 	return &folderRepository{queries: sqldb.New(pool), pool: pool}
 }

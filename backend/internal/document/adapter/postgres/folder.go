@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -8,31 +8,12 @@ import (
 
 	sqldb "github.com/docvault/backend/internal/db"
 	model "github.com/docvault/backend/internal/domain/document"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// errFolderNameExists is the unexported sentinel exposed via ErrFolderNameExists.
-var errFolderNameExists = errors.New("folder name already exists under parent")
-
-// errFolderNotFound is the unexported sentinel exposed via ErrFolderNotFound. It
-// lets callers (e.g. EnsureFolderPath) distinguish a genuine "no such folder"
-// lookup miss via errors.Is rather than matching error-string substrings.
-var errFolderNotFound = errors.New("folder not found")
-
-// errFolderReparentCycle is the unexported sentinel exposed via
-// ErrFolderReparentCycle. Reparent returns it when the cycle-checked MoveFolder
-// UPDATE affected 0 rows, i.e. the new parent is the folder itself or one of its
-// descendants. The usecase maps it to its own ErrFolderCycle (HTTP 400).
-var errFolderReparentCycle = errors.New("reparent would create a folder cycle")
-
-// errFolderReparentDepthExceeded is the unexported sentinel exposed via
-// ErrFolderReparentDepthExceeded. Reparent returns it when the moved subtree's
-// deepest leaf would exceed the supplied depth cap. Because the depth check now
-// runs inside the same advisory-locked transaction as the move, the cap is hard
-// (no concurrent reparent can change the tree between the check and the write).
-var errFolderReparentDepthExceeded = errors.New("reparent would exceed the maximum folder depth")
 
 // isUniqueViolation reports whether err is a Postgres unique-constraint
 // violation (SQLSTATE 23505).
@@ -51,7 +32,7 @@ type folderRepository struct {
 	pool *pgxpool.Pool
 }
 
-func NewFolderRepository(db *pgxpool.Pool) FolderRepository {
+func NewFolderRepository(db *pgxpool.Pool) repository.FolderRepository {
 	return &folderRepository{queries: sqldb.New(db), pool: db}
 }
 
@@ -69,7 +50,7 @@ func (r *folderRepository) Create(ctx context.Context, folder *model.Folder) err
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return errFolderNameExists
+			return repository.ErrFolderNameExists
 		}
 		return fmt.Errorf("failed to create folder: %w", err)
 	}
@@ -85,7 +66,7 @@ func (r *folderRepository) GetByParentName(ctx context.Context, tenantID, orgID 
 	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, errFolderNotFound
+			return nil, repository.ErrFolderNotFound
 		}
 		return nil, fmt.Errorf("failed to get folder by name: %w", err)
 	}
@@ -159,7 +140,7 @@ func (r *folderRepository) Reparent(ctx context.Context, tenantID, orgID, folder
 			return fmt.Errorf("failed to compute moved subtree height: %w", err)
 		}
 		if len(ancestors)+int(height) > maxDepth {
-			return errFolderReparentDepthExceeded
+			return repository.ErrFolderReparentDepthExceeded
 		}
 	}
 
@@ -175,7 +156,7 @@ func (r *folderRepository) Reparent(ctx context.Context, tenantID, orgID, folder
 	if rows == 0 {
 		// The cycle-checked UPDATE rejected the new parent as the folder itself or
 		// a descendant of it. (A NULL parent on an existing row always affects 1.)
-		return errFolderReparentCycle
+		return repository.ErrFolderReparentCycle
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -192,7 +173,7 @@ func (r *folderRepository) GetByID(ctx context.Context, tenantID, orgID, id stri
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, errFolderNotFound
+			return nil, repository.ErrFolderNotFound
 		}
 		return nil, fmt.Errorf("failed to get folder: %w", err)
 	}
@@ -273,14 +254,14 @@ func (r *folderRepository) Delete(ctx context.Context, tenantID, orgID, id strin
 		return fmt.Errorf("failed to delete folder: %w", err)
 	}
 	if rowsAffected == 0 {
-		return errFolderNotFound
+		return repository.ErrFolderNotFound
 	}
 	return nil
 }
 
 // GetIndex returns the folder's optional markdown index content. A nil pointer
 // means the folder has no index content (or, for a missing folder, ErrNoRows is
-// mapped to errFolderNotFound).
+// mapped to repository.ErrFolderNotFound).
 func (r *folderRepository) GetIndex(ctx context.Context, tenantID, orgID, id string) (*string, error) {
 	content, err := r.queries.GetFolderIndex(ctx, sqldb.GetFolderIndexParams{
 		ID:       id,
@@ -289,7 +270,7 @@ func (r *folderRepository) GetIndex(ctx context.Context, tenantID, orgID, id str
 	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, errFolderNotFound
+			return nil, repository.ErrFolderNotFound
 		}
 		return nil, fmt.Errorf("failed to get folder index: %w", err)
 	}
@@ -297,7 +278,7 @@ func (r *folderRepository) GetIndex(ctx context.Context, tenantID, orgID, id str
 }
 
 // SetIndex updates the folder's index content (a nil content clears it). It
-// returns errFolderNotFound when no folder matched the tenant/org/id.
+// returns repository.ErrFolderNotFound when no folder matched the tenant/org/id.
 func (r *folderRepository) SetIndex(ctx context.Context, tenantID, orgID, id string, content *string) error {
 	rows, err := r.queries.SetFolderIndex(ctx, sqldb.SetFolderIndexParams{
 		IndexContent: content,
@@ -309,7 +290,7 @@ func (r *folderRepository) SetIndex(ctx context.Context, tenantID, orgID, id str
 		return fmt.Errorf("failed to set folder index: %w", err)
 	}
 	if rows == 0 {
-		return errFolderNotFound
+		return repository.ErrFolderNotFound
 	}
 	return nil
 }

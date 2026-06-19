@@ -5,7 +5,7 @@
 // `integration` build tag and require a live Postgres reachable at DATABASE_URL
 // (migrated to at least 013). Every test runs inside a transaction that is
 // always rolled back, so the target database is left untouched.
-package repository
+package postgres
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 
 	sqldb "github.com/docvault/backend/internal/db"
 	"github.com/docvault/backend/internal/migrate"
+	"github.com/docvault/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -123,7 +124,7 @@ func searchRepoForTx(tx pgx.Tx) *searchRepository {
 	return &searchRepository{queries: sqldb.New(tx)}
 }
 
-func mustVisible(t *testing.T, repo *aclRepository, params VisibilityParams) bool {
+func mustVisible(t *testing.T, repo *aclRepository, params repository.VisibilityParams) bool {
 	t.Helper()
 	visible, err := repo.IsDocumentVisible(context.Background(), params)
 	if err != nil {
@@ -132,7 +133,7 @@ func mustVisible(t *testing.T, repo *aclRepository, params VisibilityParams) boo
 	return visible
 }
 
-func mustWritable(t *testing.T, repo *aclRepository, params VisibilityParams) bool {
+func mustWritable(t *testing.T, repo *aclRepository, params repository.VisibilityParams) bool {
 	t.Helper()
 	writable, err := repo.IsDocumentWritable(context.Background(), params)
 	if err != nil {
@@ -153,7 +154,7 @@ func TestVisibility_RestrictedDocumentGrantAndAdminBypass(t *testing.T) {
 			f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
-		base := VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
+		base := repository.VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
 
 		// userB: not owner, not granted, not admin -> NOT visible.
 		if mustVisible(t, repo, withUser(base, f.userB, false)) {
@@ -171,8 +172,8 @@ func TestVisibility_RestrictedDocumentGrantAndAdminBypass(t *testing.T) {
 			t.Fatal("is_admin=true should bypass restriction")
 		}
 
-		// Grant read to userB on the document -> visible.
-		grantID, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant read to userB on the document -> visible.
+		grantID, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "document", ResourceID: f.documentID,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
@@ -195,7 +196,7 @@ func TestVisibility_MissingDocumentIsNotVisible(t *testing.T) {
 	withTx(t, func(tx pgx.Tx) {
 		f := seedBase(t, tx)
 		repo := aclRepoForTx(tx)
-		visible, err := repo.IsDocumentVisible(context.Background(), VisibilityParams{
+		visible, err := repo.IsDocumentVisible(context.Background(), repository.VisibilityParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			DocumentID: "00000000-0000-0000-0000-000000000000",
 			UserID:     f.userB,
@@ -231,15 +232,15 @@ func TestVisibility_FolderRestrictionCascade(t *testing.T) {
 			f.tenantID, f.orgID, childFolder, f.userA)
 
 		repo := aclRepoForTx(tx)
-		base := VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
+		base := repository.VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
 
 		// userB hidden by the restricted ancestor folder.
 		if mustVisible(t, repo, withUser(base, f.userB, false)) {
 			t.Fatal("doc under a restricted ancestor folder must be hidden from a non-granted member")
 		}
 
-		// Grant read on the ancestor (parent) folder -> cascades to the doc.
-		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant read on the ancestor (parent) folder -> cascades to the doc.
+		if _, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "folder", ResourceID: parentFolder,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
@@ -259,13 +260,13 @@ func TestVisibility_GroupGrant(t *testing.T) {
 		f := seedBase(t, tx)
 		f.documentID = queryID(t, tx,
 			`INSERT INTO documents (tenant_id, org_id, owner_id, title, is_restricted)
-			 VALUES ($1, $2, $3, 'Group Restricted Doc', true) RETURNING id`,
+			 VALUES ($1, $2, $3, 'repository.Group Restricted Doc', true) RETURNING id`,
 			f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
 
 		// Create a group and add userB to it.
-		group, err := repo.CreateGroup(context.Background(), CreateGroupParams{
+		group, err := repo.CreateGroup(context.Background(), repository.CreateGroupParams{
 			TenantID: f.tenantID, OrgID: f.orgID, Name: "Legal",
 		})
 		if err != nil {
@@ -283,7 +284,7 @@ func TestVisibility_GroupGrant(t *testing.T) {
 			t.Fatalf("ListUserGroupIDs = %#v, want [%s]", groupIDs, group.ID)
 		}
 
-		base := VisibilityParams{
+		base := repository.VisibilityParams{
 			TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID,
 			UserID: f.userB, GroupIDs: groupIDs,
 		}
@@ -293,8 +294,8 @@ func TestVisibility_GroupGrant(t *testing.T) {
 			t.Fatal("group member should not see a restricted doc before a grant")
 		}
 
-		// Grant read to the group -> the member can now see it.
-		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant read to the group -> the member can now see it.
+		if _, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "document", ResourceID: f.documentID,
 			PrincipalType: "group", PrincipalID: group.ID, Permission: "read",
@@ -320,7 +321,7 @@ func TestVisibility_FolderIDNullRestrictedDoc(t *testing.T) {
 			f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
-		base := VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
+		base := repository.VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
 
 		if mustVisible(t, repo, withUser(base, f.userB, false)) {
 			t.Fatal("restricted root-level (folder_id NULL) doc must be hidden from a non-granted member")
@@ -346,7 +347,7 @@ func TestVisibility_ListVisibleDocumentsFiltersRestricted(t *testing.T) {
 			 VALUES ($1, $2, $3, 'Restricted Doc', true) RETURNING id`, f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
-		docs, _, err := repo.ListVisibleDocuments(context.Background(), ListVisibleParams{
+		docs, _, err := repo.ListVisibleDocuments(context.Background(), repository.ListVisibleParams{
 			TenantID: f.tenantID, OrgID: f.orgID, UserID: f.userB, Limit: 50,
 		})
 		if err != nil {
@@ -392,7 +393,7 @@ func TestVisibility_SearchFiltersRestrictedChunks(t *testing.T) {
 			f.documentID, pageID, embedding)
 
 		search := searchRepoForTx(tx)
-		req := SearchRequest{
+		req := repository.SearchRequest{
 			Query:       "secret",
 			QueryVector: embedding,
 			TenantID:    f.tenantID,
@@ -444,10 +445,10 @@ func TestWritability_ReadGrantDoesNotConferWrite(t *testing.T) {
 			f.tenantID, f.orgID, f.userA)
 
 		repo := aclRepoForTx(tx)
-		base := VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
+		base := repository.VisibilityParams{TenantID: f.tenantID, OrgID: f.orgID, DocumentID: f.documentID}
 
-		// Grant userB a READ grant on the document.
-		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant userB a READ grant on the document.
+		if _, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "document", ResourceID: f.documentID,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "read",
@@ -463,8 +464,8 @@ func TestWritability_ReadGrantDoesNotConferWrite(t *testing.T) {
 			t.Fatal("a read grant must NOT confer write permission on a restricted doc")
 		}
 
-		// Grant userB a WRITE grant on the document -> now writable.
-		if _, err := repo.CreateGrant(context.Background(), CreateGrantParams{
+		// repository.Grant userB a WRITE grant on the document -> now writable.
+		if _, err := repo.CreateGrant(context.Background(), repository.CreateGrantParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			ResourceType: "document", ResourceID: f.documentID,
 			PrincipalType: "user", PrincipalID: f.userB, Permission: "write",
@@ -514,7 +515,7 @@ func TestVisibility_FolderCycleTerminates(t *testing.T) {
 			f.tenantID, f.orgID, folderA, f.userA)
 
 		repo := aclRepoForTx(tx)
-		params := VisibilityParams{
+		params := repository.VisibilityParams{
 			TenantID: f.tenantID, OrgID: f.orgID,
 			DocumentID: f.documentID, UserID: f.userB,
 		}
@@ -534,7 +535,7 @@ func TestVisibility_FolderCycleTerminates(t *testing.T) {
 }
 
 // withUser returns a copy of params with the user identity and admin flag set.
-func withUser(params VisibilityParams, userID string, isAdmin bool) VisibilityParams {
+func withUser(params repository.VisibilityParams, userID string, isAdmin bool) repository.VisibilityParams {
 	params.UserID = userID
 	params.IsAdmin = isAdmin
 	return params
