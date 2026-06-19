@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/casbin/casbin/v3"
 	auditpg "github.com/docvault/backend/internal/audit/adapter/postgres"
+	identitycasbin "github.com/docvault/backend/internal/identity/adapter/casbin"
 	identitypg "github.com/docvault/backend/internal/identity/adapter/postgres"
 	notificationpg "github.com/docvault/backend/internal/notification/adapter/postgres"
 	reminderpg "github.com/docvault/backend/internal/reminder/adapter/postgres"
@@ -29,7 +30,7 @@ func buildRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *repository.
 		Notification: notificationpg.NewNotificationRepository(db),
 		User:         identitypg.NewUserRepository(db),
 		Membership:   identitypg.NewMembershipRepository(db),
-		Policy:       repository.NewPolicyRepository(enforcer),
+		Policy:       identitycasbin.NewPolicyRepository(enforcer),
 		Search:       repository.NewSearchRepository(db),
 		ACL:          repository.NewACLRepository(db),
 	}
