@@ -140,20 +140,22 @@ func Run() error {
 	repos := repository.NewRepositories(dbPool, authzEnforcer)
 	objectStore := minio.NewObjectStore(minioClient, cfg.Storage.Bucket)
 	ocrDispatcher := rabbitmq.NewOCRDispatcher(rabbitConn, cfg.Queue.URL, cfg.Queue.OCRQueue)
+	embedder := search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim)
 	h := handler.New(cfg, handler.Dependencies{
 		DB:              dbPool,
 		AuthzEnforcer:   authzEnforcer,
-		DocumentSvc:     usecase.NewDocumentService(repos.Document, objectStore, ocrDispatcher),
-		FolderSvc:       usecase.NewFolderService(repos.Folder),
+		DocumentSvc:     usecase.NewDocumentService(repos.Document, repos.ACL, objectStore, ocrDispatcher),
+		FolderSvc:       usecase.NewFolderService(repos.Folder, repos.ACL),
 		TagSvc:          usecase.NewTagService(repos.Tag),
 		AuditSvc:        usecase.NewAuditService(repos.Audit),
 		ReminderSvc:     usecase.NewReminderService(repos.Reminder),
 		NotificationSvc: usecase.NewNotificationService(repos.Notification),
-		SearchSvc:       usecase.NewSearchService(search.NewOpenRouterEmbedder(cfg.Search.EmbeddingAPIKey, cfg.Search.EmbeddingModel, cfg.Search.EmbeddingDim), repos.Search),
-		ChatSvc:         usecase.NewChatService(repos.Document),
+		SearchSvc:       usecase.NewSearchService(embedder, repos.Search),
+		ChatSvc:         usecase.NewChatService(embedder, repos.Search),
 		UserRepo:        repos.User,
 		MembershipRepo:  repos.Membership,
 		PolicyRepo:      repos.Policy,
+		ACLRepo:         repos.ACL,
 	})
 	middleware.SetAuthorizationAuditLogger(h.AuditAuthorizationDecision)
 	authHandler := handler.NewAuthHandler(dbPool, jwtService, tokenBlacklist, rateLimiter, authzEnforcer, logger, repos.User)

@@ -17,6 +17,7 @@ import (
 // DocumentService handles document operations.
 type DocumentService struct {
 	repo          repository.DocumentRepository
+	aclRepo       repository.ACLRepository
 	objectStore   ObjectStore
 	ocrDispatcher OCRDispatcher
 }
@@ -33,9 +34,10 @@ type OCRDispatcher interface {
 }
 
 // NewDocumentService creates a new DocumentService.
-func NewDocumentService(repo repository.DocumentRepository, objectStore ObjectStore, ocrDispatcher OCRDispatcher) *DocumentService {
+func NewDocumentService(repo repository.DocumentRepository, aclRepo repository.ACLRepository, objectStore ObjectStore, ocrDispatcher OCRDispatcher) *DocumentService {
 	return &DocumentService{
 		repo:          repo,
+		aclRepo:       aclRepo,
 		objectStore:   objectStore,
 		ocrDispatcher: ocrDispatcher,
 	}
@@ -75,6 +77,9 @@ type UploadDocumentOutput struct {
 type ListDocumentsInput struct {
 	TenantID string
 	OrgID    string
+	UserID   string
+	GroupIDs []string
+	IsAdmin  bool
 	DocType  string
 	FolderID string
 	Status   model.DocumentStatus
@@ -249,18 +254,19 @@ func (s *DocumentService) List(ctx context.Context, input *ListDocumentsInput) (
 		input.Limit = 20
 	}
 
-	query := &repository.ListDocumentsQuery{
+	docs, cursor, err := s.aclRepo.ListVisibleDocuments(ctx, repository.ListVisibleParams{
 		TenantID: input.TenantID,
 		OrgID:    input.OrgID,
+		UserID:   input.UserID,
+		GroupIDs: input.GroupIDs,
+		IsAdmin:  input.IsAdmin,
 		DocType:  input.DocType,
 		FolderID: input.FolderID,
-		Status:   input.Status,
+		Status:   string(input.Status),
 		Language: input.Language,
 		Cursor:   input.Cursor,
 		Limit:    input.Limit,
-	}
-
-	docs, cursor, err := s.repo.List(ctx, query)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list documents: %w", err)
 	}
@@ -321,6 +327,17 @@ func (s *DocumentService) Delete(ctx context.Context, input *DeleteDocumentInput
 
 	if err := s.repo.Delete(ctx, input.TenantID, input.OrgID, input.DocumentID, input.ActorID); err != nil {
 		return nil, fmt.Errorf("failed to delete document: %w", err)
+	}
+
+	if s.aclRepo != nil {
+		if _, err := s.aclRepo.DeleteGrantsForResource(ctx, repository.ResourceRef{
+			TenantID:     input.TenantID,
+			OrgID:        input.OrgID,
+			ResourceType: "document",
+			ResourceID:   input.DocumentID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to clean up document grants: %w", err)
+		}
 	}
 
 	return &DeleteDocumentOutput{
@@ -494,6 +511,81 @@ func (s *DocumentService) UpdateTitle(ctx context.Context, input *UpdateTitleInp
 	return nil
 }
 
+// AcceptSuggestionInput contains the data needed to accept a folder suggestion.
+// LeafFolderID is the id of the folder the document should be moved into (the
+// leaf of the suggested path, already find-or-created by the caller). Title is
+// the suggested display title; when empty the document title is left unchanged.
+type AcceptSuggestionInput struct {
+	TenantID     string
+	OrgID        string
+	DocumentID   string
+	LeafFolderID string
+	Title        string
+}
+
+// AcceptSuggestionOutput contains the updated document after accepting.
+type AcceptSuggestionOutput struct {
+	Document model.Document
+}
+
+// AcceptSuggestion moves the document into the resolved leaf folder, optionally
+// retitles it, clears the four suggestion columns, and sets processing_stage to
+// "completed". The folder path resolution (find-or-create) is performed by the
+// caller via FolderService.EnsureFolderPath; this method only commits the
+// document-side effects.
+//
+// The move/retitle and the suggestion clear run inside a single transaction
+// (repo.ApplySuggestion) so the two can never diverge: previously they were two
+// separate writes and a failure of the second left the document filed but with
+// a stale, uncleared suggestion. EnsureFolderPath remains idempotent, so the
+// folder resolution performed before this call is safe to retry.
+func (s *DocumentService) AcceptSuggestion(ctx context.Context, input *AcceptSuggestionInput) (*AcceptSuggestionOutput, error) {
+	if input.TenantID == "" || input.OrgID == "" || input.DocumentID == "" {
+		return nil, fmt.Errorf("tenant_id, org_id, and document_id are required")
+	}
+	if input.LeafFolderID == "" {
+		return nil, fmt.Errorf("leaf_folder_id is required")
+	}
+
+	doc, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)
+	if err != nil {
+		return nil, fmt.Errorf("document not found: %w", err)
+	}
+
+	leaf := input.LeafFolderID
+	doc.FolderID = &leaf
+	if input.Title != "" {
+		doc.Title = input.Title
+	}
+
+	completed := string(model.StageCompleted)
+	if err := s.repo.ApplySuggestion(ctx, doc, &completed); err != nil {
+		return nil, fmt.Errorf("failed to apply suggestion: %w", err)
+	}
+
+	updated, err := s.repo.GetByID(ctx, input.TenantID, input.OrgID, input.DocumentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload document: %w", err)
+	}
+
+	return &AcceptSuggestionOutput{Document: *updated}, nil
+}
+
+// DismissSuggestion clears the four suggestion columns without moving or
+// retitling the document. Like accept, it advances processing_stage to
+// "completed": dismissing is a terminal decision on the suggestion, so the
+// document should no longer report itself as "suggesting".
+func (s *DocumentService) DismissSuggestion(ctx context.Context, tenantID, orgID, documentID string) error {
+	if tenantID == "" || orgID == "" || documentID == "" {
+		return fmt.Errorf("tenant_id, org_id, and document_id are required")
+	}
+	completed := string(model.StageCompleted)
+	if err := s.repo.ClearSuggestion(ctx, tenantID, orgID, documentID, &completed); err != nil {
+		return fmt.Errorf("failed to dismiss suggestion: %w", err)
+	}
+	return nil
+}
+
 // UpdateProcessingFieldsInput contains processing stage/suggestion update data.
 type UpdateProcessingFieldsInput struct {
 	TenantID   string
@@ -568,6 +660,6 @@ func (s *DocumentService) GetProcessingStatus(ctx context.Context, tenantID, org
 	}
 }
 
-func (s *DocumentService) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
-	return s.repo.GetStats(ctx, tenantID)
+func (s *DocumentService) GetStats(ctx context.Context, tenantID, orgID string) (*model.DocumentStats, error) {
+	return s.repo.GetStats(ctx, tenantID, orgID)
 }

@@ -77,6 +77,14 @@ func (s *stubDocumentRepository) UpdateProcessingFields(context.Context, string,
 	return nil
 }
 
+func (s *stubDocumentRepository) ClearSuggestion(context.Context, string, string, string, *string) error {
+	return nil
+}
+
+func (s *stubDocumentRepository) ApplySuggestion(context.Context, *model.Document, *string) error {
+	return nil
+}
+
 type stubOCRDispatcher struct {
 	job *usecase.OCRJob
 }
@@ -89,7 +97,7 @@ func (s *stubOCRDispatcher) DispatchOCR(_ context.Context, job usecase.OCRJob) e
 func TestUploadPublishesOCRJobContract(t *testing.T) {
 	repo := &stubDocumentRepository{}
 	dispatcher := &stubOCRDispatcher{}
-	svc := usecase.NewDocumentService(repo, nil, dispatcher)
+	svc := usecase.NewDocumentService(repo, nil, nil, dispatcher)
 
 	output, err := svc.Upload(context.Background(), &usecase.UploadDocumentInput{
 		TenantID: "tenant-1",
@@ -173,6 +181,6 @@ func newTestFileHeader(t *testing.T, filename string, contents []byte) *multipar
 var _ repository.DocumentRepository = (*stubDocumentRepository)(nil)
 var _ usecase.OCRDispatcher = (*stubOCRDispatcher)(nil)
 
-func (m *stubDocumentRepository) GetStats(ctx context.Context, tenantID string) (*model.DocumentStats, error) {
+func (m *stubDocumentRepository) GetStats(ctx context.Context, tenantID, orgID string) (*model.DocumentStats, error) {
 	return &model.DocumentStats{}, nil
 }

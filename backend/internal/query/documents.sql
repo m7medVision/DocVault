@@ -4,7 +4,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW());
 
 -- name: GetDocumentByID :one
 SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
-       processing_stage, processing_error, created_at
+       processing_stage, processing_error,
+       suggested_folder_name, suggested_filename, suggestion_confidence, suggestion_create_new,
+       created_at
 FROM documents
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3;
 
@@ -80,6 +82,18 @@ SET processing_stage = COALESCE($1, processing_stage),
     processing_error = COALESCE($2, processing_error)
 WHERE id = $3 AND tenant_id = $4;
 
+-- name: ClearDocumentSuggestion :exec
+-- Clears the four folder-suggestion columns. The caller decides what
+-- processing_stage to set (e.g. "completed" on accept, unchanged on dismiss).
+UPDATE documents
+SET suggested_folder_name = NULL,
+    suggested_filename = NULL,
+    suggestion_confidence = NULL,
+    suggestion_create_new = FALSE,
+    processing_stage = COALESCE(sqlc.narg(processing_stage)::varchar, processing_stage)
+WHERE id = sqlc.arg(id)::uuid
+  AND tenant_id = sqlc.arg(tenant_id)::uuid AND org_id = sqlc.arg(org_id)::uuid;
+
 -- name: GetDocumentStats :one
 WITH doc_stats AS (
   SELECT
@@ -88,12 +102,14 @@ WITH doc_stats AS (
     COUNT(*) FILTER (WHERE status = 'processed' AND created_at >= NOW() - INTERVAL '7 days') as completed_this_week
   FROM documents d
   WHERE d.tenant_id = sqlc.arg(tenant_id_arg)
+    AND d.org_id = sqlc.arg(org_id_arg)
 ),
 storage_stats AS (
   SELECT COALESCE(SUM(v.file_size), 0)::bigint as storage_used_bytes
   FROM documents d
   JOIN document_versions v ON d.id = v.document_id
   WHERE d.tenant_id = sqlc.arg(tenant_id_arg)
+    AND d.org_id = sqlc.arg(org_id_arg)
 )
 SELECT d.total_documents, d.pending_documents, d.completed_this_week, s.storage_used_bytes
 FROM doc_stats d, storage_stats s;

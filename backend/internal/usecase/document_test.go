@@ -10,7 +10,7 @@ import (
 
 // TestDocumentServiceUploadValidation tests validation in document upload.
 func TestDocumentServiceUploadValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil)
+	svc := usecase.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -83,7 +83,7 @@ func TestDocumentServiceUploadValidation(t *testing.T) {
 
 // TestDocumentServiceListValidation tests validation in document listing.
 func TestDocumentServiceListValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil)
+	svc := usecase.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -130,7 +130,7 @@ func TestDocumentServiceListValidation(t *testing.T) {
 
 // TestDocumentServiceDeleteValidation tests validation in document deletion.
 func TestDocumentServiceDeleteValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil)
+	svc := usecase.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -189,7 +189,7 @@ func TestDocumentServiceDeleteValidation(t *testing.T) {
 
 // TestDocumentServiceGetValidation tests validation in getting document.
 func TestDocumentServiceGetValidation(t *testing.T) {
-	svc := usecase.NewDocumentService(nil, nil, nil)
+	svc := usecase.NewDocumentService(nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -238,7 +238,7 @@ func TestDocumentServiceGetValidation(t *testing.T) {
 
 // TestFolderServiceCreateValidation tests validation in folder creation.
 func TestFolderServiceCreateValidation(t *testing.T) {
-	svc := usecase.NewFolderService(nil)
+	svc := usecase.NewFolderService(nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {

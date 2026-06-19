@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { format } from "date-fns";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import {
   FileText,
   FileCheck,
@@ -13,11 +16,14 @@ import {
   Search,
   FolderOpen,
   Clock,
+  Pencil,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -29,7 +35,11 @@ import {
 } from "@/components/ui/table";
 import { FolderExplorer } from "@/components/FolderExplorer";
 import { listDocuments, type Document } from "@/features/documents/api";
-import { listAllFolders } from "@/lib/api/folders";
+import {
+  listAllFolders,
+  getFolderIndex,
+  updateFolderIndex,
+} from "@/lib/api/folders";
 import type { Folder } from "@/lib/api/types";
 import { useAuth } from "@/lib/useAuth";
 import { cn } from "@/lib/utils";
@@ -120,9 +130,157 @@ function PageSkeleton() {
   );
 }
 
+const MARKDOWN_PROSE =
+  "prose prose-sm max-w-none break-words dark:prose-invert prose-p:my-0 prose-headings:mb-2 prose-headings:mt-4 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:my-2 prose-code:before:content-none prose-code:after:content-none";
+
+function FolderOverview({
+  folderId,
+  canWrite,
+}: {
+  folderId: string;
+  canWrite: boolean;
+}) {
+  const t = useTranslations("documents");
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getFolderIndex(folderId);
+      setContent(res.index_content);
+    } catch {
+      setContent(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [folderId]);
+
+  useEffect(() => {
+    setEditing(false);
+    void refetch();
+  }, [refetch]);
+
+  const startEdit = useCallback(() => {
+    setDraft(content ?? "");
+    setEditing(true);
+  }, [content]);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(false);
+    setDraft("");
+  }, []);
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    try {
+      await updateFolderIndex(folderId, draft);
+      setEditing(false);
+      await refetch();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t("overviewSaveFailed"),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [folderId, draft, refetch, t]);
+
+  if (loading) {
+    return (
+      <div className="mb-4 space-y-2">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <Card className="mb-4 p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            {t("aboutFolder")}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={cancelEdit}
+              disabled={saving}
+            >
+              {t("overviewCancel")}
+            </Button>
+            <Button size="sm" onClick={save} disabled={saving}>
+              {saving && <Loader2 className="size-3.5 animate-spin" />}
+              {t("overviewSave")}
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={t("overviewEditPlaceholder")}
+            className="min-h-48 font-mono text-sm"
+            disabled={saving}
+          />
+          <div className="min-h-48 rounded-md border bg-muted/30 p-3">
+            {draft.trim() ? (
+              <div className={MARKDOWN_PROSE}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {draft}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t("overviewPreviewHint")}
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const hasContent = Boolean(content && content.trim());
+
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          {t("aboutFolder")}
+        </h3>
+        {canWrite && (
+          <Button variant="ghost" size="sm" onClick={startEdit}>
+            <Pencil className="size-3.5" />
+            {t("overviewEdit")}
+          </Button>
+        )}
+      </div>
+      {hasContent ? (
+        <Card className="p-4">
+          <div className={MARKDOWN_PROSE}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {content as string}
+            </ReactMarkdown>
+          </div>
+        </Card>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("overviewEmpty")}</p>
+      )}
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
   const t = useTranslations("documents");
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
+  const canWriteFolder = user?.role === "admin" || user?.role === "owner";
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -287,6 +445,14 @@ export default function DocumentsPage() {
 
           {selectedFolderName && (
             <h2 className="mb-2 text-lg font-semibold">{selectedFolderName}</h2>
+          )}
+
+          {!isAllDocs && selectedFolderId !== null && (
+            <FolderOverview
+              key={selectedFolderId}
+              folderId={selectedFolderId}
+              canWrite={canWriteFolder}
+            />
           )}
 
           {filteredDocs.length === 0 ? (

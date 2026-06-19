@@ -40,15 +40,21 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("GET /api/v1/documents/{id}/pages", h.GetDocumentPages, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 	handle("PATCH /api/v1/documents/{id}/move", h.MoveDocument, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
 	handle("PATCH /api/v1/documents/{id}/title", h.UpdateDocumentTitle, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
+	handle("POST /api/v1/documents/{id}/accept-suggestion", h.AcceptSuggestion, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
+	handle("DELETE /api/v1/documents/{id}/suggestion", h.DismissSuggestion, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionWrite))
 	handle("GET /api/v1/documents/{id}/progress/ws", h.DocumentProgressWS)
 
 	handle("POST /api/v1/search", h.Search, middleware.Authorize(authzEnforcer, authz.ResourceSearch, authz.ActionRead))
+	handle("POST /api/v1/chat", h.ChatGlobal, middleware.Authorize(authzEnforcer, authz.ResourceSearch, authz.ActionRead))
 	handle("POST /api/v1/documents/{id}/chat", h.Chat, middleware.Authorize(authzEnforcer, authz.ResourceDocuments, authz.ActionRead))
 
 	handle("POST /api/v1/folders", h.CreateFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))
 	handle("GET /api/v1/folders", h.ListFolders, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionRead))
 	handle("GET /api/v1/folders/all", h.ListAllFolders, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionRead))
 	handle("PATCH /api/v1/folders/{id}", h.RenameFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))
+	handle("PATCH /api/v1/folders/{id}/move", h.MoveFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))
+	handle("GET /api/v1/folders/{id}/index", h.GetFolderIndex, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionRead))
+	handle("PUT /api/v1/folders/{id}/index", h.SetFolderIndex, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionWrite))
 	handle("DELETE /api/v1/folders/{id}", h.DeleteFolder, middleware.Authorize(authzEnforcer, authz.ResourceFolders, authz.ActionDelete))
 
 	handle("GET /api/v1/tags", h.ListTags, middleware.Authorize(authzEnforcer, authz.ResourceTags, authz.ActionRead))
@@ -69,4 +75,19 @@ func RegisterRoutes(h *Handler, authHandler *AuthHandler, mux *http.ServeMux, jw
 	handle("GET /api/v1/admin/casbin/policies", h.ListPolicies, middleware.Authorize(authzEnforcer, authz.ResourceAdminPolicies, authz.ActionRead))
 	handle("POST /api/v1/admin/casbin/policies", h.AddPolicy, middleware.Authorize(authzEnforcer, authz.ResourceAdminPolicies, authz.ActionWrite))
 	handle("DELETE /api/v1/admin/casbin/policies", h.DeletePolicy, middleware.Authorize(authzEnforcer, authz.ResourceAdminPolicies, authz.ActionDelete))
+
+	handle("PUT /api/v1/documents/{id}/restrict", h.SetDocumentRestricted, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionWrite))
+	handle("DELETE /api/v1/documents/{id}/restrict", h.UnsetDocumentRestricted, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionWrite))
+	handle("PUT /api/v1/folders/{id}/restrict", h.SetFolderRestricted, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionWrite))
+	handle("DELETE /api/v1/folders/{id}/restrict", h.UnsetFolderRestricted, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionWrite))
+
+	handle("POST /api/v1/acl/grants", h.CreateGrant, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionWrite))
+	handle("DELETE /api/v1/acl/grants/{id}", h.DeleteGrant, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionDelete))
+	handle("GET /api/v1/acl/grants", h.ListGrants, middleware.Authorize(authzEnforcer, authz.ResourceACL, authz.ActionRead))
+
+	handle("POST /api/v1/groups", h.CreateGroup, middleware.Authorize(authzEnforcer, authz.ResourceGroups, authz.ActionWrite))
+	handle("DELETE /api/v1/groups/{id}", h.DeleteGroup, middleware.Authorize(authzEnforcer, authz.ResourceGroups, authz.ActionDelete))
+	handle("GET /api/v1/groups", h.ListGroups, middleware.Authorize(authzEnforcer, authz.ResourceGroups, authz.ActionRead))
+	handle("POST /api/v1/groups/{id}/members", h.AddGroupMember, middleware.Authorize(authzEnforcer, authz.ResourceGroups, authz.ActionWrite))
+	handle("DELETE /api/v1/groups/{id}/members/{user_id}", h.RemoveGroupMember, middleware.Authorize(authzEnforcer, authz.ResourceGroups, authz.ActionWrite))
 }

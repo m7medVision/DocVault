@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearDocumentSuggestion = `-- name: ClearDocumentSuggestion :exec
+UPDATE documents
+SET suggested_folder_name = NULL,
+    suggested_filename = NULL,
+    suggestion_confidence = NULL,
+    suggestion_create_new = FALSE,
+    processing_stage = COALESCE($1::varchar, processing_stage)
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+`
+
+type ClearDocumentSuggestionParams struct {
+	ProcessingStage *string `json:"processing_stage"`
+	ID              string  `json:"id"`
+	TenantID        string  `json:"tenant_id"`
+	OrgID           string  `json:"org_id"`
+}
+
+// Clears the four folder-suggestion columns. The caller decides what
+// processing_stage to set (e.g. "completed" on accept, unchanged on dismiss).
+func (q *Queries) ClearDocumentSuggestion(ctx context.Context, arg ClearDocumentSuggestionParams) error {
+	_, err := q.db.Exec(ctx, clearDocumentSuggestion,
+		arg.ProcessingStage,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	return err
+}
+
 const createDocument = `-- name: CreateDocument :exec
 INSERT INTO documents (id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language, processing_stage, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
@@ -124,7 +154,9 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 
 const getDocumentByID = `-- name: GetDocumentByID :one
 SELECT id, tenant_id, org_id, folder_id, owner_id, title, doc_type, status, language,
-       processing_stage, processing_error, created_at
+       processing_stage, processing_error,
+       suggested_folder_name, suggested_filename, suggestion_confidence, suggestion_create_new,
+       created_at
 FROM documents
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3
 `
@@ -136,18 +168,22 @@ type GetDocumentByIDParams struct {
 }
 
 type GetDocumentByIDRow struct {
-	ID              string             `json:"id"`
-	TenantID        string             `json:"tenant_id"`
-	OrgID           string             `json:"org_id"`
-	FolderID        *string            `json:"folder_id"`
-	OwnerID         string             `json:"owner_id"`
-	Title           string             `json:"title"`
-	DocType         DocumentType       `json:"doc_type"`
-	Status          DocumentStatus     `json:"status"`
-	Language        *string            `json:"language"`
-	ProcessingStage *string            `json:"processing_stage"`
-	ProcessingError *string            `json:"processing_error"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ID                   string             `json:"id"`
+	TenantID             string             `json:"tenant_id"`
+	OrgID                string             `json:"org_id"`
+	FolderID             *string            `json:"folder_id"`
+	OwnerID              string             `json:"owner_id"`
+	Title                string             `json:"title"`
+	DocType              DocumentType       `json:"doc_type"`
+	Status               DocumentStatus     `json:"status"`
+	Language             *string            `json:"language"`
+	ProcessingStage      *string            `json:"processing_stage"`
+	ProcessingError      *string            `json:"processing_error"`
+	SuggestedFolderName  *string            `json:"suggested_folder_name"`
+	SuggestedFilename    *string            `json:"suggested_filename"`
+	SuggestionConfidence *float32           `json:"suggestion_confidence"`
+	SuggestionCreateNew  *bool              `json:"suggestion_create_new"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) GetDocumentByID(ctx context.Context, arg GetDocumentByIDParams) (GetDocumentByIDRow, error) {
@@ -165,6 +201,10 @@ func (q *Queries) GetDocumentByID(ctx context.Context, arg GetDocumentByIDParams
 		&i.Language,
 		&i.ProcessingStage,
 		&i.ProcessingError,
+		&i.SuggestedFolderName,
+		&i.SuggestedFilename,
+		&i.SuggestionConfidence,
+		&i.SuggestionCreateNew,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -275,12 +315,14 @@ WITH doc_stats AS (
     COUNT(*) FILTER (WHERE status = 'processed' AND created_at >= NOW() - INTERVAL '7 days') as completed_this_week
   FROM documents d
   WHERE d.tenant_id = $1
+    AND d.org_id = $2
 ),
 storage_stats AS (
   SELECT COALESCE(SUM(v.file_size), 0)::bigint as storage_used_bytes
   FROM documents d
   JOIN document_versions v ON d.id = v.document_id
   WHERE d.tenant_id = $1
+    AND d.org_id = $2
 )
 SELECT d.total_documents, d.pending_documents, d.completed_this_week, s.storage_used_bytes
 FROM doc_stats d, storage_stats s
@@ -288,6 +330,7 @@ FROM doc_stats d, storage_stats s
 
 type GetDocumentStatsParams struct {
 	TenantIDArg string `json:"tenant_id_arg"`
+	OrgIDArg    string `json:"org_id_arg"`
 }
 
 type GetDocumentStatsRow struct {
@@ -298,7 +341,7 @@ type GetDocumentStatsRow struct {
 }
 
 func (q *Queries) GetDocumentStats(ctx context.Context, arg GetDocumentStatsParams) (GetDocumentStatsRow, error) {
-	row := q.db.QueryRow(ctx, getDocumentStats, arg.TenantIDArg)
+	row := q.db.QueryRow(ctx, getDocumentStats, arg.TenantIDArg, arg.OrgIDArg)
 	var i GetDocumentStatsRow
 	err := row.Scan(
 		&i.TotalDocuments,

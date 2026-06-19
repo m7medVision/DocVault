@@ -13,16 +13,18 @@ import (
 	"time"
 
 	"github.com/docvault/backend/internal/repository"
+	"github.com/docvault/backend/internal/search"
 )
 
-const systemPrompt = `You are a helpful assistant that answers questions about a specific document.
-Answer naturally and directly in the user's language.
-Use only the information provided in the document context below. Do not invent facts.
-Prefer concise summaries over copying long passages from the document.
-Use Markdown only when it improves readability.
-Do not restate the user's question.
-Mention page numbers only when they are genuinely helpful.
-If the answer cannot be found in the document, say that plainly.`
+const defaultChatBaseURL = "https://openrouter.ai/api/v1"
+
+const systemPrompt = `You are a helpful assistant that answers questions strictly from the user's documents.
+You are given a set of numbered passages retrieved from those documents.
+Answer ONLY using the information in the numbered passages below. Do not invent facts.
+Cite every supporting passage inline using its number in square brackets, for example [1] or [2].
+If the answer cannot be found in the passages, say so plainly and do not guess.
+Reply in the user's language (Arabic or English).
+Use Markdown only when it improves readability. Do not restate the user's question.`
 
 type ChatMessage struct {
 	Role    string `json:"role"`
@@ -34,38 +36,153 @@ type ChatInput struct {
 	Messages   []ChatMessage
 	TenantID   string
 	OrgID      string
+	UserID     string
+	GroupIDs   []string
+	IsAdmin    bool
 	APIKey     string
 	ChatModel  string
 }
 
-type ChatService struct {
-	documentRepo repository.DocumentRepository
+// ChatSource describes a single retrieved passage surfaced as a citation.
+type ChatSource struct {
+	N          int     `json:"n"`
+	DocumentID string  `json:"documentId"`
+	Title      string  `json:"title"`
+	Page       int     `json:"page"`
+	Score      float64 `json:"score"`
 }
 
-func NewChatService(documentRepo repository.DocumentRepository) *ChatService {
-	return &ChatService{documentRepo: documentRepo}
+type ChatService struct {
+	embedder    search.Embedder
+	searchRepo  repository.SearchRepository
+	httpClient  *http.Client
+	chatBaseURL string
+}
+
+func NewChatService(embedder search.Embedder, searchRepo repository.SearchRepository) *ChatService {
+	return &ChatService{
+		embedder:    embedder,
+		searchRepo:  searchRepo,
+		httpClient:  http.DefaultClient,
+		chatBaseURL: defaultChatBaseURL,
+	}
+}
+
+// buildRetrievalContext turns retrieved chunks into a numbered context block and a
+// parallel slice of citation sources. It is pure so it can be unit-tested in isolation.
+func buildRetrievalContext(chunks []repository.ChunkMatch) (string, []ChatSource) {
+	if len(chunks) == 0 {
+		return "", nil
+	}
+
+	var builder strings.Builder
+	sources := make([]ChatSource, 0, len(chunks))
+	for i, chunk := range chunks {
+		n := i + 1
+		if i > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(fmt.Sprintf("[%d] (source: %s, page %d)\n%s", n, chunk.DocumentTitle, chunk.PageNumber, chunk.ChunkText))
+		sources = append(sources, ChatSource{
+			N:          n,
+			DocumentID: chunk.DocumentID,
+			Title:      chunk.DocumentTitle,
+			Page:       chunk.PageNumber,
+			Score:      chunk.Score,
+		})
+	}
+
+	return builder.String(), sources
+}
+
+func lastUserMessage(messages []ChatMessage) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			return messages[i].Content
+		}
+	}
+	return ""
 }
 
 func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Writer) error {
-	pages, err := s.documentRepo.GetPages(ctx, input.TenantID, input.DocumentID)
-	if err != nil {
-		return fmt.Errorf("failed to get document pages: %w", err)
-	}
+	flusher, canFlush := w.(http.Flusher)
 
-	var contextParts []string
-	for _, page := range pages {
-		if page.OCRText != nil && strings.TrimSpace(*page.OCRText) != "" {
-			contextParts = append(contextParts, fmt.Sprintf("--- Page %d ---\n%s", page.PageNumber, *page.OCRText))
+	messageID := fmt.Sprintf("msg_%d", time.Now().UnixNano())
+	timestamp := time.Now().UnixMilli()
+
+	writeChunk := func(chunk map[string]interface{}) {
+		chunkBytes, err := json.Marshal(chunk)
+		if err != nil {
+			return
+		}
+		fmt.Fprintf(w, "data: %s\n\n", string(chunkBytes))
+		if canFlush {
+			flusher.Flush()
 		}
 	}
 
-	if len(contextParts) == 0 {
-		return fmt.Errorf("document has not been processed yet: no OCR text available")
+	query := strings.TrimSpace(lastUserMessage(input.Messages))
+	if query == "" {
+		return fmt.Errorf("no user message to answer")
 	}
 
-	documentContext := strings.Join(contextParts, "\n\n")
+	embedding, err := s.embedder.Embed(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to generate query embedding: %w", err)
+	}
+	if len(embedding) != expectedEmbeddingDimensions {
+		return fmt.Errorf("unexpected embedding size: got %d want %d", len(embedding), expectedEmbeddingDimensions)
+	}
 
-	systemContent := fmt.Sprintf("%s\n\n<Document>\n%s\n</Document>", systemPrompt, documentContext)
+	searchResult, err := s.searchRepo.Search(ctx, repository.SearchRequest{
+		Query:       query,
+		TenantID:    input.TenantID,
+		OrgID:       input.OrgID,
+		UserID:      input.UserID,
+		GroupIDs:    input.GroupIDs,
+		IsAdmin:     input.IsAdmin,
+		QueryVector: search.FormatVectorLiteral(embedding),
+		Limit: 10,
+		// Use the same relevance floor as /search: chat must never be less able to
+		// find content than search. Off-topic chunks are kept out by the keyword
+		// scoring in search.sql, the top-K limit, and the "say if not found" prompt.
+		MinScore:   minimumSearchScore,
+		DocumentID: input.DocumentID,
+	})
+	if err != nil {
+		return fmt.Errorf("retrieval failed: %w", err)
+	}
+
+	contextBlock, sources := buildRetrievalContext(searchResult.Chunks)
+
+	// No grounding available: stream a graceful message and finish without sources.
+	if len(sources) == 0 {
+		writeChunk(map[string]interface{}{
+			"type":      "TEXT_MESSAGE_START",
+			"messageId": messageID,
+			"role":      "assistant",
+			"timestamp": timestamp,
+		})
+		writeChunk(map[string]interface{}{
+			"type":      "TEXT_MESSAGE_CONTENT",
+			"messageId": messageID,
+			"delta":     "I couldn't find anything about that in your documents.",
+			"timestamp": timestamp,
+		})
+		writeChunk(map[string]interface{}{
+			"type":         "TEXT_MESSAGE_END",
+			"messageId":    messageID,
+			"finishReason": "stop",
+			"timestamp":    timestamp,
+		})
+		writeChunk(map[string]interface{}{
+			"type":      "RUN_FINISHED",
+			"timestamp": timestamp,
+		})
+		return nil
+	}
+
+	systemContent := fmt.Sprintf("%s\n\nNumbered passages:\n%s", systemPrompt, contextBlock)
 
 	apiMessages := []map[string]string{
 		{"role": "system", "content": systemContent},
@@ -88,14 +205,18 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewReader(bodyBytes))
+	url := strings.TrimRight(s.chatBaseURL, "/") + "/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+input.APIKey)
 
-	client := &http.Client{}
+	client := s.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
@@ -106,22 +227,6 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 		respBody, _ := io.ReadAll(resp.Body)
 		slog.Error("OpenRouter API error", "status", resp.StatusCode, "body", string(respBody))
 		return fmt.Errorf("OpenRouter API error: status %d", resp.StatusCode)
-	}
-
-	flusher, canFlush := w.(http.Flusher)
-
-	messageID := fmt.Sprintf("msg_%d", time.Now().UnixNano())
-	timestamp := time.Now().UnixMilli()
-
-	writeChunk := func(chunk map[string]interface{}) {
-		chunkBytes, err := json.Marshal(chunk)
-		if err != nil {
-			return
-		}
-		fmt.Fprintf(w, "data: %s\n\n", string(chunkBytes))
-		if canFlush {
-			flusher.Flush()
-		}
 	}
 
 	writeChunk(map[string]interface{}{
@@ -195,6 +300,13 @@ func (s *ChatService) StreamChat(ctx context.Context, input *ChatInput, w io.Wri
 			"timestamp":    timestamp,
 		})
 	}
+
+	writeChunk(map[string]interface{}{
+		"type":      "SOURCES",
+		"messageId": messageID,
+		"sources":   sources,
+		"timestamp": timestamp,
+	})
 
 	writeChunk(map[string]interface{}{
 		"type":      "RUN_FINISHED",

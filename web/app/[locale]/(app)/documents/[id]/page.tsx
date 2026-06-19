@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,34 +29,67 @@ import {
   Bell,
   MessageSquare,
   History,
+  Lock,
+  FolderInput,
 } from "lucide-react";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { VersionTimeline } from "@/components/VersionTimeline";
 import { FilePreview } from "@/components/FilePreview";
+import { ManageAccessDialog } from "@/components/ManageAccessDialog";
 import { useDocumentDetail } from "@/features/documents/useDocumentDetail";
 import { useDocumentReminders } from "@/features/documents/useDocumentReminders";
 import { ChatPanel } from "@/components/ChatPanel";
+import { useAuth } from "@/lib/useAuth";
 
 export default function DocumentDetailPage() {
   const params = useParams();
   const documentId = params.id as string;
+  const searchParams = useSearchParams();
+  const pageParam = searchParams.get("page");
   const t = useTranslations("documents");
   const tCommon = useTranslations("common");
   const tVersions = useTranslations("versions");
+  const tAccess = useTranslations("access");
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.role === "owner";
 
-  const { document, loading, error, presignedUrl, handleDownload, handleUpdateMetadata, handleRenameTitle } =
-    useDocumentDetail(documentId);
+  const {
+    document,
+    loading,
+    error,
+    presignedUrl,
+    suggestionLoading,
+    handleDownload,
+    handleUpdateMetadata,
+    handleRenameTitle,
+    handleAcceptSuggestion,
+    handleDismissSuggestion,
+  } = useDocumentDetail(documentId);
 
   const [selectedPage, setSelectedPage] = useState(0);
+  const [activeTab, setActiveTab] = useState("document");
   const [editingMetadata, setEditingMetadata] = useState<string | null>(null);
   const [correctedValue, setCorrectedValue] = useState("");
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
 
   const { reminders } = useDocumentReminders(documentId);
+
+  // Deep link from a chat citation (?page=N): open the OCR tab at the cited page.
+  useEffect(() => {
+    if (!pageParam || !document?.pages?.length) return;
+    const target = Number(pageParam);
+    if (!Number.isFinite(target)) return;
+    const index = document.pages.findIndex((p) => p.page_number === target);
+    if (index >= 0) {
+      setSelectedPage(index);
+      setActiveTab("ocr");
+    }
+  }, [pageParam, document]);
 
   const extractedDates = document?.metadata?.filter(
     (m) =>
@@ -111,6 +144,9 @@ export default function DocumentDetailPage() {
   const hasTranslation = document?.language && document.language !== "en";
   const latestVersion = document?.versions?.[document.versions.length - 1];
 
+  const suggestedPath = document?.suggested_folder_name?.trim() || "";
+  const hasSuggestion = suggestedPath.length > 0;
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -159,7 +195,41 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="document" className="space-y-4">
+      {hasSuggestion && (
+        <div className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <FolderInput className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{t("suggestedLocation")}</p>
+              <p className="text-sm text-muted-foreground" dir="auto">
+                {suggestedPath}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleAcceptSuggestion}
+              disabled={suggestionLoading}
+            >
+              {suggestionLoading && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              {t("acceptSuggestion")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDismissSuggestion}
+              disabled={suggestionLoading}
+            >
+              {t("dismissSuggestion")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="document" className="gap-1.5">
             <FileText className="size-4" />
@@ -192,6 +262,17 @@ export default function DocumentDetailPage() {
                 </div>
               )}
               <div className="ms-auto flex items-center gap-2">
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setAccessOpen(true)}
+                  >
+                    <Lock className="size-4" />
+                    {tAccess("manageAccess")}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -468,6 +549,16 @@ export default function DocumentDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {isAdmin && (
+        <ManageAccessDialog
+          open={accessOpen}
+          onOpenChange={setAccessOpen}
+          resourceType="document"
+          resourceId={documentId}
+          resourceTitle={document.title}
+        />
+      )}
     </div>
   );
 }

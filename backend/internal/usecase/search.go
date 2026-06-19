@@ -39,6 +39,9 @@ type SearchInput struct {
 	Tags      []string
 	TenantID  string
 	OrgID     string
+	UserID    string
+	GroupIDs  []string
+	IsAdmin   bool
 	StartDate string
 	EndDate   string
 }
@@ -140,6 +143,9 @@ func (s *SearchService) Search(ctx context.Context, input *SearchInput) (*Search
 		Query:       input.Query,
 		TenantID:    input.TenantID,
 		OrgID:       input.OrgID,
+		UserID:      input.UserID,
+		GroupIDs:    input.GroupIDs,
+		IsAdmin:     input.IsAdmin,
 		DocType:     input.DocType,
 		Language:    input.Language,
 		Status:      input.Status,

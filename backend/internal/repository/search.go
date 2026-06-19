@@ -36,7 +36,10 @@ type SearchRequest struct {
 	Query       string
 	TenantID    string
 	UserID      string
+	GroupIDs    []string
+	IsAdmin     bool
 	OrgID       string
+	DocumentID  string
 	DocType     string
 	Language    string
 	Status      string
@@ -77,6 +80,11 @@ func searchDocumentChunksParams(req SearchRequest) (sqldb.SearchDocumentChunksPa
 	if strings.TrimSpace(req.Query) == "" {
 		return sqldb.SearchDocumentChunksParams{}, fmt.Errorf("query text is required")
 	}
+	// Defense in depth: visibility filtering depends on a user identity, so
+	// search must never run without one.
+	if req.UserID == "" {
+		return sqldb.SearchDocumentChunksParams{}, fmt.Errorf("user id is required")
+	}
 
 	limit := req.Limit
 	if limit <= 0 || limit > 50 {
@@ -88,12 +96,18 @@ func searchDocumentChunksParams(req SearchRequest) (sqldb.SearchDocumentChunksPa
 		tags = []string{}
 	}
 
+	groupIDs := req.GroupIDs
+	if groupIDs == nil {
+		groupIDs = []string{}
+	}
+
 	return sqldb.SearchDocumentChunksParams{
 		LimitCount:  int32(limit),
 		QueryVector: req.QueryVector,
 		QueryText:   strings.TrimSpace(req.Query),
 		TenantID:    req.TenantID,
 		OrgID:       req.OrgID,
+		DocumentID:  optionalString(req.DocumentID),
 		DocType:     optionalString(req.DocType),
 		Language:    optionalString(req.Language),
 		Status:      optionalString(req.Status),
@@ -101,6 +115,9 @@ func searchDocumentChunksParams(req SearchRequest) (sqldb.SearchDocumentChunksPa
 		StartDate:   optionalTimestamptz(req.StartDate),
 		EndDate:     optionalTimestamptz(req.EndDate),
 		Tags:        tags,
+		IsAdmin:     req.IsAdmin,
+		UserID:      req.UserID,
+		GroupIds:    groupIDs,
 	}, nil
 }
 

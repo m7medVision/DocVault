@@ -29,8 +29,11 @@ import {
   renameFolder,
   deleteFolder,
   moveDocument,
+  moveFolder,
 } from '@/lib/api/folders';
 import { toast } from 'sonner';
+
+const FOLDER_DRAG_TYPE = 'application/x-folder-id';
 
 interface FolderTreeProps {
   selectedFolderId?: string;
@@ -64,6 +67,7 @@ export function FolderExplorer({
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null);
   const [draggedDocId, setDraggedDocId] = useState<string | null>(null);
+  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -160,7 +164,25 @@ export function FolderExplorer({
 
   const handleDrop = async (e: React.DragEvent, folderId: string) => {
     e.preventDefault();
+    e.stopPropagation();
     e.currentTarget.removeAttribute('data-drop-target');
+
+    const folderToMove = e.dataTransfer.getData(FOLDER_DRAG_TYPE);
+    if (folderToMove) {
+      if (folderToMove === folderId) return;
+      try {
+        await moveFolder(folderToMove, folderId);
+        toast.success('Folder moved');
+        loadFolders();
+        onRefresh?.();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to move folder';
+        toast.error(message);
+      }
+      return;
+    }
+
     const docId = e.dataTransfer.getData('text/plain');
     if (!docId) return;
 
@@ -173,14 +195,53 @@ export function FolderExplorer({
     }
   };
 
+  const handleRootDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.removeAttribute('data-drop-target');
+
+    const folderToMove = e.dataTransfer.getData(FOLDER_DRAG_TYPE);
+    if (!folderToMove) return;
+
+    try {
+      await moveFolder(folderToMove, null);
+      toast.success('Folder moved');
+      loadFolders();
+      onRefresh?.();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to move folder';
+      toast.error(message);
+    }
+  };
+
   const handleDocumentDragStart = (e: React.DragEvent, docId: string) => {
     setDraggedDocId(docId);
     e.dataTransfer.setData('text/plain', docId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const clearDropTargets = () => {
+    if (typeof window === 'undefined') return;
+    window.document
+      .querySelectorAll('[data-drop-target="true"]')
+      .forEach((el) => el.removeAttribute('data-drop-target'));
+  };
+
   const handleDocumentDragEnd = () => {
     setDraggedDocId(null);
+    clearDropTargets();
+  };
+
+  const handleFolderDragStart = (e: React.DragEvent, folderId: string) => {
+    e.stopPropagation();
+    setDraggedFolderId(folderId);
+    e.dataTransfer.setData(FOLDER_DRAG_TYPE, folderId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleFolderDragEnd = () => {
+    setDraggedFolderId(null);
+    clearDropTargets();
   };
 
   const renderFolder = (folder: FolderNode, depth: number = 0) => {
@@ -195,13 +256,18 @@ export function FolderExplorer({
           className={cn(
             'group flex items-center gap-1 rounded-md px-2 py-1.5 cursor-pointer transition-colors',
             isSelected && 'bg-primary/10 text-primary',
-            !isSelected && 'hover:bg-accent'
+            !isSelected && 'hover:bg-accent',
+            draggedFolderId === folder.id && 'opacity-50',
+            'data-[drop-target=true]:bg-primary/10 data-[drop-target=true]:ring-1 data-[drop-target=true]:ring-primary'
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          draggable={!isEditing}
           onClick={() => {
             onFolderSelect?.(folder.id);
             if (hasChildren) toggleExpand(folder.id);
           }}
+          onDragStart={(e) => handleFolderDragStart(e, folder.id)}
+          onDragEnd={handleFolderDragEnd}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, folder.id)}
@@ -340,7 +406,13 @@ export function FolderExplorer({
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div
+        className="flex-1 overflow-y-auto p-2 data-[drop-target=true]:bg-accent/40"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleRootDrop}
+        data-root-drop-target="true"
+      >
         {loading ? (
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
             Loading...

@@ -12,7 +12,15 @@ import (
 )
 
 const searchDocumentChunks = `-- name: SearchDocumentChunks :many
-WITH filtered_chunks AS (
+WITH RECURSIVE folder_ancestors AS (
+  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
+  FROM folders f WHERE f.org_id = $2
+  UNION ALL
+  SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
+  FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
+  WHERE NOT pf.id = ANY(fa.path) AND array_length(fa.path, 1) < 100
+),
+filtered_chunks AS (
   SELECT
     c.document_id,
     d.title,
@@ -22,27 +30,28 @@ WITH filtered_chunks AS (
     COALESCE(p.page_number, 0)::integer AS page_number,
     COALESCE(d.language, '') AS language,
     FALSE AS is_translation,
-    c.embedding <=> $2::text::vector AS distance,
-    GREATEST(0.0, 1 - (c.embedding <=> $2::text::vector)) AS raw_semantic_score,
-    POSITION(LOWER($3) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
-    POSITION(LOWER($3) IN LOWER(d.title)) > 0 AS title_contains_query
+    c.embedding <=> $3::text::vector AS distance,
+    GREATEST(0.0, 1 - (c.embedding <=> $3::text::vector)) AS raw_semantic_score,
+    POSITION(LOWER($4) IN LOWER(c.chunk_text)) > 0 AS chunk_contains_query,
+    POSITION(LOWER($4) IN LOWER(d.title)) > 0 AS title_contains_query
   FROM extracted_text_chunks c
   JOIN documents d ON c.document_id = d.id
   LEFT JOIN document_pages p ON c.page_id = p.id
   WHERE c.embedding IS NOT NULL
-    AND d.tenant_id = $4
-    AND d.org_id = $5
+    AND d.tenant_id = $5
+    AND d.org_id = $2
     AND ($6::text IS NULL OR d.doc_type::text = $6::text)
     AND ($7::text IS NULL OR d.language = $7::text)
     AND ($8::text IS NULL OR d.status::text = $8::text)
     AND ($9::uuid IS NULL OR d.folder_id = $9::uuid)
-    AND ($10::timestamptz IS NULL OR d.created_at >= $10::timestamptz)
-    AND ($11::timestamptz IS NULL OR d.created_at <= $11::timestamptz)
+    AND ($10::uuid IS NULL OR c.document_id = $10::uuid)
+    AND ($11::timestamptz IS NULL OR d.created_at >= $11::timestamptz)
+    AND ($12::timestamptz IS NULL OR d.created_at <= $12::timestamptz)
     AND (
-      cardinality($12::text[]) = 0
+      cardinality($13::text[]) = 0
       OR NOT EXISTS (
         SELECT 1
-        FROM unnest($12::text[]) AS required_tag(name)
+        FROM unnest($13::text[]) AS required_tag(name)
         WHERE NOT EXISTS (
           SELECT 1
           FROM document_tags dt
@@ -53,6 +62,22 @@ WITH filtered_chunks AS (
         )
       )
     )
+    AND (
+      $14::boolean
+      OR d.owner_id = $15::uuid
+      OR (NOT d.is_restricted AND NOT EXISTS (
+           SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
+      OR EXISTS (SELECT 1 FROM acl_grants g
+           WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+             AND g.org_id = $2
+             AND ((g.principal_type='user' AND g.principal_id=$15::uuid)
+               OR (g.principal_type='group' AND g.principal_id = ANY($16::uuid[]))))
+      OR EXISTS (SELECT 1 FROM folder_ancestors fa
+           JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
+             AND g.org_id = $2
+           WHERE fa.origin_folder_id=d.folder_id
+             AND ((g.principal_type='user' AND g.principal_id=$15::uuid)
+               OR (g.principal_type='group' AND g.principal_id = ANY($16::uuid[])))))
 ),
 scored_chunks AS (
   SELECT
@@ -68,8 +93,8 @@ scored_chunks AS (
     GREATEST(
       LEAST(1.0, GREATEST(0.0, (raw_semantic_score - 0.4) / 0.6)),
       CASE
-        WHEN LOWER(BTRIM(title)) = LOWER(BTRIM($3)) THEN 1.0
-        WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM($3)) THEN 0.99
+        WHEN LOWER(BTRIM(title)) = LOWER(BTRIM($4)) THEN 1.0
+        WHEN LOWER(BTRIM(chunk_text)) = LOWER(BTRIM($4)) THEN 0.99
         WHEN chunk_contains_query THEN 0.97
         WHEN title_contains_query THEN 0.95
         ELSE 0.0
@@ -127,17 +152,21 @@ LIMIT $1
 
 type SearchDocumentChunksParams struct {
 	LimitCount  int32              `json:"limit_count"`
+	OrgID       string             `json:"org_id"`
 	QueryVector string             `json:"query_vector"`
 	QueryText   string             `json:"query_text"`
 	TenantID    string             `json:"tenant_id"`
-	OrgID       string             `json:"org_id"`
 	DocType     *string            `json:"doc_type"`
 	Language    *string            `json:"language"`
 	Status      *string            `json:"status"`
 	FolderID    *string            `json:"folder_id"`
+	DocumentID  *string            `json:"document_id"`
 	StartDate   pgtype.Timestamptz `json:"start_date"`
 	EndDate     pgtype.Timestamptz `json:"end_date"`
 	Tags        []string           `json:"tags"`
+	IsAdmin     bool               `json:"is_admin"`
+	UserID      string             `json:"user_id"`
+	GroupIds    []string           `json:"group_ids"`
 }
 
 type SearchDocumentChunksRow struct {
@@ -155,17 +184,21 @@ type SearchDocumentChunksRow struct {
 func (q *Queries) SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error) {
 	rows, err := q.db.Query(ctx, searchDocumentChunks,
 		arg.LimitCount,
+		arg.OrgID,
 		arg.QueryVector,
 		arg.QueryText,
 		arg.TenantID,
-		arg.OrgID,
 		arg.DocType,
 		arg.Language,
 		arg.Status,
 		arg.FolderID,
+		arg.DocumentID,
 		arg.StartDate,
 		arg.EndDate,
 		arg.Tags,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.GroupIds,
 	)
 	if err != nil {
 		return nil, err

@@ -1,5 +1,13 @@
 -- name: SearchDocumentChunks :many
-WITH filtered_chunks AS (
+WITH RECURSIVE folder_ancestors AS (
+  SELECT f.id AS origin_folder_id, f.id AS ancestor_id, f.parent_id, f.is_restricted, ARRAY[f.id] AS path
+  FROM folders f WHERE f.org_id = sqlc.arg(org_id)
+  UNION ALL
+  SELECT fa.origin_folder_id, pf.id, pf.parent_id, pf.is_restricted, fa.path || pf.id
+  FROM folders pf JOIN folder_ancestors fa ON pf.id = fa.parent_id
+  WHERE NOT pf.id = ANY(fa.path) AND array_length(fa.path, 1) < 100
+),
+filtered_chunks AS (
   SELECT
     c.document_id,
     d.title,
@@ -23,6 +31,7 @@ WITH filtered_chunks AS (
     AND (sqlc.narg(language)::text IS NULL OR d.language = sqlc.narg(language)::text)
     AND (sqlc.narg(status)::text IS NULL OR d.status::text = sqlc.narg(status)::text)
     AND (sqlc.narg(folder_id)::uuid IS NULL OR d.folder_id = sqlc.narg(folder_id)::uuid)
+    AND (sqlc.narg(document_id)::uuid IS NULL OR c.document_id = sqlc.narg(document_id)::uuid)
     AND (sqlc.narg(start_date)::timestamptz IS NULL OR d.created_at >= sqlc.narg(start_date)::timestamptz)
     AND (sqlc.narg(end_date)::timestamptz IS NULL OR d.created_at <= sqlc.narg(end_date)::timestamptz)
     AND (
@@ -40,6 +49,22 @@ WITH filtered_chunks AS (
         )
       )
     )
+    AND (
+      sqlc.arg(is_admin)::boolean
+      OR d.owner_id = sqlc.arg(user_id)::uuid
+      OR (NOT d.is_restricted AND NOT EXISTS (
+           SELECT 1 FROM folder_ancestors fa WHERE fa.origin_folder_id=d.folder_id AND fa.is_restricted))
+      OR EXISTS (SELECT 1 FROM acl_grants g
+           WHERE g.resource_type='document' AND g.resource_id=d.id AND g.permission='read'
+             AND g.org_id = sqlc.arg(org_id)
+             AND ((g.principal_type='user' AND g.principal_id=sqlc.arg(user_id)::uuid)
+               OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[]))))
+      OR EXISTS (SELECT 1 FROM folder_ancestors fa
+           JOIN acl_grants g ON g.resource_type='folder' AND g.resource_id=fa.ancestor_id AND g.permission='read'
+             AND g.org_id = sqlc.arg(org_id)
+           WHERE fa.origin_folder_id=d.folder_id
+             AND ((g.principal_type='user' AND g.principal_id=sqlc.arg(user_id)::uuid)
+               OR (g.principal_type='group' AND g.principal_id = ANY(sqlc.arg(group_ids)::uuid[])))))
 ),
 scored_chunks AS (
   SELECT

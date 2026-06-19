@@ -54,8 +54,54 @@ func (q *Queries) DeleteFolder(ctx context.Context, arg DeleteFolderParams) (int
 	return result.RowsAffected(), nil
 }
 
+const getFolderAncestorIDs = `-- name: GetFolderAncestorIDs :many
+WITH RECURSIVE ancestors(id, parent_id, path) AS (
+  SELECT f.id, f.parent_id, ARRAY[f.id]
+  FROM folders f
+  WHERE f.id = $1::uuid
+    AND f.tenant_id = $2::uuid AND f.org_id = $3::uuid
+  UNION ALL
+  SELECT pf.id, pf.parent_id, a.path || pf.id
+  FROM folders pf JOIN ancestors a ON pf.id = a.parent_id
+  WHERE pf.tenant_id = $2::uuid AND pf.org_id = $3::uuid
+    AND NOT pf.id = ANY(a.path) AND array_length(a.path, 1) < 100
+)
+SELECT id FROM ancestors
+`
+
+type GetFolderAncestorIDsParams struct {
+	FolderID string `json:"folder_id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+// Returns the folder itself plus all of its ancestors (walking parent_id up to
+// the root), cycle-protected via a visited path. Used to detect reparent cycles:
+// a folder may not be moved under itself or any of its descendants, which is
+// equivalent to rejecting when the moved folder appears among the target
+// parent's ancestors (inclusive of the target parent).
+func (q *Queries) GetFolderAncestorIDs(ctx context.Context, arg GetFolderAncestorIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, getFolderAncestorIDs, arg.FolderID, arg.TenantID, arg.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFolderByID = `-- name: GetFolderByID :one
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE id = $1 AND tenant_id = $2 AND org_id = $3
 `
@@ -77,12 +123,108 @@ func (q *Queries) GetFolderByID(ctx context.Context, arg GetFolderByIDParams) (F
 		&i.Name,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.IsRestricted,
+		&i.IndexContent,
 	)
 	return i, err
 }
 
+const getFolderByParentName = `-- name: GetFolderByParentName :one
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
+FROM folders
+WHERE tenant_id = $1 AND org_id = $2
+  AND parent_id IS NOT DISTINCT FROM $3::uuid
+  AND lower(name) = lower($4::text)
+LIMIT 1
+`
+
+type GetFolderByParentNameParams struct {
+	TenantID string  `json:"tenant_id"`
+	OrgID    string  `json:"org_id"`
+	ParentID *string `json:"parent_id"`
+	Name     string  `json:"name"`
+}
+
+// Finds a folder by its (tenant, org, parent, name) tuple. A NULL parent_id
+// matches root-level folders. Name matching is case-insensitive to mirror the
+// unique-name indexes (lower(name)).
+func (q *Queries) GetFolderByParentName(ctx context.Context, arg GetFolderByParentNameParams) (Folder, error) {
+	row := q.db.QueryRow(ctx, getFolderByParentName,
+		arg.TenantID,
+		arg.OrgID,
+		arg.ParentID,
+		arg.Name,
+	)
+	var i Folder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.OrgID,
+		&i.ParentID,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.IsRestricted,
+		&i.IndexContent,
+	)
+	return i, err
+}
+
+const getFolderIndex = `-- name: GetFolderIndex :one
+SELECT index_content
+FROM folders
+WHERE id = $1::uuid
+  AND tenant_id = $2::uuid AND org_id = $3::uuid
+`
+
+type GetFolderIndexParams struct {
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+func (q *Queries) GetFolderIndex(ctx context.Context, arg GetFolderIndexParams) (*string, error) {
+	row := q.db.QueryRow(ctx, getFolderIndex, arg.ID, arg.TenantID, arg.OrgID)
+	var index_content *string
+	err := row.Scan(&index_content)
+	return index_content, err
+}
+
+const getFolderSubtreeHeight = `-- name: GetFolderSubtreeHeight :one
+WITH RECURSIVE subtree(id, path, depth) AS (
+  SELECT f.id, ARRAY[f.id], 1
+  FROM folders f
+  WHERE f.id = $1::uuid
+    AND f.tenant_id = $2::uuid AND f.org_id = $3::uuid
+  UNION ALL
+  SELECT cf.id, s.path || cf.id, s.depth + 1
+  FROM folders cf JOIN subtree s ON cf.parent_id = s.id
+  WHERE cf.tenant_id = $2::uuid AND cf.org_id = $3::uuid
+    AND NOT cf.id = ANY(s.path) AND array_length(s.path, 1) < 100
+)
+SELECT COALESCE(MAX(depth), 0)::int AS height FROM subtree
+`
+
+type GetFolderSubtreeHeightParams struct {
+	FolderID string `json:"folder_id"`
+	TenantID string `json:"tenant_id"`
+	OrgID    string `json:"org_id"`
+}
+
+// Returns the height of the subtree rooted at folder_id, i.e. the number of
+// folder levels from the folder itself down to its deepest descendant. The
+// folder alone is height 1. Used as a soft depth guard so a reparent that would
+// push the moved subtree's deepest leaf past the cap is rejected. Cycle-protected
+// with a path accumulator and a depth cap mirroring the other recursive queries.
+func (q *Queries) GetFolderSubtreeHeight(ctx context.Context, arg GetFolderSubtreeHeightParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getFolderSubtreeHeight, arg.FolderID, arg.TenantID, arg.OrgID)
+	var height int32
+	err := row.Scan(&height)
+	return height, err
+}
+
 const listAllFolders = `-- name: ListAllFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2
 ORDER BY name ASC
@@ -110,6 +252,8 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 			&i.Name,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsRestricted,
+			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -122,7 +266,7 @@ func (q *Queries) ListAllFolders(ctx context.Context, arg ListAllFoldersParams) 
 }
 
 const listFoldersByParent = `-- name: ListFoldersByParent :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id = $3
 ORDER BY name ASC
@@ -151,6 +295,8 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 			&i.Name,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsRestricted,
+			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -163,7 +309,7 @@ func (q *Queries) ListFoldersByParent(ctx context.Context, arg ListFoldersByPare
 }
 
 const listRootFolders = `-- name: ListRootFolders :many
-SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at
+SELECT id, tenant_id, org_id, parent_id, name, created_by, created_at, is_restricted, index_content
 FROM folders
 WHERE tenant_id = $1 AND org_id = $2 AND parent_id IS NULL
 ORDER BY name ASC
@@ -191,6 +337,8 @@ func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams
 			&i.Name,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsRestricted,
+			&i.IndexContent,
 		); err != nil {
 			return nil, err
 		}
@@ -200,6 +348,86 @@ func (q *Queries) ListRootFolders(ctx context.Context, arg ListRootFoldersParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const moveFolder = `-- name: MoveFolder :execrows
+WITH RECURSIVE descendants(descendant_id, path) AS (
+  SELECT f.id, ARRAY[f.id]
+  FROM folders f
+  WHERE f.id = $2::uuid
+    AND f.tenant_id = $3::uuid AND f.org_id = $4::uuid
+  UNION ALL
+  SELECT cf.id, d.path || cf.id
+  FROM folders cf JOIN descendants d ON cf.parent_id = d.descendant_id
+  WHERE cf.tenant_id = $3::uuid AND cf.org_id = $4::uuid
+    AND NOT cf.id = ANY(d.path) AND array_length(d.path, 1) < 100
+)
+UPDATE folders
+SET parent_id = $1::uuid
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+  AND (
+    $1::uuid IS NULL
+    OR (
+      $1::uuid <> id
+      AND $1::uuid NOT IN (SELECT descendant_id FROM descendants)
+    )
+  )
+`
+
+type MoveFolderParams struct {
+	NewParent *string `json:"new_parent"`
+	ID        string  `json:"id"`
+	TenantID  string  `json:"tenant_id"`
+	OrgID     string  `json:"org_id"`
+}
+
+// Reparents a folder while preserving its name. A NULL new_parent moves the
+// folder to root. The cycle check is performed atomically inside this single
+// UPDATE so two concurrent opposite reparents cannot each pass a separate check
+// and then both write a cycle: the update only succeeds when the new parent is
+// neither the folder itself nor any of its descendants. Descendants are gathered
+// by a recursive CTE seeded at the folder being moved, cycle-protected with a
+// path accumulator and a depth cap mirroring the other recursive queries. A
+// 0 rows-affected result signals a rejected (cycle/invalid-parent) move.
+func (q *Queries) MoveFolder(ctx context.Context, arg MoveFolderParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveFolder,
+		arg.NewParent,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setFolderIndex = `-- name: SetFolderIndex :execrows
+UPDATE folders
+SET index_content = $1::text
+WHERE id = $2::uuid
+  AND tenant_id = $3::uuid AND org_id = $4::uuid
+`
+
+type SetFolderIndexParams struct {
+	IndexContent *string `json:"index_content"`
+	ID           string  `json:"id"`
+	TenantID     string  `json:"tenant_id"`
+	OrgID        string  `json:"org_id"`
+}
+
+func (q *Queries) SetFolderIndex(ctx context.Context, arg SetFolderIndexParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setFolderIndex,
+		arg.IndexContent,
+		arg.ID,
+		arg.TenantID,
+		arg.OrgID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateFolder = `-- name: UpdateFolder :exec

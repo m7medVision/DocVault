@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Float,
@@ -86,6 +87,10 @@ class Document(Base):
     language = Column(String)
     processing_stage = Column(String)
     processing_error = Column(Text)
+    suggested_folder_name = Column(String)
+    suggested_filename = Column(String)
+    suggestion_confidence = Column(Float)
+    suggestion_create_new = Column(Boolean)
     created_at = Column(DateTime)
 
 
@@ -570,53 +575,98 @@ class PGVectorRepository:
         finally:
             session.close()
 
-    async def auto_organize(
+    async def leaf_folder_exists(
+        self,
+        tenant_id: str,
+        org_id: str,
+        leaf_name: str,
+    ) -> bool:
+        """Return True if a folder named leaf_name exists for the tenant/org.
+
+        Used to decide suggestion_create_new: whether accepting the suggestion
+        would require creating a new folder for the suggested leaf.
+        """
+        if not leaf_name:
+            return False
+
+        session = self.get_session()
+        try:
+            existing = (
+                session.query(Folder.id)
+                .filter(
+                    Folder.tenant_id == tenant_id,
+                    Folder.org_id == org_id,
+                    Folder.name == leaf_name,
+                )
+                .first()
+            )
+            return existing is not None
+        finally:
+            session.close()
+
+    async def suggest_organization(
         self,
         document_id: str,
         tenant_id: str,
         org_id: str,
-        doc_type: str,
-        desired_title: str,
+        suggested_folder_name: str,
+        suggested_filename: str,
+        suggestion_confidence: float,
     ) -> None:
-        folder_map = {
-            "invoice": "Invoices",
-            "contract": "Contracts",
-            "identity": "Identity",
-            "warranty": "Warranties",
-            "receipt": "Receipts",
-        }
-        folder_name = folder_map.get(doc_type, "Documents")
+        """Persist a non-destructive filing suggestion for a document.
 
-        folder_id = await self.ensure_folder(tenant_id, org_id, folder_name)
-        unique_title = await self.resolve_unique_title(
-            tenant_id,
-            org_id,
-            folder_id,
-            desired_title,
-            document_id,
-        )
+        Does NOT create folders or mutate folder_id/title. It writes the
+        suggestion columns and advances processing_stage to "suggesting".
+        suggested_folder_name is a nested path whose segments are joined by
+        "/"; suggestion_create_new is True when the suggested leaf folder does
+        not already exist for the tenant/org.
+        """
+        # Split the nested path per the contract: split on "/", strip each
+        # segment, skip empties. The leaf is the last surviving segment.
+        segments = [
+            seg.strip()
+            for seg in (suggested_folder_name or "").split("/")
+            if seg.strip()
+        ]
+        normalized_path = "/".join(segments)
+        leaf_name = segments[-1] if segments else ""
+
+        leaf_exists = await self.leaf_folder_exists(tenant_id, org_id, leaf_name)
+        create_new = bool(leaf_name) and not leaf_exists
 
         session = self.get_session()
 
         try:
             doc = session.query(Document).filter(Document.id == document_id).first()
             if not doc:
-                logger.warning("document_not_found_for_auto_organize", document_id=document_id)
+                logger.warning(
+                    "document_not_found_for_suggest_organization",
+                    document_id=document_id,
+                )
                 return
 
-            doc.folder_id = folder_id
-            doc.title = unique_title
+            doc.suggested_folder_name = normalized_path
+            doc.suggested_filename = suggested_filename
+            doc.suggestion_confidence = suggestion_confidence
+            doc.suggestion_create_new = create_new
+            doc.processing_stage = "suggesting"
             session.commit()
             logger.info(
-                "auto_organized",
+                "organization_suggested",
                 document_id=document_id,
-                folder_id=folder_id,
-                title=unique_title,
+                suggested_folder_name=normalized_path,
+                suggested_filename=suggested_filename,
+                suggestion_confidence=suggestion_confidence,
+                suggestion_create_new=create_new,
             )
 
         except Exception as e:
             session.rollback()
-            logger.error("auto_organize_failed", document_id=document_id, error=str(e))
+            logger.error(
+                "suggest_organization_failed",
+                document_id=document_id,
+                error=str(e),
+            )
             raise
 
         finally:

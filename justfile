@@ -32,6 +32,7 @@ help:
     @echo "  just db-migrate      Run database migrations (goose)"
     @echo "  just db-rollback     Rollback last migration"
     @echo "  just db-status       Show migration status"
+    @echo "  just db-seed         Seed sample tenants/orgs/users (idempotent)"
     @echo "  just sqlc-install    Install pinned sqlc"
     @echo "  just sqlc-generate   Generate SQLC code"
     @echo "  just sqlc-check      Verify SQLC code is fresh"
@@ -131,6 +132,10 @@ db-status:
 db-reset:
     docker compose --env-file {{ENV_FILE}} down -v
 
+# Seed the dev database with sample tenants/orgs/users (idempotent; applies migrations first)
+db-seed:
+    cd backend && go run ./cmd/seed
+
 sqlc-install:
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@{{SQLC_VERSION}}
 
@@ -143,3 +148,7 @@ sqlc-generate: sqlc-schema
 
 sqlc-check: sqlc-generate
 	git diff --exit-code -- backend/sqlc.yaml backend/internal/query backend/internal/db
+
+# Run DB-backed integration tests (require a live Postgres at DATABASE_URL).
+test-integration:
+	cd backend && go test -tags=integration ./...

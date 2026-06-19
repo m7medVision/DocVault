@@ -22,6 +22,8 @@ func TestSeedTenantPolicies(t *testing.T) {
 	require.NoError(t, err)
 	_, err = enforcer.AddRoleForUserInDomain("carol", authz.RoleViewer, "tenant-1")
 	require.NoError(t, err)
+	_, err = enforcer.AddRoleForUserInDomain("dave", authz.RoleAdmin, "tenant-1")
+	require.NoError(t, err)
 
 	tests := []struct {
 		name     string
@@ -39,6 +41,20 @@ func TestSeedTenantPolicies(t *testing.T) {
 		{"viewer can read search", "carol", "tenant-1", authz.ResourceSearch, authz.ActionRead, true},
 		{"viewer cannot invite members", "carol", "tenant-1", authz.ResourceAdminMembers, authz.ActionInvite, false},
 		{"cross-tenant access denied", "alice", "tenant-2", authz.ResourceDocuments, authz.ActionRead, false},
+
+		// M2: per-document/folder restriction & group management permissions.
+		{"member denied acl write", "bob", "tenant-1", authz.ResourceACL, authz.ActionWrite, false},
+		{"owner inherits admin acl write", "alice", "tenant-1", authz.ResourceACL, authz.ActionWrite, true},
+		{"admin allowed acl read", "alice", "tenant-1", authz.ResourceACL, authz.ActionRead, true},
+		{"admin allowed acl delete", "alice", "tenant-1", authz.ResourceACL, authz.ActionDelete, true},
+		{"admin allowed groups write", "alice", "tenant-1", authz.ResourceGroups, authz.ActionWrite, true},
+		{"admin allowed groups read", "alice", "tenant-1", authz.ResourceGroups, authz.ActionRead, true},
+		{"admin allowed groups delete", "alice", "tenant-1", authz.ResourceGroups, authz.ActionDelete, true},
+		{"member denied acl read", "bob", "tenant-1", authz.ResourceACL, authz.ActionRead, false},
+		{"member denied groups write", "bob", "tenant-1", authz.ResourceGroups, authz.ActionWrite, false},
+		{"viewer denied acl write", "carol", "tenant-1", authz.ResourceACL, authz.ActionWrite, false},
+		{"admin role allowed acl write", "dave", "tenant-1", authz.ResourceACL, authz.ActionWrite, true},
+		{"admin role allowed groups write", "dave", "tenant-1", authz.ResourceGroups, authz.ActionWrite, true},
 	}
 
 	for _, tt := range tests {
@@ -59,7 +75,7 @@ func TestSeedTenantPoliciesIsIdempotent(t *testing.T) {
 
 	policies, err := enforcer.GetPolicy()
 	require.NoError(t, err)
-	assert.Len(t, policies, 18)
+	assert.Len(t, policies, 24)
 
 	groupingPolicies, err := enforcer.GetGroupingPolicy()
 	require.NoError(t, err)

@@ -9,16 +9,11 @@ from docvault_shared import telemetry
 from docvault_shared.config import config
 from docvault_shared.transport.publisher import QueuePublisher
 
-from ..classifier import generate_display_title
-
-
-CATEGORY_FOLDER_BY_TYPE = {
-    "invoice": "Invoices",
-    "contract": "Contracts",
-    "identity": "Identity",
-    "warranty": "Warranties",
-    "receipt": "Receipts",
-}
+from ..classifier import (
+    generate_display_title,
+    suggest_folder_path,
+    suggestion_confidence,
+)
 
 
 class ProcessingJobHandler:
@@ -238,13 +233,14 @@ class ProcessingJobHandler:
             )
 
             original_title = await self.pg_repo.get_document_title(document_id) or "document"
-            desired_title = generate_display_title(metadata, original_title)
-            await self.pg_repo.auto_organize(
+            suggested_filename = generate_display_title(metadata, original_title)
+            await self.pg_repo.suggest_organization(
                 document_id=document_id,
                 tenant_id=tenant_id,
                 org_id=org_id,
-                doc_type=metadata.get("doc_type", "other"),
-                desired_title=desired_title,
+                suggested_folder_name=suggest_folder_path(metadata),
+                suggested_filename=suggested_filename,
+                suggestion_confidence=suggestion_confidence(metadata),
             )
 
             try:

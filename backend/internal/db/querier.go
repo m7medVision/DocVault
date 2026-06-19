@@ -9,12 +9,18 @@ import (
 )
 
 type Querier interface {
+	AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error
 	AddTagToDocument(ctx context.Context, arg AddTagToDocumentParams) error
+	// Clears the four folder-suggestion columns. The caller decides what
+	// processing_stage to set (e.g. "completed" on accept, unchanged on dismiss).
+	ClearDocumentSuggestion(ctx context.Context, arg ClearDocumentSuggestionParams) error
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) error
 	CreateDocumentPage(ctx context.Context, arg CreateDocumentPageParams) error
 	CreateDocumentVersion(ctx context.Context, arg CreateDocumentVersionParams) error
 	CreateFolder(ctx context.Context, arg CreateFolderParams) error
+	CreateGrant(ctx context.Context, arg CreateGrantParams) (string, error)
+	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateMembership(ctx context.Context, arg CreateMembershipParams) error
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) error
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) error
@@ -25,6 +31,9 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) error
 	DeleteDocument(ctx context.Context, arg DeleteDocumentParams) (int64, error)
 	DeleteFolder(ctx context.Context, arg DeleteFolderParams) (int64, error)
+	DeleteGrant(ctx context.Context, arg DeleteGrantParams) (int64, error)
+	DeleteGrantsForResource(ctx context.Context, arg DeleteGrantsForResourceParams) (int64, error)
+	DeleteGroup(ctx context.Context, arg DeleteGroupParams) (int64, error)
 	DeleteReminderRule(ctx context.Context, arg DeleteReminderRuleParams) (int64, error)
 	DeleteTag(ctx context.Context, arg DeleteTagParams) (int64, error)
 	FindUserByEmail(ctx context.Context, arg FindUserByEmailParams) (FindUserByEmailRow, error)
@@ -35,7 +44,24 @@ type Querier interface {
 	GetDocumentStats(ctx context.Context, arg GetDocumentStatsParams) (GetDocumentStatsRow, error)
 	GetDocumentTags(ctx context.Context, arg GetDocumentTagsParams) ([]Tag, error)
 	GetDocumentVersions(ctx context.Context, arg GetDocumentVersionsParams) ([]DocumentVersion, error)
+	// Returns the folder itself plus all of its ancestors (walking parent_id up to
+	// the root), cycle-protected via a visited path. Used to detect reparent cycles:
+	// a folder may not be moved under itself or any of its descendants, which is
+	// equivalent to rejecting when the moved folder appears among the target
+	// parent's ancestors (inclusive of the target parent).
+	GetFolderAncestorIDs(ctx context.Context, arg GetFolderAncestorIDsParams) ([]string, error)
 	GetFolderByID(ctx context.Context, arg GetFolderByIDParams) (Folder, error)
+	// Finds a folder by its (tenant, org, parent, name) tuple. A NULL parent_id
+	// matches root-level folders. Name matching is case-insensitive to mirror the
+	// unique-name indexes (lower(name)).
+	GetFolderByParentName(ctx context.Context, arg GetFolderByParentNameParams) (Folder, error)
+	GetFolderIndex(ctx context.Context, arg GetFolderIndexParams) (*string, error)
+	// Returns the height of the subtree rooted at folder_id, i.e. the number of
+	// folder levels from the folder itself down to its deepest descendant. The
+	// folder alone is height 1. Used as a soft depth guard so a reparent that would
+	// push the moved subtree's deepest leaf past the cap is rejected. Cycle-protected
+	// with a path accumulator and a depth cap mirroring the other recursive queries.
+	GetFolderSubtreeHeight(ctx context.Context, arg GetFolderSubtreeHeightParams) (int32, error)
 	GetMembershipByID(ctx context.Context, arg GetMembershipByIDParams) (GetMembershipByIDRow, error)
 	GetPendingReminderEvents(ctx context.Context, arg GetPendingReminderEventsParams) ([]ReminderEvent, error)
 	GetPrimaryMembershipByUserID(ctx context.Context, arg GetPrimaryMembershipByUserIDParams) (GetPrimaryMembershipByUserIDRow, error)
@@ -44,12 +70,28 @@ type Querier interface {
 	GetTagByID(ctx context.Context, arg GetTagByIDParams) (Tag, error)
 	GetTagByName(ctx context.Context, arg GetTagByNameParams) (Tag, error)
 	GetUnreadNotificationCount(ctx context.Context, arg GetUnreadNotificationCountParams) (int64, error)
+	// Returns true when the (resource_type, resource_id) refers to an existing
+	// document or folder in the caller's tenant/org, used to validate a grant target.
+	GrantTargetExists(ctx context.Context, arg GrantTargetExistsParams) (bool, error)
+	IsDocumentVisibleToUser(ctx context.Context, arg IsDocumentVisibleToUserParams) (*bool, error)
+	IsDocumentWritableToUser(ctx context.Context, arg IsDocumentWritableToUserParams) (*bool, error)
 	IsEmailTakenByOther(ctx context.Context, arg IsEmailTakenByOtherParams) (bool, error)
+	// Mirrors IsDocumentVisibleToUser but is seeded from the FOLDER itself instead of
+	// a document's containing folder. The recursive folder_chain starts at the target
+	// folder and walks parent_id up to the root, cycle-protected with a path
+	// accumulator and a depth cap. The folder is visible iff the principal is an
+	// admin, OR created the folder, OR the folder itself is NOT restricted and has no
+	// restricted ancestor, OR there is a read grant on the folder or any of its
+	// ancestors for the user or one of their groups (scoped to org_id).
+	IsFolderVisibleToUser(ctx context.Context, arg IsFolderVisibleToUserParams) (*bool, error)
 	ListActiveReminderRulesByTenant(ctx context.Context, arg ListActiveReminderRulesByTenantParams) ([]ReminderRule, error)
 	ListAllFolders(ctx context.Context, arg ListAllFoldersParams) ([]Folder, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
 	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]ListDocumentsRow, error)
 	ListFoldersByParent(ctx context.Context, arg ListFoldersByParentParams) ([]Folder, error)
+	ListGrantsByResource(ctx context.Context, arg ListGrantsByResourceParams) ([]AclGrant, error)
+	ListGroupIDsForUser(ctx context.Context, arg ListGroupIDsForUserParams) ([]string, error)
+	ListGroups(ctx context.Context, arg ListGroupsParams) ([]Group, error)
 	ListMembershipsByOrg(ctx context.Context, arg ListMembershipsByOrgParams) ([]ListMembershipsByOrgRow, error)
 	ListMembershipsByTenant(ctx context.Context, arg ListMembershipsByTenantParams) ([]ListMembershipsByTenantRow, error)
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
@@ -57,11 +99,25 @@ type Querier interface {
 	ListRootFolders(ctx context.Context, arg ListRootFoldersParams) ([]Folder, error)
 	ListTags(ctx context.Context, arg ListTagsParams) ([]Tag, error)
 	ListUpcomingReminderRules(ctx context.Context, arg ListUpcomingReminderRulesParams) ([]ReminderRule, error)
+	ListVisibleDocuments(ctx context.Context, arg ListVisibleDocumentsParams) ([]ListVisibleDocumentsRow, error)
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error)
+	// Reparents a folder while preserving its name. A NULL new_parent moves the
+	// folder to root. The cycle check is performed atomically inside this single
+	// UPDATE so two concurrent opposite reparents cannot each pass a separate check
+	// and then both write a cycle: the update only succeeds when the new parent is
+	// neither the folder itself nor any of its descendants. Descendants are gathered
+	// by a recursive CTE seeded at the folder being moved, cycle-protected with a
+	// path accumulator and a depth cap mirroring the other recursive queries. A
+	// 0 rows-affected result signals a rejected (cycle/invalid-parent) move.
+	MoveFolder(ctx context.Context, arg MoveFolderParams) (int64, error)
+	RemoveGroupMember(ctx context.Context, arg RemoveGroupMemberParams) (int64, error)
 	RemoveTagFromDocument(ctx context.Context, arg RemoveTagFromDocumentParams) error
 	SearchDocumentChunks(ctx context.Context, arg SearchDocumentChunksParams) ([]SearchDocumentChunksRow, error)
 	SearchTags(ctx context.Context, arg SearchTagsParams) ([]Tag, error)
 	SetDocumentMetadata(ctx context.Context, arg SetDocumentMetadataParams) error
+	SetDocumentRestricted(ctx context.Context, arg SetDocumentRestrictedParams) (int64, error)
+	SetFolderIndex(ctx context.Context, arg SetFolderIndexParams) (int64, error)
+	SetFolderRestricted(ctx context.Context, arg SetFolderRestrictedParams) (int64, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) error
 	UpdateDocumentMetadataField(ctx context.Context, arg UpdateDocumentMetadataFieldParams) (int64, error)
 	UpdateDocumentProcessingFields(ctx context.Context, arg UpdateDocumentProcessingFieldsParams) error

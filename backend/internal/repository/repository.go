@@ -31,7 +31,9 @@ type DocumentRepository interface {
 	UpdateMetadataField(ctx context.Context, tenantID, documentID, key, correctedValue, correctedBy string) error
 	GetFullDocument(ctx context.Context, tenantID, orgID, documentID string) (*document.Document, []document.DocumentVersion, []document.DocumentMetadata, error)
 	UpdateProcessingFields(ctx context.Context, tenantID, documentID string, stage *string, errMsg *string) error
-	GetStats(ctx context.Context, tenantID string) (*document.DocumentStats, error)
+	ClearSuggestion(ctx context.Context, tenantID, orgID, documentID string, stage *string) error
+	ApplySuggestion(ctx context.Context, doc *document.Document, stage *string) error
+	GetStats(ctx context.Context, tenantID, orgID string) (*document.DocumentStats, error)
 }
 
 // ReminderRepository provides reminder data access.
@@ -52,12 +54,45 @@ type ReminderRepository interface {
 type FolderRepository interface {
 	Create(ctx context.Context, folder *document.Folder) error
 	GetByID(ctx context.Context, tenantID, orgID, id string) (*document.Folder, error)
+	GetByParentName(ctx context.Context, tenantID, orgID string, parentID *string, name string) (*document.Folder, error)
 	ListByParent(ctx context.Context, tenantID, orgID, parentID string) ([]document.Folder, error)
 	ListRoot(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
 	ListAll(ctx context.Context, tenantID, orgID string) ([]document.Folder, error)
 	Update(ctx context.Context, folder *document.Folder) error
+	// Reparent is the only sanctioned path for moving a folder. It runs the
+	// cycle-checked move plus the depth check inside a single transaction that
+	// first takes a tenant-scoped advisory lock, so concurrent reparents within a
+	// tenant serialize and cannot race a cycle. maxDepth is the hard nesting cap.
+	Reparent(ctx context.Context, tenantID, orgID, folderID string, parentID *string, maxDepth int) error
 	Delete(ctx context.Context, tenantID, orgID, id string) error
+	// GetIndex returns the folder's optional markdown "About this folder"
+	// overview. A nil pointer means the folder has no index content set.
+	GetIndex(ctx context.Context, tenantID, orgID, id string) (*string, error)
+	// SetIndex updates the folder's index content. A nil content clears it.
+	// Returns ErrFolderNotFound when no folder matched the tenant/org/id.
+	SetIndex(ctx context.Context, tenantID, orgID, id string, content *string) error
 }
+
+// ErrFolderNameExists is returned by folder Create-style operations when a
+// folder with the same (tenant, org, parent, name) already exists. Callers that
+// find-or-create (e.g. EnsureFolderPath) treat it as a signal to fetch the
+// existing folder rather than fail.
+var ErrFolderNameExists = errFolderNameExists
+
+// ErrFolderNotFound is returned by GetByParentName when no folder matches the
+// (tenant, org, parent, name) tuple. Callers detect a lookup miss via
+// errors.Is(err, ErrFolderNotFound) instead of matching error-string substrings.
+var ErrFolderNotFound = errFolderNotFound
+
+// ErrFolderReparentCycle is returned by Reparent when the (advisory-locked)
+// cycle-checked move rejected the new parent as the folder itself or one of its
+// descendants. The usecase maps it to ErrFolderCycle.
+var ErrFolderReparentCycle = errFolderReparentCycle
+
+// ErrFolderReparentDepthExceeded is returned by Reparent when the moved subtree
+// would exceed the supplied depth cap. The usecase maps it to
+// ErrFolderDepthExceeded.
+var ErrFolderReparentDepthExceeded = errFolderReparentDepthExceeded
 
 // TagRepository provides tag data access.
 type TagRepository interface {
@@ -108,6 +143,7 @@ type Repositories struct {
 	Membership   MembershipRepository
 	Policy       PolicyRepository
 	Search       SearchRepository
+	ACL          ACLRepository
 }
 
 // NewRepositories creates all repository instances with the given database pool.
@@ -123,5 +159,6 @@ func NewRepositories(db *pgxpool.Pool, enforcer *casbin.Enforcer) *Repositories 
 		Membership:   NewMembershipRepository(db),
 		Policy:       NewPolicyRepository(enforcer),
 		Search:       NewSearchRepository(db),
+		ACL:          NewACLRepository(db),
 	}
 }

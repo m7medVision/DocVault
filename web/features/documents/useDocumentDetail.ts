@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   getDocument,
   getDocumentPages,
@@ -12,7 +12,9 @@ import {
   type DocumentMetadata,
   type DocumentVersion,
 } from '@/features/documents/api';
+import { acceptSuggestion, dismissSuggestion } from '@/lib/api/documents';
 import { updateDocumentTitle } from '@/lib/api/folders';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 export type DocumentDetail = Document & {
@@ -27,17 +29,37 @@ export interface UseDocumentDetailResult {
   error: string | null;
   presignedUrl: string | null;
   downloadLoading: boolean;
+  suggestionLoading: boolean;
   handleDownload: () => void;
   handleUpdateMetadata: (key: string, value: string) => void;
   handleRenameTitle: (title: string) => Promise<boolean>;
+  handleAcceptSuggestion: () => Promise<boolean>;
+  handleDismissSuggestion: () => Promise<boolean>;
 }
 
 export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
+  const t = useTranslations('documents');
   const [document, setDocument] = useState<DocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [presignedUrl, setPresignedUrl] = useState<string | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+
+  const reloadDocument = useCallback(async () => {
+    const [detail, pagesResponse, versionsResponse] = await Promise.all([
+      getDocument(documentId),
+      getDocumentPages(documentId),
+      getDocumentVersions(documentId),
+    ]);
+
+    setDocument({
+      ...detail.document,
+      metadata: detail.metadata,
+      pages: pagesResponse.pages,
+      versions: versionsResponse.versions,
+    });
+  }, [documentId]);
 
   useEffect(() => {
     async function loadDocument() {
@@ -45,19 +67,7 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
 
       try {
         setLoading(true);
-        const [detail, pagesResponse, versionsResponse] = await Promise.all([
-          getDocument(documentId),
-          getDocumentPages(documentId),
-          getDocumentVersions(documentId),
-        ]);
-
-        const doc: DocumentDetail = {
-          ...detail.document,
-          metadata: detail.metadata,
-          pages: pagesResponse.pages,
-          versions: versionsResponse.versions,
-        };
-        setDocument(doc);
+        await reloadDocument();
 
         try {
           const dl = await downloadDocument(documentId);
@@ -72,7 +82,7 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
     }
 
     loadDocument();
-  }, [documentId]);
+  }, [documentId, reloadDocument]);
 
   const handleDownload = async () => {
     try {
@@ -115,14 +125,58 @@ export function useDocumentDetail(documentId: string): UseDocumentDetailResult {
     }
   };
 
+  const handleAcceptSuggestion = async (): Promise<boolean> => {
+    try {
+      setSuggestionLoading(true);
+      await acceptSuggestion(documentId);
+      await reloadDocument();
+      toast.success(t('suggestionAccepted'));
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('suggestionFailed');
+      toast.error(message);
+      return false;
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
+  const handleDismissSuggestion = async (): Promise<boolean> => {
+    try {
+      setSuggestionLoading(true);
+      await dismissSuggestion(documentId);
+      setDocument((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          suggested_folder_name: null,
+          suggested_filename: null,
+          suggestion_confidence: null,
+          suggestion_create_new: false,
+        };
+      });
+      toast.success(t('suggestionDismissed'));
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('suggestionFailed');
+      toast.error(message);
+      return false;
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
   return {
     document,
     loading,
     error,
     presignedUrl,
     downloadLoading,
+    suggestionLoading,
     handleDownload,
     handleUpdateMetadata,
     handleRenameTitle,
+    handleAcceptSuggestion,
+    handleDismissSuggestion,
   };
 }

@@ -9,6 +9,10 @@ export interface Document {
   status: string;
   language?: string;
   created_at: string;
+  suggested_folder_name?: string | null;
+  suggested_filename?: string | null;
+  suggestion_confidence?: number | null;
+  suggestion_create_new?: boolean | null;
 }
 
 export interface DocumentVersion {

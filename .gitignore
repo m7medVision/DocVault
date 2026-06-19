@@ -35,3 +35,6 @@ Thumbs.db
 .devenv/
 erl_crash.dump
 /web/.env.sentry-build-plugin
+
+# TS incremental build info
+web/tsconfig.tsbuildinfo

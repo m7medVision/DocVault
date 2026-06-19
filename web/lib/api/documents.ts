@@ -94,3 +94,21 @@ export async function downloadDocument(
 export async function getDocumentStats(): Promise<import('./types').DocumentStats> {
   return apiFetch<import('./types').DocumentStats>('/documents/stats');
 }
+
+export async function acceptSuggestion(
+  id: string
+): Promise<{ document: import('./types').Document }> {
+  return apiFetch<{ document: import('./types').Document }>(
+    `/documents/${id}/accept-suggestion`,
+    { method: 'POST' }
+  );
+}
+
+export async function dismissSuggestion(
+  id: string
+): Promise<{ id: string; message: string }> {
+  return apiFetch<{ id: string; message: string }>(
+    `/documents/${id}/suggestion`,
+    { method: 'DELETE' }
+  );
+}
