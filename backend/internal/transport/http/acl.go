@@ -13,108 +13,50 @@ var validACLPermissions = map[string]bool{"read": true, "write": true, "delete":
 var validPrincipalTypes = map[string]bool{"user": true, "group": true}
 var validResourceTypes = map[string]bool{"document": true, "folder": true}
 
-// requireDocVisible returns true if it already wrote an error response (caller
-// should return). Admins short-circuit without a DB lookup. For non-admins it
-// evaluates per-document read visibility; an invisible document or any error is
-// reported as 404 (not 403) so callers cannot probe for existence.
-func (h *Handler) requireDocVisible(w http.ResponseWriter, r *http.Request, documentID string) bool {
+// principalFrom builds the caller's security context from the request. IsAdmin
+// captures the admin short-circuit (admin or owner) so the app-layer Authorizer
+// stays free of the role hierarchy.
+func principalFrom(r *http.Request) usecase.Principal {
 	ctx := r.Context()
 	role := middleware.GetUserRole(ctx)
-	if middleware.HasMinRole(role, middleware.RoleAdmin) {
-		return false // short-circuit, no DB
+	return usecase.Principal{
+		TenantID: middleware.GetTenantID(ctx),
+		OrgID:    middleware.GetOrgID(ctx),
+		UserID:   middleware.GetUserID(ctx),
+		Role:     role,
+		IsAdmin:  middleware.HasMinRole(role, middleware.RoleAdmin),
 	}
-	userID := middleware.GetUserID(ctx)
-	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
-	if err != nil {
-		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		return true
-	}
-	visible, err := h.aclRepo.IsDocumentVisible(ctx, repository.VisibilityParams{
-		TenantID:   middleware.GetTenantID(ctx),
-		OrgID:      middleware.GetOrgID(ctx),
-		DocumentID: documentID,
-		UserID:     userID,
-		GroupIDs:   groupIDs,
-		IsAdmin:    false,
-	})
-	if err != nil {
-		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		return true
-	}
-	if !visible {
-		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+}
+
+// requireDocVisible returns true if it already wrote an error response (caller
+// should return). It delegates the decision to the app-layer Authorizer, which
+// owns the admin short-circuit and the invisible/error -> 404 (not 403) rule.
+func (h *Handler) requireDocVisible(w http.ResponseWriter, r *http.Request, documentID string) bool {
+	if err := h.authz.RequireDocVisible(r.Context(), principalFrom(r), documentID); err != nil {
+		writeErr(w, r, err)
 		return true
 	}
 	return false
 }
 
-// requireFolderVisible returns true if it already wrote an error response (caller
-// should return). Admins short-circuit without a DB lookup. For non-admins it
-// evaluates per-folder read visibility; an invisible folder or any error is
-// reported as 404 (not 403) so callers cannot probe for existence.
+// requireFolderVisible returns true if it already wrote an error response
+// (caller should return). It delegates to the Authorizer, which owns the admin
+// short-circuit and the invisible/error -> 404 (not 403) rule.
 func (h *Handler) requireFolderVisible(w http.ResponseWriter, r *http.Request, folderID string) bool {
-	ctx := r.Context()
-	role := middleware.GetUserRole(ctx)
-	if middleware.HasMinRole(role, middleware.RoleAdmin) {
-		return false // short-circuit, no DB
-	}
-	userID := middleware.GetUserID(ctx)
-	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
-	if err != nil {
-		http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		return true
-	}
-	visible, err := h.aclRepo.IsFolderVisible(ctx, repository.FolderVisibilityParams{
-		TenantID: middleware.GetTenantID(ctx),
-		OrgID:    middleware.GetOrgID(ctx),
-		FolderID: folderID,
-		UserID:   userID,
-		GroupIDs: groupIDs,
-		IsAdmin:  false,
-	})
-	if err != nil {
-		http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		return true
-	}
-	if !visible {
-		http.Error(w, `{"error":"folder not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+	if err := h.authz.RequireFolderVisible(r.Context(), principalFrom(r), folderID); err != nil {
+		writeErr(w, r, err)
 		return true
 	}
 	return false
 }
 
 // requireDocWritable returns true if it already wrote an error response (caller
-// should return). Admins short-circuit without a DB lookup. For non-admins it
-// evaluates per-document write permission: org-open documents remain writable by
-// role, while a restricted document (or one under a restricted ancestor) requires
-// a write/delete grant. A non-writable document or any error is reported as 404
-// (not 403) so callers cannot probe for existence.
+// should return). It delegates to the Authorizer, which owns the admin
+// short-circuit and the non-writable/error -> 404 (not 403) rule so a read-only
+// grant cannot be used to probe for or mutate a restricted document.
 func (h *Handler) requireDocWritable(w http.ResponseWriter, r *http.Request, documentID string) bool {
-	ctx := r.Context()
-	role := middleware.GetUserRole(ctx)
-	if middleware.HasMinRole(role, middleware.RoleAdmin) {
-		return false // short-circuit, no DB
-	}
-	userID := middleware.GetUserID(ctx)
-	groupIDs, err := h.aclRepo.ListUserGroupIDs(ctx, userID, middleware.GetOrgID(ctx))
-	if err != nil {
-		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		return true
-	}
-	writable, err := h.aclRepo.IsDocumentWritable(ctx, repository.VisibilityParams{
-		TenantID:   middleware.GetTenantID(ctx),
-		OrgID:      middleware.GetOrgID(ctx),
-		DocumentID: documentID,
-		UserID:     userID,
-		GroupIDs:   groupIDs,
-		IsAdmin:    false,
-	})
-	if err != nil {
-		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
-		return true
-	}
-	if !writable {
-		http.Error(w, `{"error":"document not found","code":"NOT_FOUND"}`, http.StatusNotFound)
+	if err := h.authz.RequireDocWritable(r.Context(), principalFrom(r), documentID); err != nil {
+		writeErr(w, r, err)
 		return true
 	}
 	return false

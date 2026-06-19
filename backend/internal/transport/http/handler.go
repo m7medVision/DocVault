@@ -39,6 +39,7 @@ type Handler struct {
 	membershipRepo  repository.MembershipRepository
 	policyRepo      repository.PolicyRepository
 	aclRepo         repository.ACLRepository
+	authz           *usecase.Authorizer
 }
 
 type Dependencies struct {
@@ -75,5 +76,6 @@ func New(cfg *config.Config, deps Dependencies) *Handler {
 		membershipRepo:  deps.MembershipRepo,
 		policyRepo:      deps.PolicyRepo,
 		aclRepo:         deps.ACLRepo,
+		authz:           usecase.NewAuthorizer(deps.ACLRepo),
 	}
 }
