@@ -4,6 +4,8 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Check, Mail } from "lucide-react";
 
+import { Reveal } from "@/components/ui/reveal";
+
 const PLAN_KEYS = ["starter", "practice", "office"] as const;
 
 export function Pricing() {
@@ -17,53 +19,58 @@ export function Pricing() {
       className="border-t border-border bg-secondary/30"
     >
       <div className="container-wide py-20 sm:py-28">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="kicker mb-4">{t("kicker")}</p>
-            <h2
-              id="pricing-title"
-              className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
-            >
-              {t("title")}
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              {t("subtitle")}
-            </p>
-          </div>
+        <Reveal>
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="kicker mb-4">{t("kicker")}</p>
+              <h2
+                id="pricing-title"
+                className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
+              >
+                {t("title")}
+              </h2>
+              <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                {t("subtitle")}
+              </p>
+            </div>
 
-          <BillingToggle yearly={yearly} onChange={setYearly} />
-        </div>
+            <BillingToggle yearly={yearly} onChange={setYearly} />
+          </div>
+        </Reveal>
 
         <div className="mt-12 grid gap-4 lg:grid-cols-3 lg:gap-6">
-          {PLAN_KEYS.map((key) => (
+          {PLAN_KEYS.map((key, idx) => (
             <PlanCard
               key={key}
               slug={key}
               yearly={yearly}
               highlighted={key === "practice"}
+              delay={idx * 0.08}
             />
           ))}
         </div>
 
-        <p className="mt-8 max-w-3xl text-sm text-muted-foreground">
-          {t("footnote")}
-        </p>
+        <Reveal delay={0.1}>
+          <p className="mt-8 max-w-3xl text-sm text-muted-foreground">
+            {t("footnote")}
+          </p>
 
-        <div className="mt-12 flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-          <div>
-            <p className="text-lg font-semibold tracking-tight text-foreground">
-              {t("cta")}
-            </p>
-            <p className="text-sm text-muted-foreground">{t("ctaHint")}</p>
+          <div className="mt-12 flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+            <div>
+              <p className="text-lg font-semibold tracking-tight text-foreground">
+                {t("cta")}
+              </p>
+              <p className="text-sm text-muted-foreground">{t("ctaHint")}</p>
+            </div>
+            <a
+              href="mailto:hello@docvault.app?subject=DocVault%20plan%20enquiry"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              hello@docvault.app
+            </a>
           </div>
-          <a
-            href="mailto:hello@docvault.app?subject=DocVault%20plan%20enquiry"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <Mail className="h-4 w-4" aria-hidden="true" />
-            hello@docvault.app
-          </a>
-        </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -126,10 +133,12 @@ function PlanCard({
   slug,
   yearly,
   highlighted,
+  delay = 0,
 }: {
   slug: (typeof PLAN_KEYS)[number];
   yearly: boolean;
   highlighted: boolean;
+  delay?: number;
 }) {
   const t = useTranslations(`landing.pricing.plans`);
   const tCommon = useTranslations("landing.pricing");
@@ -145,7 +154,8 @@ function PlanCard({
   const isCustom = plan.price === tCommon("custom");
 
   return (
-    <div
+    <Reveal
+      delay={delay}
       className={`relative flex h-full flex-col rounded-2xl border bg-card p-6 sm:p-8 ${
         highlighted
           ? "border-amber shadow-[0_20px_50px_-25px_oklch(62%_0.12_65_/_0.5)]"
@@ -209,6 +219,6 @@ function PlanCard({
           {tCommon("cta")}
         </a>
       </div>
-    </div>
+    </Reveal>
   );
 }

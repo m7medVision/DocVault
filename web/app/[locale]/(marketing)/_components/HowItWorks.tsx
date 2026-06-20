@@ -1,5 +1,7 @@
 import { useTranslations } from "next-intl";
 
+import { Reveal } from "@/components/ui/reveal";
+
 const STEP_KEYS = ["upload", "process", "act"] as const;
 
 export function HowItWorks() {
@@ -13,7 +15,7 @@ export function HowItWorks() {
     >
       <div className="container-wide py-20 sm:py-28">
         <div className="grid gap-12 lg:grid-cols-[1fr_1.6fr] lg:gap-20">
-          <div className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal className="lg:sticky lg:top-28 lg:self-start">
             <p className="kicker mb-4">{t("kicker")}</p>
             <h2
               id="how-title"
@@ -24,7 +26,7 @@ export function HowItWorks() {
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {t("subtitle")}
             </p>
-          </div>
+          </Reveal>
 
           <ol className="space-y-12">
             {STEP_KEYS.map((key, idx) => {
@@ -44,7 +46,7 @@ export function HowItWorks() {
                       className="mt-3 h-12 w-px bg-border"
                     />
                   </div>
-                  <div>
+                  <Reveal delay={idx * 0.1}>
                     <p className="kicker mb-2">{step.label}</p>
                     <h3 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                       {step.title}
@@ -52,7 +54,7 @@ export function HowItWorks() {
                     <p className="mt-3 max-w-prose text-base leading-relaxed text-muted-foreground">
                       {step.body}
                     </p>
-                  </div>
+                  </Reveal>
                 </li>
               );
             })}

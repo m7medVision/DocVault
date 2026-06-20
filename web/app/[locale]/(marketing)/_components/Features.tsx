@@ -1,6 +1,8 @@
 import { useTranslations } from "next-intl";
 import { ScanText, CalendarClock, BellRing, Search, MessagesSquare, Lock } from "lucide-react";
 
+import { Reveal } from "@/components/ui/reveal";
+
 const ICONS: Record<string, typeof ScanText> = {
   ocr: ScanText,
   dates: CalendarClock,
@@ -22,18 +24,20 @@ export function Features() {
       className="border-t border-border bg-secondary/30"
     >
       <div className="container-wide py-20 sm:py-28">
-        <div className="max-w-3xl">
-          <p className="kicker mb-4">{t("kicker")}</p>
-          <h2
-            id="features-title"
-            className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
-          >
-            {t("title")}
-          </h2>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            {t("subtitle")}
-          </p>
-        </div>
+        <Reveal>
+          <div className="max-w-3xl">
+            <p className="kicker mb-4">{t("kicker")}</p>
+            <h2
+              id="features-title"
+              className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
+            >
+              {t("title")}
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {t("subtitle")}
+            </p>
+          </div>
+        </Reveal>
 
         {/* Asymmetric tile grid: not a uniform 3x2. Wide row, then a mixed row. */}
         <div className="mt-14 grid gap-4 sm:gap-6 md:grid-cols-3 lg:gap-8">
@@ -42,29 +46,31 @@ export function Features() {
             slug="ocr"
             className="md:col-span-2"
             variant="wide"
+            delay={0}
           />
 
           {/* Compact tile: Dates */}
-          <FeatureCard slug="dates" className="md:col-span-1" />
+          <FeatureCard slug="dates" className="md:col-span-1" delay={0.08} />
 
           {/* Tall tile: Search */}
           <FeatureCard
             slug="search"
             className="md:col-span-1"
             variant="tall"
+            delay={0.16}
           />
 
           {/* Standard: Reminders */}
-          <FeatureCard slug="reminders" className="md:col-span-1" />
+          <FeatureCard slug="reminders" className="md:col-span-1" delay={0.24} />
 
           {/* Standard: Chat */}
-          <FeatureCard slug="chat" className="md:col-span-1" />
+          <FeatureCard slug="chat" className="md:col-span-1" delay={0.32} />
         </div>
 
         {/* Pull-quote tile spans full width on the second band */}
-        <div className="mt-4 sm:mt-6 lg:mt-8">
+        <Reveal delay={0.1} className="mt-4 sm:mt-6 lg:mt-8">
           <TenancyBanner slug="tenancy" />
-        </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -74,10 +80,12 @@ function FeatureCard({
   slug,
   className = "",
   variant = "default",
+  delay = 0,
 }: {
   slug: (typeof SLUGS)[number];
   className?: string;
   variant?: "default" | "wide" | "tall";
+  delay?: number;
 }) {
   const t = useTranslations(`landing.features.items.${slug}`);
   const Icon = ICONS[slug];
@@ -92,7 +100,7 @@ function FeatureCard({
       : "";
 
   return (
-    <div className={`${baseSurface} ${variantSurface} ${className}`}>
+    <Reveal delay={delay} className={`${baseSurface} ${variantSurface} ${className}`}>
       <div className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
@@ -105,7 +113,7 @@ function FeatureCard({
 
       {variant === "wide" ? <OcrInline /> : null}
       {variant === "tall" ? <SearchInline /> : null}
-    </div>
+    </Reveal>
   );
 }
 
