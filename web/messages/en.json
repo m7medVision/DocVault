@@ -468,7 +468,8 @@
       "primaryCta": "Open your workspace",
       "primaryCtaHint": "Free for the first 30 days",
       "secondaryCta": "Sign in",
-      "trust": "Trusted by accounting, legal, and operations teams across the Gulf."
+      "trust": "Trusted by accounting, legal, and operations teams across the Gulf.",
+      "screenshotAlt": "The docvault workspace: a document list with expiry dates and a bilingual Arabic and English document panel."
     },
     "features": {
       "kicker": "What is inside",
