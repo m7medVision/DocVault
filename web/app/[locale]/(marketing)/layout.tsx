@@ -39,6 +39,9 @@ export default async function MarketingLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <noscript>
+        <style>{`[style*="opacity:0"]{opacity:1!important;transform:none!important}`}</style>
+      </noscript>
       <LandingNav locale={locale} />
       <main id="main" className="flex-1">
         {children}
