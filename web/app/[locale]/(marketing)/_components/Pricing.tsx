@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Check, Mail } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { Reveal } from "@/components/ui/reveal";
 
@@ -152,6 +153,7 @@ function PlanCard({
   };
 
   const isCustom = plan.price === tCommon("custom");
+  const reduce = useReducedMotion();
 
   return (
     <Reveal
@@ -189,7 +191,22 @@ function PlanCard({
               {plan.priceSuffix}
             </span>
             <span className="ms-2 text-sm text-muted-foreground">
-              {yearly ? tCommon("perYear") : tCommon("perMonth")}
+              {reduce ? (
+                <>{yearly ? tCommon("perYear") : tCommon("perMonth")}</>
+              ) : (
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={yearly ? "yearly" : "monthly"}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="inline-block"
+                  >
+                    {yearly ? tCommon("perYear") : tCommon("perMonth")}
+                  </motion.span>
+                </AnimatePresence>
+              )}
             </span>
           </>
         )}
