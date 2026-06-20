@@ -185,3 +185,26 @@ table, .tabular-nums {
 
 /* Landing reveals are handled by the <Reveal /> motion primitive
    (components/ui/reveal.tsx), which honors prefers-reduced-motion. */
+
+/* Testimonials marquee: seamless, GPU-friendly transform, pauses on
+   hover/focus, and is fully disabled under reduced-motion. The
+   Testimonials component falls back to a static grid in that case, so
+   this animation is decorative only. */
+@keyframes dv-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: dv-marquee 48s linear infinite;
+  will-change: transform;
+}
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+[dir="rtl"] .marquee-track {
+  animation-direction: reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
