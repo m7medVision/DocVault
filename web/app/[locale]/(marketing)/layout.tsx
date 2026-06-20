@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { routing } from "@/routing";
-import { ScrollProgress } from "@/components/magicui/scroll-progress";
+import { ScrollProgress } from "@/components/ui/scroll-progress";
 import { LandingNav } from "./_components/LandingNav";
 import { Footer } from "./_components/Footer";
 

@@ -469,12 +469,22 @@
       "primaryCtaHint": "Free for the first 30 days",
       "secondaryCta": "Sign in",
       "trust": "Trusted by accounting, legal, and operations teams across the Gulf.",
-      "screenshotAlt": "The docvault workspace: a document list with expiry dates and a bilingual Arabic and English document panel."
+      "screenshotAlt": "The docvault workspace: a document list with expiry dates and a bilingual Arabic and English document panel.",
+      "macbookTitle": "Your documents, read and organized."
     },
     "features": {
       "kicker": "What is inside",
       "title": "Built for the documents you actually keep",
       "subtitle": "Not a generic storage drive. DocVault is shaped by the way critical paperwork moves through a real office.",
+      "demo": {
+        "scanning": "Reading…",
+        "extracted": "Extracted",
+        "expiry": "Expiry",
+        "parties": "Parties",
+        "renewal": "Renewal",
+        "renewalValue": "Auto, 30 days",
+        "translation": "Translation"
+      },
       "items": {
         "ocr": {
           "title": "Reads Arabic and English",
@@ -504,24 +514,14 @@
     },
     "howItWorks": {
       "kicker": "How it works",
-      "title": "Three steps, then it runs itself",
-      "subtitle": "The first document takes two minutes. The rest happen quietly in the background.",
-      "steps": {
-        "upload": {
-          "label": "Step 01",
-          "title": "Upload or scan",
-          "body": "Drag in a PDF, a photo, or a DOCX. The pipeline accepts what your phone produces."
-        },
-        "process": {
-          "label": "Step 02",
-          "title": "Read and index",
-          "body": "OCR runs in Arabic and English. Dates, names, and amounts are extracted. The original is preserved."
-        },
-        "act": {
-          "label": "Step 03",
-          "title": "Search, ask, and never miss a date",
-          "body": "Find the document later by what it contains, not by what you named the file."
-        }
+      "title": "From upload to answer, in one quiet flow",
+      "subtitle": "Every document moves through the same pipeline. Upload once, and reading, translation, dates, and search follow on their own.",
+      "nodes": {
+        "upload": "Upload or scan",
+        "process": "Read and index",
+        "translate": "Translate AR and EN",
+        "dates": "Dates and reminders",
+        "search": "Search and ask"
       }
     },
     "pricing": {

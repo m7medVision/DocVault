@@ -70,7 +70,7 @@ export function Footer({ locale }: FooterProps) {
         <div className="mt-16 flex flex-col items-start justify-between gap-3 border-t border-border pt-8 text-sm text-muted-foreground sm:flex-row sm:items-center">
           <p>{t("copyright")}</p>
           <p className="tabular-nums">
-            {isRtl ? "صُنع بحرص، في مسقط والقاهرة" : "Made with care, in Muscat and Cairo."}
+            {isRtl ? "صُنع بحرص، في مسقط " : "Made with care, in Muscat."}
           </p>
         </div>
       </div>

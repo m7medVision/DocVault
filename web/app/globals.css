@@ -24,6 +24,7 @@
   --color-ring: var(--ring);
   --color-amber: var(--brand-amber);
   --color-amber-soft: var(--brand-amber-soft);
+  --font-sans: var(--font-sans-latin), ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -105,11 +106,12 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans-latin), system-ui, sans-serif;
   font-feature-settings: "ss01", "cv01", "kern";
 }
 
 html[lang="ar"] body {
-  font-family: var(--font-arabic), "Noto Sans", system-ui, sans-serif;
+  font-family: var(--font-arabic), var(--font-sans-latin), system-ui, sans-serif;
   letter-spacing: 0;
   line-height: 1.65;
 }
@@ -207,4 +209,23 @@ table, .tabular-nums {
 }
 @media (prefers-reduced-motion: reduce) {
   .marquee-track { animation: none; }
+}
+
+/* Hero spotlight (aceternity-style). Decorative; hidden under reduced
+   motion so the base opacity-0 state never resolves into view. */
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
+.animate-spotlight {
+  animation: spotlight 2s ease 0.75s 1 forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-spotlight { animation: none; }
 }
