@@ -16,6 +16,8 @@ type RevealProps = {
   duration?: number;
   /** Vertical travel distance in px. */
   offset?: number;
+  /** Blur radius in px for a blur-fade reveal. 0 disables the filter. */
+  blur?: number;
   /** Scroll-triggered (default) vs animate on mount (above-the-fold). */
   inView?: boolean;
   /** Animate only the first time it enters the viewport. */
@@ -30,6 +32,7 @@ export function Reveal({
   delay = 0,
   duration = 0.6,
   offset = 8,
+  blur = 0,
   inView = true,
   once = true,
   margin = "0px 0px -10% 0px",
@@ -38,10 +41,17 @@ export function Reveal({
   const reduce = useReducedMotion();
 
   const variants = {
-    hidden: reduce ? { opacity: 1 } : { opacity: 0, y: offset },
+    hidden: reduce
+      ? { opacity: 1 }
+      : {
+          opacity: 0,
+          y: offset,
+          ...(blur ? { filter: `blur(${blur}px)` } : {}),
+        },
     visible: {
       opacity: 1,
       y: 0,
+      ...(blur ? { filter: "blur(0px)" } : {}),
       transition: reduce
         ? { duration: 0 }
         : { duration, ease: EASE_OUT, delay },

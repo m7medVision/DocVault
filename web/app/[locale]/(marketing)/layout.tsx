@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import { routing } from "@/routing";
+import { ScrollProgress } from "@/components/magicui/scroll-progress";
 import { LandingNav } from "./_components/LandingNav";
 import { Footer } from "./_components/Footer";
 
@@ -42,6 +43,7 @@ export default async function MarketingLayout({
       <noscript>
         <style>{`[style*="opacity:0"]{opacity:1!important;transform:none!important}`}</style>
       </noscript>
+      <ScrollProgress />
       <LandingNav locale={locale} />
       <main id="main" className="flex-1">
         {children}

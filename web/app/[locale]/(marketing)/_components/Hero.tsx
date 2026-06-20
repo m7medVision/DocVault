@@ -12,6 +12,7 @@ import {
 } from "motion/react";
 
 import { Reveal } from "@/components/ui/reveal";
+import { NoiseTexture } from "@/components/magicui/noise-texture";
 
 export function Hero() {
   const t = useTranslations("landing.hero");
@@ -36,13 +37,14 @@ export function Hero() {
       className="relative overflow-hidden bg-background"
     >
       <div className="grain absolute inset-0 -z-10" aria-hidden="true" />
+      <NoiseTexture className="absolute inset-0 -z-10 opacity-[0.04]" />
       <div className="container-wide py-20 sm:py-24 lg:py-32">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
           <div className="flex flex-col items-start">
-            <Reveal inView={false} delay={0}>
+            <Reveal inView={false} blur={6} delay={0}>
               <p className="kicker mb-6">{t("eyebrow")}</p>
             </Reveal>
-            <Reveal inView={false} delay={0.08}>
+            <Reveal inView={false} blur={6} delay={0.08}>
               <h1
                 id="hero-title"
                 className="text-display text-balance text-foreground"
@@ -50,12 +52,12 @@ export function Hero() {
                 {t("title")}
               </h1>
             </Reveal>
-            <Reveal inView={false} delay={0.16}>
+            <Reveal inView={false} blur={6} delay={0.16}>
               <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
                 {t("subtitle")}
               </p>
             </Reveal>
-            <Reveal inView={false} delay={0.24}>
+            <Reveal inView={false} blur={6} delay={0.24}>
               <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <a
                   href="#pricing"
@@ -71,12 +73,12 @@ export function Hero() {
                 </a>
               </div>
             </Reveal>
-            <Reveal inView={false} delay={0.32}>
+            <Reveal inView={false} blur={6} delay={0.32}>
               <p className="mt-3 text-xs text-muted-foreground">
                 {t("primaryCtaHint")}
               </p>
             </Reveal>
-            <Reveal inView={false} delay={0.32}>
+            <Reveal inView={false} blur={6} delay={0.32}>
               <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
@@ -96,6 +98,7 @@ export function Hero() {
 
           <Reveal
             inView={false}
+            blur={8}
             delay={0.2}
             offset={12}
             className="lg:ps-4"
