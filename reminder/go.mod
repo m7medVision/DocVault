@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/getsentry/sentry-go v0.27.0
-	github.com/jackc/pgx/v5 v5.5.2
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/joho/godotenv v1.5.1
 	github.com/rabbitmq/amqp091-go v1.9.0
 )
@@ -26,8 +26,8 @@ require (
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	go.opentelemetry.io/otel v1.24.0 // OpenTelemetry core
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.24.0 // OTLP gRPC metric exporter
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.24.0 // indirect; OTLP trace exporter
@@ -36,7 +36,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.24.0 // OpenTelemetry SDK
 	go.opentelemetry.io/otel/sdk/metric v1.24.0 // OpenTelemetry metrics SDK
 	go.opentelemetry.io/otel/trace v1.24.0 // OpenTelemetry tracing
-	golang.org/x/crypto v0.17.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
 )
