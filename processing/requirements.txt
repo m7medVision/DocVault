@@ -13,7 +13,7 @@ numpy==1.26.3           # Numerical operations
 pydantic>=2.9.0         # Data validation
 
 # Utilities
-python-dotenv==1.0.0     # Environment variable loading
+python-dotenv==1.2.2     # Environment variable loading
 structlog==24.1.0       # Structured logging
 tenacity==8.2.3         # Retry logic
 
