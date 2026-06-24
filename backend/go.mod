@@ -88,14 +88,14 @@ require (
 )
 
 require (
-	go.opentelemetry.io/otel v1.40.0 // OpenTelemetry core
+	go.opentelemetry.io/otel v1.41.0 // OpenTelemetry core
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.24.0 // OTLP gRPC metric exporter
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.24.0 // indirect; OTLP trace exporter
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.24.0 // OTLP gRPC trace exporter
-	go.opentelemetry.io/otel/metric v1.40.0 // OpenTelemetry metrics
+	go.opentelemetry.io/otel/metric v1.41.0 // OpenTelemetry metrics
 	go.opentelemetry.io/otel/sdk v1.39.0 // OpenTelemetry SDK
 	go.opentelemetry.io/otel/sdk/metric v1.39.0 // OpenTelemetry metrics SDK
-	go.opentelemetry.io/otel/trace v1.40.0 // OpenTelemetry tracing
+	go.opentelemetry.io/otel/trace v1.41.0 // OpenTelemetry tracing
 	golang.org/x/net v0.51.0 // indirect; HTTP client/server utilities
 	golang.org/x/text v0.35.0 // indirect
 )
